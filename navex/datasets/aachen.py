@@ -42,7 +42,6 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
             transforms.transforms[0] = IdentityTransform()
 
         ImagePairDataset.__init__(self, root, None, transforms=transforms)
-        self.img_dir = os.path.join('..', self.img_dir)
 
     def _load_samples(self):
         s = list(range(self.npairs))

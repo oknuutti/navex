@@ -55,7 +55,7 @@ optimizer:
   eps: !!float 1e-8
 
 data:
-  path: 'c:/project-data/navex/data/aachen/optical_flow'
+  path: 'c:/project-data/navex/data/aachen'
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
