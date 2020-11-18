@@ -8,12 +8,17 @@ training:
     help: "experiment name or id used for outputs"
 
   cache:
-    alt: ['--cache']
+    alt: ['-c', '--cache']
     help: "path to cache dir"
 
   output:
-    alt: ['--out']
+    alt: ['-o', '--out']
     help: "path to output dir"
+
+  gpu:
+    alt: ['--gpu']
+    type: int
+    help: "Use GPU"
 
   batch_size:
     alt: ['-b']
@@ -31,7 +36,7 @@ training:
     help: "number of epochs to run"
 
   print_freq:
-    alt: ['-p']
+    alt: ['--pf']
     type: int
     help: "print frequency"
 
@@ -178,7 +183,7 @@ optimizer:
   __group__: 1
 
   method:
-    alt: ['-o']
+    alt: ['--op']
     help: "optimizer method, only 'adam' is currently supported"
 
   learning_rate:
@@ -208,6 +213,7 @@ data:
   __group__: 1
 
   path:
+    alt: ['-d', '--data']
     help: "path to dataset"
 
   trn_ratio:

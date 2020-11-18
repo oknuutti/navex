@@ -35,8 +35,6 @@ def main():
                                         verbose=False,
                                         mode='max')
 
-    use_gpu = 0
-
     trainer = pl.Trainer(default_root_dir=args.output,
                          logger=TensorBoardLogger(args.output, name=args.name),
                          callbacks=[checkpoint_callback, early_stop_callback],
@@ -47,11 +45,11 @@ def main():
                          resume_from_checkpoint=getattr(args, 'resume', None),
                          log_every_n_steps=2,
                          flush_logs_every_n_steps=10,
-                         gpus=1 if use_gpu else 0,
-                         auto_select_gpus=True if use_gpu else False,
+                         gpus=1 if args.gpu else 0,
+                         auto_select_gpus=True if args.gpu else False,
                          deterministic=False,
                          auto_lr_find=False,
-                         precision=16 if use_gpu else 32)
+                         precision=16 if args.gpu else 32)
     trainer.fit(model, trn_dl, val_dl)
 
     tst_dl = trial.build_test_data_loader()

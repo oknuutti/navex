@@ -1,6 +1,8 @@
 /*
 !/.gitignore
 !/navex
+!/README.md
+!/LICENSE
 
 __pycache__
 
