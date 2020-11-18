@@ -1,0 +1,61 @@
+
+
+training:
+  name: 'v0'
+  cache: 'c:/project-data/navex/cache'
+  output: 'd:/projects/navex/output'
+  batch_size: 8
+  acc_grad_batches: 8
+  epochs: 10
+  print_freq: 1
+  test_freq: 1
+  save_freq: 1
+  resume: null
+  evaluate: false
+  pretrained: ''
+  early_stopping: 50
+
+model:
+  arch: 'own_vgg'
+  head_conv_ch: !h_int 256
+  descriptor_dim: !h_int 256
+  width_mult: !h_float 1.0
+  dropout: !h_float 0.2
+  excl_bn_affine: true
+  batch_norm: true
+  direct_detection: false
+  pretrained: false
+  cache_dir: 'c:/project-data/navex/cache'
+
+loss:
+  wp: 1.0         # peakiness loss weight
+  wc: 1.0         # cosim loss weight
+  wa: 1.0         # ap loss weight
+  det_n: 16       # detector neighbourhood size
+  base: 0.5       # quality loss target mAP
+  nq: 20          # quantizer bins for ap calc
+  sampler:        # was for descriptor head output size [192, 192]
+    ngh: 4        # was 7       # neighbourhood size in descriptor cells
+    subq: -3      # was -8      # grid step size for positive samples
+    subd: 1       # was 1       # neigbourhood sampling interval
+    pos_d: 1      # was 2       # positive samples generated up to this far from ideal location
+    neg_d: 3      # was 5       # negative samples generated starting from distance from ideal location
+    border: 4     # was 16
+    subd_neg: -6  # was -8      # grid step size for generating additional negative samples
+    max_neg_b: 4                # distractors mined from max this number of images from same batch
+    maxpool_pos: True           # False: use all positive samples, or True: only the best matching one
+
+optimizer:
+  method: 'adam'
+  learning_rate: !h_float 1e-3
+  weight_decay: !h_float 2e-5
+  split_params: false
+  excl_bn: false
+  eps: !!float 1e-8
+
+data:
+  path: 'c:/project-data/navex/data/aachen/optical_flow'
+  trn_ratio: 0.8
+  val_ratio: 0.1
+  tst_ratio: 0.1
+  workers: 4
