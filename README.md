@@ -10,4 +10,5 @@ conda create -n navex python=3.8 pip
 conda activate navex
 pip install -e ./r2d2
 conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
+conda install pytorch-lightning opencv -c conda-forge
 ```

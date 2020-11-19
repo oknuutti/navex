@@ -1,8 +1,11 @@
+from typing import Union, Dict, Any, Optional
+from argparse import Namespace
 
 import torch
 from torch import Tensor
 
 import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from ..trials.base import TrialBase
 
@@ -48,14 +51,15 @@ class TrialWrapperBase(pl.LightningModule):
 
     def _log(self, lp, loss, acc):
         tot, inl, dst, map = self.nanmean(acc)
+        postfix = '_epoch' if lp == 'val' else ''
 
         # logger only
         self.log_dict({
-            lp + '_loss': loss,
-            lp + '_tot': tot * 100,
-            lp + '_inl': inl * 100,
-            lp + '_dst': dst,
-            lp + '_map': map * 100,
+            lp + '_loss' + postfix: loss,
+            lp + '_tot' + postfix: tot * 100,
+            lp + '_inl' + postfix: inl * 100,
+            lp + '_dst' + postfix: dst,
+            lp + '_map' + postfix: map * 100,
         }, prog_bar=False, logger=True, on_step=None, on_epoch=True, reduce_fx=self.nanmean)
 
         # progress bar only
@@ -73,9 +77,17 @@ class TrialWrapperBase(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         val_losses = torch.stack(outputs)
-        hp_metric = 2 - self.nanmean(val_losses)
+        hp_metric = -self.nanmean(val_losses)
         self.log('hp_metric', hp_metric)
 
     @staticmethod
     def nanmean(x: Tensor):
         return torch.nansum(x, dim=0) / torch.sum(torch.logical_not(torch.isnan(x)), dim=0)
+
+
+class MyLogger(TensorBoardLogger):
+    def log_hyperparams(self, params: Union[Dict[str, Any], Namespace],
+                        metrics: Optional[Dict[str, Any]] = None) -> None:
+        metrics = float('nan') if metrics is None else metrics
+        return super(MyLogger, self).log_hyperparams(params, metrics)
+

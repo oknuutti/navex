@@ -4,8 +4,8 @@ training:
   name: 'v0'
   cache: 'c:/project-data/navex/cache'
   output: 'd:/projects/navex/output'
-  batch_size: 8
-  acc_grad_batches: 8
+  batch_size: 16
+  acc_grad_batches: 1
   gpu: 1
   epochs: 10
   print_freq: 1
@@ -14,7 +14,10 @@ training:
   resume: null
   evaluate: false
   pretrained: ''
-  early_stopping: 50
+  early_stopping: 5
+  reduced_precision: 1
+  auto_lr_find: 0
+  deterministic: 1
 
 model:
   arch: 'own_vgg'
@@ -22,10 +25,10 @@ model:
   descriptor_dim: !h_int 256
   width_mult: !h_float 1.0
   dropout: !h_float 0.2
-  excl_bn_affine: true
-  batch_norm: true
-  direct_detection: false
-  pretrained: false
+  excl_bn_affine: 1
+  batch_norm: 1
+  direct_detection: 0
+  pretrained: 0
   cache_dir: 'c:/project-data/navex/cache'
 
 loss:
@@ -44,14 +47,14 @@ loss:
     border: 4     # was 16
     subd_neg: -6  # was -8      # grid step size for generating additional negative samples
     max_neg_b: 4                # distractors mined from max this number of images from same batch
-    maxpool_pos: True           # False: use all positive samples, or True: only the best matching one
+    maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
 
 optimizer:
   method: 'adam'
   learning_rate: !h_float 1e-3
   weight_decay: !h_float 2e-5
-  split_params: false
-  excl_bn: false
+  split_params: 0
+  excl_bn: 0
   eps: !!float 1e-8
 
 data:

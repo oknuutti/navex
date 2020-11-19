@@ -56,7 +56,7 @@ training:
 
   evaluate:
     alt: ['--eval']
-    action: 'store_true'
+    type: int
     help: "evaluate model on test set"
 
   pretrained:
@@ -67,6 +67,21 @@ training:
     alt: ['--es']
     type: int
     help: "stop training, if loss on validation set does not decrease for this many epochs"
+
+  reduced_precision:
+    alt: ['--16bit']
+    type: int
+    help: "Use 16-bit precision instead of 32-bit, works only for GPU training"
+
+  auto_lr_find:
+    alt: ['--find-lr']
+    type: int
+    help: "Task Lightning to find optimal learning rate"
+
+  deterministic:
+    alt: ['--det']
+    type: int
+    help: "Deterministic training, good for hyperparameters search, significantly slower"
 
 
 model:
@@ -95,15 +110,15 @@ model:
     help: "dropout ratio"
 
   excl_bn_affine:
-    action: 'store_true'
+    type: int
     help: "do not use affine transformation after batch normalization"
 
   batch_norm:
-    action: 'store_true'
+    type: int
     help: "use batch normalization"
 
   direct_detection:
-    action: 'store_true'
+    type: int
     help: "do not use multiple channels for the detector head"
 
   pretrained:
@@ -197,11 +212,11 @@ optimizer:
     help: "weight decay"
 
   split_params:
-    action: 'store_true'
+    type: int
     help: "use different optimization params for bias, weight and loss function params"
 
   excl_bn:
-    action: 'store_true'
+    type: int
     help: "exclude batch norm params from optimization"
 
   eps:

@@ -1,13 +1,13 @@
 
 import os
+import re
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from pytorch_lightning.loggers import TensorBoardLogger
 
 from .experiments.parser import ExperimentConfigParser, to_dict
 from .trials.terrestrial import TerrestrialTrial
-from .lightning_api.base import TrialWrapperBase
+from .lightning_api.base import TrialWrapperBase, MyLogger
 
 
 def main():
@@ -24,32 +24,42 @@ def main():
     trn_dl = trial.build_training_data_loader()
     val_dl = trial.build_validation_data_loader()
 
-    checkpoint_callback = ModelCheckpoint(monitor='val_loss',
-                                          period=args.save_freq,
-                                          dirpath=args.output,
-                                          filename='%s-%s-{epoch}-{val_loss:.3f}' % (config.model.arch, args.name))
+    version = None
+    if args.resume:
+        m = re.findall(r'-r(\d+)-', args.resume)
+        version = int(m[-1]) if m else None
+    logger = MyLogger(args.output, name=args.name, version=version)
 
-    early_stop_callback = EarlyStopping(monitor='val_loss',
-                                        min_delta=0.00,
-                                        patience=5,
-                                        verbose=False,
-                                        mode='max')
+    callbacks = [ModelCheckpoint(monitor='val_loss_epoch',
+                                 mode='min',
+                                 verbose=True,
+                                 period=args.save_freq,
+                                 dirpath=args.output,
+                                 filename='%s-%s-r%d-{epoch}-{val_loss_epoch:.3f}'
+                                          % (config.model.arch, args.name, logger.version))]
+
+    if args.early_stopping:
+        callbacks.append(EarlyStopping(monitor='val_loss_epoch',
+                                       mode='min',
+                                       min_delta=0.00,
+                                       patience=args.early_stopping,
+                                       verbose=True))
 
     trainer = pl.Trainer(default_root_dir=args.output,
-                         logger=TensorBoardLogger(args.output, name=args.name),
-                         callbacks=[checkpoint_callback, early_stop_callback],
+                         logger=logger,
+                         callbacks=callbacks,
                          accumulate_grad_batches=args.acc_grad_batches,
                          max_epochs=args.epochs,
                          progress_bar_refresh_rate=args.print_freq,
                          check_val_every_n_epoch=args.test_freq,
                          resume_from_checkpoint=getattr(args, 'resume', None),
-                         log_every_n_steps=2,
+                         log_every_n_steps=args.print_freq,
                          flush_logs_every_n_steps=10,
                          gpus=1 if args.gpu else 0,
-                         auto_select_gpus=True if args.gpu else False,
-                         deterministic=False,
-                         auto_lr_find=False,
-                         precision=16 if args.gpu else 32)
+                         auto_select_gpus=bool(args.gpu),
+                         deterministic=bool(args.deterministic),
+                         auto_lr_find=bool(args.auto_lr_find),
+                         precision=16 if args.gpu and args.reduced_precision else 32)
     trainer.fit(model, trn_dl, val_dl)
 
     tst_dl = trial.build_test_data_loader()
