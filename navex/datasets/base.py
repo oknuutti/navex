@@ -1,3 +1,4 @@
+import logging
 import random
 import math
 import os
@@ -188,7 +189,7 @@ class PairedRandomCrop:
 
             # resize img2, scale aflow
             sc_img2 = img2.resize((int(img2.size[0]*trg_sc/curr_sc), int(img2.size[1]*trg_sc/curr_sc)))
-            c_aflow *= trg_sc/curr_sc
+            c_aflow = c_aflow * trg_sc/curr_sc
 
             # instead of calculating mean coordinates, use cv2.filter2D and argmax for img2 also
             xy_shape = sc_img2.size[:2]
@@ -198,8 +199,8 @@ class PairedRandomCrop:
             c_ok[idxs[:, 0], idxs[:, 1]] = 1
             res2 = cv2.filter2D(c_ok, ddepth=cv2.CV_32F, anchor=(0, 0), borderType=cv2.BORDER_ISOLATED,
                                 kernel=np.ones(self.shape, dtype='float32') / np.prod(self.shape))
-            res2[res2.shape[0] - m:, :] = 0
-            res2[:, res2.shape[1] - n:] = 0
+            res2[res2.shape[0] - n:, :] = 0
+            res2[:, res2.shape[1] - m:] = 0
             i2, j2 = np.unravel_index(np.argmax(res2), res2.shape)
 
             c_img2 = sc_img2.crop((i2, j2, i2+m, j2+n))
