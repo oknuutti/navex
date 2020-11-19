@@ -12,7 +12,7 @@ training:
   test_freq: 1
   save_freq: 1
   resume: null
-  evaluate: false
+  evaluate: 0
   pretrained: ''
   early_stopping: 5
   reduced_precision: 1

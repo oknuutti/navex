@@ -164,7 +164,7 @@ class PairedRandomCrop:
         else:
             n_res = res
 
-        for _ in range(2):
+        for t in range(2):
             j1, i1 = np.unravel_index(np.argmax(n_res), n_res.shape)
             c_img1 = img1.crop((i1, j1, i1+m, j1+n))
             c_aflow = aflow[j1:j1+n, i1:i1+m]
@@ -180,18 +180,18 @@ class PairedRandomCrop:
 
             # determine target scale based on current scale, self.max_sc_diff, and self.random_sc
             lsc = abs(np.log10(self.max_sc_diff))
-            if self.random_sc:
+            if self.random_sc and t == 0:                       # if first try fails, don't scale for second try
                 trg_sc = 10**np.random.uniform(-lsc, lsc)
             else:
                 min_sc, max_sc = 10 ** (-lsc), 10 ** lsc
                 trg_sc = np.clip(curr_sc, min_sc, max_sc)
 
             # resize img2, scale aflow
-            img2 = img2.resize((int(img2.size[0]*trg_sc/curr_sc), int(img2.size[1]*trg_sc/curr_sc)))
+            sc_img2 = img2.resize((int(img2.size[0]*trg_sc/curr_sc), int(img2.size[1]*trg_sc/curr_sc)))
             c_aflow *= trg_sc/curr_sc
 
             # instead of calculating mean coordinates, use cv2.filter2D and argmax for img2 also
-            xy_shape = img2.size[:2]
+            xy_shape = sc_img2.size[:2]
             idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype('uint16')
             idxs = idxs[np.logical_and(idxs[:, 0] < xy_shape[0], idxs[:, 1] < xy_shape[1]), :]
             c_ok = np.zeros(xy_shape, dtype='float32')
@@ -202,7 +202,7 @@ class PairedRandomCrop:
             res2[:, res2.shape[1] - n:] = 0
             i2, j2 = np.unravel_index(np.argmax(res2), res2.shape)
 
-            c_img2 = img2.crop((i2, j2, i2+m, j2+n))
+            c_img2 = sc_img2.crop((i2, j2, i2+m, j2+n))
 
             assert tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
             assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
@@ -220,6 +220,7 @@ class PairedRandomCrop:
                 break
 
         if ratio_valid == 0:
+            # if this becomes a real problem, use SafeDataset and SafeDataLoader from nonechucks, then return None here
             raise DataLoadingException("no valid correspondences even for central crop")
 
         if 0:
