@@ -7,7 +7,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from .experiments.parser import ExperimentConfigParser, to_dict
 from .trials.terrestrial import TerrestrialTrial
-from .lightning_api.base import TrialWrapperBase, MyLogger
+from .lightning.base import TrialWrapperBase, MyLogger
 
 
 def main():
@@ -34,7 +34,7 @@ def main():
                                  mode='min',
                                  verbose=True,
                                  period=args.save_freq,
-                                 dirpath=args.output,
+                                 # dirpath=args.output,  # by default: default_root_dir/name/version
                                  filename='%s-%s-r%d-{epoch}-{val_loss_epoch:.3f}'
                                           % (config.model.arch, args.name, logger.version))]
 

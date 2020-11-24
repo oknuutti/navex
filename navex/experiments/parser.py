@@ -49,7 +49,14 @@ class ExperimentConfigParser(ArgumentParser):
         raw_args = super(ExperimentConfigParser, self).parse_args(args=args, namespace=namespace)
 
         def hyp_constr(l, s, n):
-            cls = {c.__name__: c for c in (bool, int, float, str)}[s]
+            t = s.split('_')
+            cls = dict([(c.__name__, c) for c in (bool, int, float, str)] + [('tune', 'tune')]).get(t[0], None)
+            assert cls is not None, 'Unknown hyperparameter class: "%s"' % s
+
+            if cls == 'tune':
+                from ray import tune
+                cls = getattr(tune, '_'.join(t[1:]))
+
             return HyperParam(n.value, cls)
 
         yaml.add_multi_constructor('!h_', hyp_constr, yaml.loader.SafeLoader)
@@ -123,8 +130,8 @@ class ExperimentConfigParser(ArgumentParser):
 
 class HyperParam:
     def __init__(self, value, cls):
-        self._value = cls(value)
         self.cls = cls
+        self.value = value
 
     @property
     def value(self):
@@ -132,16 +139,42 @@ class HyperParam:
 
     @value.setter
     def value(self, value):
-        self._value = self.cls(value)
+        if self.cls.__module__[:9] == 'ray.tune.':
+            self._value = self.cls(*eval('(%s,)' % value))
+        else:
+            self._value = self.cls(value)
 
     def __str__(self):
         return "hparam %s(%s)" % (self.cls.__name__, self.value)
 
 
+def flatten_dict(nested, sep='.'):
+    flat = {}
+    def _hp_subtree(f, path, n):
+        for k, v in n.items():
+            path_k = (path + sep + k) if path else k
+            if isinstance(v, dict):
+                _hp_subtree(f, path_k, v)
+            else:
+                f[path_k] = v
+    _hp_subtree(flat, '', nested)
+    return flat
+
+
+def set_nested(nested, key, value, sep='.'):
+    t = key.split(sep)
+    n = nested
+    for i, k in enumerate(t):
+        if i < len(t)-1:
+            n = n[k]
+        else:
+            n[k] = value
+
+
 def to_dict(ns):
     def _conv_subtree(from_node, to_node):
-        for k, v in from_node.__dict__.items():
-            if isinstance(v, Namespace):
+        for k, v in (from_node if isinstance(from_node, dict) else from_node.__dict__).items():
+            if isinstance(v, (Namespace, dict)):
                 to_node[k] = {}
                 _conv_subtree(v, to_node[k])
             else:

@@ -1,4 +1,41 @@
+search:
+  __group__: 1
 
+  username:
+    alt: ['--username']
+    help: ""
+
+  host:
+    alt: ['--host']
+    help: ""
+
+  proxy:
+    alt: ['--proxy']
+    help: ""
+
+  keyfile:
+    alt: ['--keyfile']
+    help: ""
+
+  samples:
+    alt: []
+    type: int
+    help: ""
+
+  workers:
+    alt: []
+    type: int
+    help: ""
+
+  grace_period:
+    alt: []
+    type: int
+    help: ""
+
+  reduction_factor:
+    alt: []
+    type: int
+    help: ""
 
 training:
   __group__: 1
