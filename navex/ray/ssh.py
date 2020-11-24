@@ -1,5 +1,6 @@
 import threading
 import socket
+import warnings
 
 import paramiko
 import select
@@ -48,8 +49,10 @@ class Connection:
             c = paramiko.SSHClient()
             c.load_system_host_keys()
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
-            c.connect('127.0.0.1', port=self.local_forwarded_port,
-                      username=self._username, key_filename=self._keyfile)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message=r"Unknown \S+ host key")
+                c.connect('127.0.0.1', port=self.local_forwarded_port,
+                          username=self._username, key_filename=self._keyfile)
             self._host_client = c
 
     def _close_connection(self):

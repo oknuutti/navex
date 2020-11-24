@@ -11,18 +11,22 @@ from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
 
-from ..experiments.parser import set_nested
+from ..experiments.parser import set_nested, nested_update
 from ..lightning.base import TrialWrapperBase, MyLogger
 from ..trials.terrestrial import TerrestrialTrial
 
 
 def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     # override full configuration set with contents of hparams
-    for key, val in hparams.items():
-        set_nested(full_conf, key, val)
+    # for key, val in hparams.items():
+    #     set_nested(full_conf, key, val)
+    nested_update(full_conf, hparams)
 
     # set paths
     sj_id = os.getenv('SLURM_JOB_ID')
+    if sj_id is None:
+        raise Exception('not a slurm node!')
+
     full_conf['data']['path'] = os.path.join('/tmp', sj_id, full_conf['data']['path'])
     full_conf['training']['output'] = tune.get_trial_dir()
     full_conf['training']['cache'] = os.path.join(full_conf['training']['output'], '..', 'cache')
@@ -104,18 +108,19 @@ def tune_asha(search_conf, hparams, full_conf):
         parameter_columns=list(hparams.keys())[:4],
         metric_columns=["loss", "inl_ratio", "mAP"])
 
+    execute_trial.__name__ = train_conf['name']
     tune.run(
-        partial(execute_trial, model_conf=full_conf['model'], loss_conf=full_conf['loss'],
-                opt_conf=full_conf['optimizer'], data_conf=full_conf['data'], train_conf=train_conf),
+        partial(execute_trial, full_conf=full_conf),
         resources_per_trial={
             "cpu": full_conf['data']['workers'],
             "gpu": train_conf['gpu'],
         },
         config=hparams,
-        upload_dir=train_conf['output'],
+        # upload_dir=train_conf['output'],
         # trial_name_creator=,
         # trial_dirname_creator=,
         num_samples=search_conf['samples'],
         scheduler=scheduler,
+        queue_trials=True,
         progress_reporter=reporter,
         name=train_conf['name'])

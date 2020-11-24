@@ -1,5 +1,6 @@
 
 import os
+import re
 
 import ray
 
@@ -15,10 +16,16 @@ def main():
     os.makedirs(config.training.output, exist_ok=True)
 
     full_conf = to_dict(config)
-    search_conf, hparams = full_conf.pop('search'), flatten_dict(full_conf.pop('hparams'))
+    search_conf, hparams = full_conf.pop('search'), full_conf.pop('hparams')
+
+    # import ray.tune as tune
+    # from ray.tune.suggest.variant_generator import generate_variants
+    # print(hparams)
+    # print(list(generate_variants(hparams)))
+    # quit()
 
     # start a ray cluster by creating the head, connect to it
-    addr = ray.init()
+    addr = ray.init(num_cpus=1, num_gpus=0)
     local_host, local_port = addr['redis_address'].split(':')
     local_port = int(local_port)
 
@@ -29,28 +36,41 @@ def main():
     # schedule workers
     workers = []
     for i in range(search_conf['workers']):
-        out, err = ssh.exec("sbatch -c %d --export=CPUS=%d,HEAD_ADDR='%s' $WRKDIR/navex/navex/ray/worker.sbatch" % (
+        out, err = ssh.exec("sbatch -c %d --export=ALL,CPUS=%d,HEAD_ADDR='%s' $WRKDIR/navex/navex/ray/worker.sbatch" % (
             config.data.workers,
             config.data.workers,
-            'triton.aalto.fi:%d' % remote_port,
+            '%s:%d' % (search_conf['host'], remote_port),
         ))
-        print('out:' + out)
-        print('err:' + err)
-        workers.append(out)
+        m = re.search(r'\d+$', out)
+        if err or not m:
+            print('out: ' + out)
+            print('err: ' + err)
+        else:
+            workers.append(int(m[0]))
 
-    # check if ray syncs the logs to local, if not, use ssh
-    #ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
+    print('following workers scheduled: %s' % (workers,))
 
-    # start the search
-    # tune_asha(search_conf, hparams, full_conf)
+    exception = None
+    if len(workers) == search_conf['workers']:
+        # check if ray syncs the logs to local, if not, use ssh
+        # ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
+
+        # start the search
+        try:
+            tune_asha(search_conf, hparams, full_conf)
+        except Exception as e:
+            exception = e
+
+    print('cleaning up...')
 
     # clean up
     for wid in workers:
-        out, err = ssh.exec("scancel %d" % (wid))
-        print('out:' + out)
-        print('err:' + err)
+        out, err = ssh.exec("scancel %d" % wid)
 
     del ssh
+
+    if exception:
+        raise Exception('This happended when trying to setup tune') from exception
 
 
 if __name__ == '__main__':

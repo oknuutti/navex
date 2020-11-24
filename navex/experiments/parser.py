@@ -140,7 +140,11 @@ class HyperParam:
     @value.setter
     def value(self, value):
         if self.cls.__module__[:9] == 'ray.tune.':
-            self._value = self.cls(*eval('(%s,)' % value))
+            import random
+            from ray import tune
+            import numpy as np
+            val = eval('(%s,)' % value, {'random': random, 'tune': tune, 'np': np})
+            self._value = self.cls(*val)
         else:
             self._value = self.cls(value)
 
@@ -169,6 +173,18 @@ def set_nested(nested, key, value, sep='.'):
             n = n[k]
         else:
             n[k] = value
+
+
+def nested_update(orig, new):
+    def _upd_subtree(o, n):
+        for k, v in n.items():
+            if isinstance(v, dict):
+                if k not in o:
+                    o[k] = {}
+                _upd_subtree(o[k], v)
+            else:
+                o[k] = v
+    _upd_subtree(orig, new)
 
 
 def to_dict(ns):
