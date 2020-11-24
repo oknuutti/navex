@@ -2,7 +2,7 @@
 #SBATCH --time=0-07:59:00               # estimated execution time (~80s/epoch)
 #SBATCH --mem-per-cpu=4G                # memory needed (~2Gb/core)
 #SBATCH --gres=gpu:1                    # GPUs needed
-#SBATCH -c $CPUS                        # CPUs needed (~9 per one gpu)
+####SBATCH -c $CPUS                        # CPUs needed (~9 per one gpu)  # given at command line
 #SBATCH --constraint='pascal|volta'     # exclude the slowest GPUs
 #SBATCH --signal=SIGUSR1@90             # wall time auto-resubmit using Lightning
 

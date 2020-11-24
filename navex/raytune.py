@@ -29,7 +29,8 @@ def main():
     # schedule workers
     workers = []
     for i in range(search_conf['workers']):
-        out, err = ssh.exec("sbatch --export=CPUS=%d,HEAD_ADDR='%s' $WRKDIR/navex/ray/worker.sbatch" % (
+        out, err = ssh.exec("sbatch -c %d --export=CPUS=%d,HEAD_ADDR='%s' $WRKDIR/navex/navex/ray/worker.sbatch" % (
+            config.data.workers,
             config.data.workers,
             'triton.aalto.fi:%d' % remote_port,
         ))
