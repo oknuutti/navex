@@ -1,6 +1,7 @@
 import threading
 import socket
 import warnings
+import logging
 
 import paramiko
 import select
@@ -13,8 +14,6 @@ except ImportError:
 
 # based on paramiko demos forward.py and rforward.py
 class Connection:
-    VERBOSE = True
-
     def __init__(self, host, username, keyfile, proxy, local_forwarded_port):
         self._host = host
         self._username = username
@@ -66,9 +65,9 @@ class Connection:
     def __del__(self):
         self._close_connection()
 
-    def reverse_tunnel(self, local_host, local_port, remote_port=0):
+    def reverse_tunnel(self, local_host, local_port, remote_host='127.0.0.1', remote_port=0):
         transport = self._host_client.get_transport()
-        self.remote_port = transport.request_port_forward("127.0.0.1", remote_port)
+        self.remote_port = transport.request_port_forward(remote_host, remote_port)
 
         def reverse(lhost, lport):
             while True:
@@ -116,22 +115,22 @@ class Connection:
                     self.request.getpeername(),
                 )
             except Exception as e:
-                Connection._verbose(
+                logging.error(
                     "Incoming request to %s:%d failed: %s"
                     % (self.chain_host, self.chain_port, repr(e))
                 )
                 return
             if chan is None:
-                Connection._verbose(
+                logging.error(
                     "Incoming request to %s:%d was rejected by the SSH server."
                     % (self.chain_host, self.chain_port)
                 )
                 return
 
-            Connection._verbose(
-                "Connected!  Tunnel open %r -> %r -> %r"
+            logging.info(
+                "Connected! Tunnel open %r -> %r -> %r"
                 % (
-                    self.request.getpeername(),
+                    self.request.getsockname(),
                     chan.getpeername(),
                     (self.chain_host, self.chain_port),
                 )
@@ -152,7 +151,7 @@ class Connection:
             peername = self.request.getpeername()
             chan.close()
             self.request.close()
-            Connection._verbose("Tunnel closed from %r" % (peername,))
+            logging.info("Tunnel closed from %r" % (peername,))
 
     @staticmethod
     def _reverse_handler(chan, host, port):
@@ -160,12 +159,12 @@ class Connection:
         try:
             sock.connect((host, port))
         except Exception as e:
-            Connection._verbose("Reverse forwarding request to %s:%d failed: %r" % (host, port, e))
+            logging.error("Reverse forwarding request to %s:%d failed: %r" % (host, port, e))
             return
 
-        Connection._verbose(
-            "Connected!  Tunnel open %r -> %r -> %r"
-            % (chan.origin_addr, chan.getpeername(), (host, port))
+        logging.info(
+            "Connected! Reverse tunnel open %r <- %r <- %r"
+            % ((host, port), chan.getpeername(), chan.origin_addr)
         )
         while True:
             r, w, x = select.select([sock, chan], [], [])
@@ -181,9 +180,4 @@ class Connection:
                 sock.send(data)
         chan.close()
         sock.close()
-        Connection._verbose("Tunnel closed from %r" % (chan.origin_addr,))
-
-    @classmethod
-    def _verbose(cls, s):
-        if cls.VERBOSE:
-            print(s)
+        logging.info("Tunnel closed from %r" % (chan.origin_addr,))

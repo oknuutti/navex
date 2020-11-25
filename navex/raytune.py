@@ -1,6 +1,7 @@
 
 import os
 import re
+import logging
 
 import ray
 
@@ -12,6 +13,7 @@ from .experiments.parser import ExperimentConfigParser, to_dict, flatten_dict
 def main():
     def_file = os.path.join(os.path.dirname(__file__), 'experiments', 'definition.yaml')
     config = ExperimentConfigParser(definition=def_file).parse_args()
+    logging.basicConfig(level=logging.INFO)
 
     os.makedirs(config.training.output, exist_ok=True)
 
@@ -31,7 +33,11 @@ def main():
 
     # ssh reverse tunnel  remote_port => local_port
     ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 20022)
-    remote_port = ssh.reverse_tunnel('', local_port)
+    # TODO: fix this: 34735 is a magical port number, other similar seem to be blocked by triton firewall
+    remote_port = ssh.reverse_tunnel('127.0.0.1', local_port, search_conf['host'], 34735)
+    logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (search_conf['host'], remote_port, local_port))
+
+    # search_conf['workers'] = 0
 
     # schedule workers
     workers = []
@@ -43,12 +49,11 @@ def main():
         ))
         m = re.search(r'\d+$', out)
         if err or not m:
-            print('out: ' + out)
-            print('err: ' + err)
+            logging.error('Could not schedule a worker, out: %s, err: %s' % (out, err))
         else:
             workers.append(int(m[0]))
 
-    print('following workers scheduled: %s' % (workers,))
+    logging.info('following workers scheduled: %s' % (workers,))
 
     exception = None
     if len(workers) == search_conf['workers']:
@@ -61,7 +66,7 @@ def main():
         except Exception as e:
             exception = e
 
-    print('cleaning up...')
+    logging.info('cleaning up...')
 
     # clean up
     for wid in workers:

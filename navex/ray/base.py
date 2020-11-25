@@ -108,7 +108,6 @@ def tune_asha(search_conf, hparams, full_conf):
         parameter_columns=list(hparams.keys())[:4],
         metric_columns=["loss", "inl_ratio", "mAP"])
 
-    execute_trial.__name__ = train_conf['name']
     tune.run(
         partial(execute_trial, full_conf=full_conf),
         resources_per_trial={
