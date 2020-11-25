@@ -27,25 +27,39 @@ def main():
     # quit()
 
     # start a ray cluster by creating the head, connect to it
-    addr = ray.init(num_cpus=1, num_gpus=0)
-    local_host, local_port = addr['redis_address'].split(':')
-    local_port = int(local_port)
+    addr = ray.init(num_cpus=1, num_gpus=0, log_to_driver=False)
+    node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
-    # ssh reverse tunnel  remote_port => local_port
-    ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 20022)
-    # TODO: fix this: 34735 is a magical port number, other similar seem to be blocked by triton firewall
-    remote_port = ssh.reverse_tunnel('127.0.0.1', local_port, search_conf['host'], 34735)
-    logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (search_conf['host'], remote_port, local_port))
+    # cant find redis shard port, seems not open anyways
+    local_ports = [int(addr['redis_address'].split(':')[-1]), None,
+                   node_info['NodeManagerPort'], node_info['ObjectManagerPort']]
+    # TODO: fix this: magical port numbers, other similar seem to be blocked by triton firewall
+    remote_ports = (34735, None, 33111, 35124)
 
-    # search_conf['workers'] = 0
+    hostname = os.getenv('HOSTNAME')
+    if hostname and search_conf['host'] in hostname:
+        # TODO: no need tunneling, just open ssh to localhost
+        raise NotImplemented()
+    else:
+        # ssh reverse tunnels remote_port => local_port
+        ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 20022)
+        for lport, rport in zip(local_ports, remote_ports):
+            if lport is not None:
+                rport = ssh.reverse_tunnel('127.0.0.1', lport, search_conf['host'], rport)
+                logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (search_conf['host'], rport, lport))
+
+    #search_conf['workers'] = 0
 
     # schedule workers
     workers = []
     for i in range(search_conf['workers']):
-        out, err = ssh.exec("sbatch -c %d --export=ALL,CPUS=%d,HEAD_ADDR='%s' $WRKDIR/navex/navex/ray/worker.sbatch" % (
+        out, err = ssh.exec(
+            ("sbatch -c %d --export=ALL,CPUS=%d,HEAD_ADDR='%s',SHARD_PORT=%d,NODE_PORT=%d,OBJ_PORT=%d"
+             "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,
-            '%s:%d' % (search_conf['host'], remote_port),
+            '%s:%d' % (search_conf['host'], remote_ports[0]),
+            *remote_ports[1:],
         ))
         m = re.search(r'\d+$', out)
         if err or not m:

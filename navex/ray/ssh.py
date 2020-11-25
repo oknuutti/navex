@@ -1,5 +1,6 @@
 import threading
 import socket
+import time
 import warnings
 import logging
 
@@ -21,7 +22,6 @@ class Connection:
         self._proxy = proxy
         self.local_forwarded_port = local_forwarded_port
 
-        self.remote_forwarded_port = None
         self._forwarding_thread = None
         self._reversing_thread = None
         self._proxy_client = None
@@ -67,7 +67,7 @@ class Connection:
 
     def reverse_tunnel(self, local_host, local_port, remote_host='127.0.0.1', remote_port=0):
         transport = self._host_client.get_transport()
-        self.remote_port = transport.request_port_forward(remote_host, remote_port)
+        remote_port = transport.request_port_forward(remote_host, remote_port)
 
         def reverse(lhost, lport):
             while True:
@@ -77,7 +77,8 @@ class Connection:
 
         self._reversing_thread = threading.Thread(target=reverse, args=(local_host, local_port), daemon=True)
         self._reversing_thread.start()
-        return self.remote_port
+        time.sleep(0.1)
+        return remote_port
 
     def exec(self, cmd):
         stdin, stdout, stderr = self._host_client.exec_command(cmd)
