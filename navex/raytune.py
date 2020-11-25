@@ -22,7 +22,7 @@ def main():
 
     # start a ray cluster by creating the head, connect to it
     redis_pwd = '5241590000000000'
-    if 0:
+    if 1:
         addr = ray.init(num_cpus=1, num_gpus=0, log_to_driver=False, _redis_password=redis_pwd)
         node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
         local_ports = [int(addr['redis_address'].split(':')[-1]),
@@ -30,8 +30,8 @@ def main():
     else:
         local_ports = (34735, 33111, 35124)
         os.system("ray start --head --include-dashboard 0 --num-cpus 1 --num-gpus 0 --port 34735 "
-                  "          --node-manager-port=33111 --object-manager-port=35124 --redis-password='%s'" % redis_pwd)
-        ray.init('auto', _redis_password=redis_pwd)
+                  "          --node-manager-port=33111 --object-manager-port=35124 --redis-password=%s" % redis_pwd)
+        ray.init('localhost:34735', _redis_password=redis_pwd)
     # TODO: fix this: magical port numbers, other similar seem to be blocked by triton firewall
     remote_ports = (34735, 33111, 35124)
 
@@ -47,18 +47,17 @@ def main():
                 rport = ssh.reverse_tunnel('127.0.0.1', lport, search_conf['host'], rport)
                 logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (search_conf['host'], rport, lport))
 
-    #search_conf['workers'] = 0
+    search_conf['workers'] = 0
 
     # schedule workers
     workers = []
     for i in range(search_conf['workers']):
         out, err = ssh.exec(
-            ("sbatch -c %d --export=ALL,CPUS=%d,HEAD_ADDR='%s',NODE_PORT=%d,OBJ_PORT=%d,REDIS_PWD=%s "
+            ("sbatch -c %d --export=ALL,CPUS=%d,HEAD_PORT=%d,NODE_PORT=%d,OBJ_PORT=%d,REDIS_PWD=%s "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,
-            '%s:%d' % (search_conf['host'], remote_ports[0]),
-            *remote_ports[1:],
+            *remote_ports,
             redis_pwd,
         ))
         m = re.search(r'\d+$', out)

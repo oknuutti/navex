@@ -1,6 +1,6 @@
 search:
   samples: 64
-  workers: 2
+  workers: 1
   grace_period: 2
   reduction_factor: 4
 

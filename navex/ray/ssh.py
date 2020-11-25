@@ -3,9 +3,11 @@ import socket
 import time
 import warnings
 import logging
+from functools import partial
 
 import paramiko
 import select
+from paramiko import Transport, SSHException
 
 try:
     import SocketServer
@@ -15,6 +17,9 @@ except ImportError:
 
 # based on paramiko demos forward.py and rforward.py
 class Connection:
+    TIMEOUT = 10    # in seconds
+    reverse_map = {}
+
     def __init__(self, host, username, keyfile, proxy, local_forwarded_port):
         self._host = host
         self._username = username
@@ -65,18 +70,19 @@ class Connection:
     def __del__(self):
         self._close_connection()
 
-    def reverse_tunnel(self, local_host, local_port, remote_host='127.0.0.1', remote_port=0):
+    def reverse_tunnel(self, local_host, local_port, remote_host='localhost', remote_port=0):
         transport = self._host_client.get_transport()
+        override_transport(transport)
         remote_port = transport.request_port_forward(remote_host, remote_port)
+        Connection.reverse_map[remote_port] = (local_host, local_port)
 
-        def reverse(lhost, lport):
+        def reverse():
             while True:
                 chan = transport.accept(1000)
                 if chan is not None:
-                    Connection._reverse_handler(chan, lhost, lport)
+                    _reverse_handler(chan)
 
-        self._reversing_thread = threading.Thread(target=reverse, args=(local_host, local_port), daemon=True)
-        self._reversing_thread.start()
+        threading.Thread(target=reverse, daemon=True).start()
         time.sleep(0.1)
         return remote_port
 
@@ -154,31 +160,63 @@ class Connection:
             self.request.close()
             logging.info("Tunnel closed from %r" % (peername,))
 
-    @staticmethod
-    def _reverse_handler(chan, host, port):
-        sock = socket.socket()
-        try:
-            sock.connect((host, port))
-        except Exception as e:
-            logging.error("Reverse forwarding request to %s:%d failed: %r" % (host, port, e))
-            return
 
-        logging.info(
-            "Connected! Reverse tunnel open %r <- %r <- %r"
-            % ((host, port), chan.getpeername(), chan.origin_addr)
-        )
-        while True:
-            r, w, x = select.select([sock, chan], [], [])
-            if sock in r:
-                data = sock.recv(1024)
-                if len(data) == 0:
-                    break
-                chan.send(data)
-            if chan in r:
-                data = chan.recv(1024)
-                if len(data) == 0:
-                    break
-                sock.send(data)
-        chan.close()
-        sock.close()
-        logging.info("Tunnel closed from %r" % (chan.origin_addr,))
+def override_transport(transport):
+    class MyTransport(Transport):
+        def request_port_forward(self, address, port, handler=None):
+            if not self.active:
+                raise SSHException("SSH session not active")
+            port = int(port)
+            response = self.global_request(
+                "tcpip-forward", (address, port), wait=True
+            )
+            if response is None:
+                raise SSHException("TCP forwarding request denied")
+            if port == 0:
+                port = response.get_int()
+            if handler is None:
+                def default_handler(channel, src_addr, dest_addr_port):
+                    # src_addr, src_port = src_addr_port
+                    # dest_addr, dest_port = dest_addr_port
+                    channel.origin_addr = dest_addr_port        # THE ONLY CHANGE VS "Transport" IS THIS LINE
+                    self._queue_incoming_channel(channel)
+
+                handler = default_handler
+            self._tcp_handler = handler
+            return port
+    transport.__class__ = MyTransport
+
+
+def _reverse_handler(chan):
+    rem_dst_host, rem_dst_port = rem_dst_addr = chan.origin_addr
+    loc_dst_host, loc_dst_port = loc_dst_addr = Connection.reverse_map[rem_dst_port]
+
+    sock = socket.socket()
+    try:
+        sock.connect((loc_dst_host, loc_dst_port))
+    except Exception as e:
+        logging.error("Reverse forwarding request to %s:%d failed: %r" % (loc_dst_host, loc_dst_port, e))
+        return
+
+    logging.info(
+        "Connected! Reverse tunnel open %r <- %r <- %r"
+        % ((loc_dst_host, loc_dst_port), chan.getpeername(), chan.origin_addr)
+    )
+    while True:
+        r, w, x = select.select([sock, chan], [], [], Connection.TIMEOUT)
+        if not r:
+            logging.warning('channel read timeout %fs (%s <= %s)' % (Connection.TIMEOUT, loc_dst_addr, rem_dst_addr))
+            break
+        if sock in r:
+            data = sock.recv(1024)
+            if len(data) == 0:
+                break
+            chan.send(data)
+        if chan in r:
+            data = chan.recv(1024)
+            if len(data) == 0:
+                break
+            sock.send(data)
+    chan.close()
+    sock.close()
+    logging.info("Tunnel closed from %r" % (chan.origin_addr,))
