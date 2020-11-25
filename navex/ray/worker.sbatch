@@ -6,6 +6,8 @@
 #SBATCH --constraint='pascal|volta'     # exclude the slowest GPUs
 #SBATCH --signal=SIGUSR1@90             # wall time auto-resubmit using Lightning
 
+set -x    # echo all commands for debug purposes
+
 ## copy image data to local drive
 mkdir /tmp/$SLURM_JOB_ID
 trap "rm -r /tmp/$SLURM_JOB_ID; exit" TERM EXIT
