@@ -19,6 +19,10 @@ source activate $WRKDIR/conda/envs/navex
 ssh -o ExitOnForwardFailure=yes -f -N -L $HEAD_PORT:localhost:$HEAD_PORT -L $OBJ_PORT:localhost:$OBJ_PORT \
                                       -L $NODE_PORT:localhost:$NODE_PORT triton.aalto.fi
 
+sleep 3s
+
 export TUNE_RESULT_DIR=$WRKDIR/navex/output
 srun ray start --address=localhost:$HEAD_PORT --object-manager-port=$OBJ_PORT --redis-password=$REDIS_PWD \
                --node-manager-port=$NODE_PORT --verbose --block --num-cpus=$CPUS --num-gpus=1
+
+sleep 1h
