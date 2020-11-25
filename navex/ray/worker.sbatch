@@ -17,5 +17,5 @@ module load anaconda
 source activate $WRKDIR/conda/envs/navex
 
 export TUNE_RESULT_DIR=$WRKDIR/navex/output
-srun ray start --address=$HEAD_ADDR --object-manager-port=$OBJ_PORT \
+srun ray start --address=$HEAD_ADDR --object-manager-port=$OBJ_PORT --redis-password=$REDIS_PWD \
                --node-manager-port=$NODE_PORT --verbose --block --num-cpus=$CPUS --num-gpus=1
