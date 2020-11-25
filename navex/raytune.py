@@ -20,21 +20,13 @@ def main():
     full_conf = to_dict(config)
     search_conf, hparams = full_conf.pop('search'), full_conf.pop('hparams')
 
-    # import ray.tune as tune
-    # from ray.tune.suggest.variant_generator import generate_variants
-    # print(hparams)
-    # print(list(generate_variants(hparams)))
-    # quit()
-
     # start a ray cluster by creating the head, connect to it
     addr = ray.init(num_cpus=1, num_gpus=0, log_to_driver=False)
     node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
-
-    # cant find redis shard port, seems not open anyways
-    local_ports = [int(addr['redis_address'].split(':')[-1]), None,
+    local_ports = [int(addr['redis_address'].split(':')[-1]),
                    node_info['NodeManagerPort'], node_info['ObjectManagerPort']]
     # TODO: fix this: magical port numbers, other similar seem to be blocked by triton firewall
-    remote_ports = (34735, None, 33111, 35124)
+    remote_ports = (34735, 33111, 35124)
 
     hostname = os.getenv('HOSTNAME')
     if hostname and search_conf['host'] in hostname:
@@ -54,7 +46,7 @@ def main():
     workers = []
     for i in range(search_conf['workers']):
         out, err = ssh.exec(
-            ("sbatch -c %d --export=ALL,CPUS=%d,HEAD_ADDR='%s',SHARD_PORT=%d,NODE_PORT=%d,OBJ_PORT=%d"
+            ("sbatch -c %d --export=ALL,CPUS=%d,HEAD_ADDR='%s',NODE_PORT=%d,OBJ_PORT=%d "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,
