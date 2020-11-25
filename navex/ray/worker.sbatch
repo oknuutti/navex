@@ -18,8 +18,9 @@ source activate $WRKDIR/conda/envs/navex
 
 set -x    # echo all commands for debug purposes
 
-ssh -o ExitOnForwardFailure=yes -f -N -L $HEAD_PORT:localhost:$HEAD_PORT -L $OBJ_PORT:localhost:$OBJ_PORT \
-                                      -L $NODE_PORT:localhost:$NODE_PORT triton.aalto.fi
+ssh -o ExitOnForwardFailure=yes -f -N -R 0.0.0.0:$HEAD_PORT:localhost:$HEAD_PORT \
+                                      -R 0.0.0.0:$OBJ_PORT:localhost:$OBJ_PORT \
+                                      -R 0.0.0.0:$NODE_PORT:localhost:$NODE_PORT triton.aalto.fi
 sleep 3s
 
 export TUNE_RESULT_DIR=$WRKDIR/navex/output
