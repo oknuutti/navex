@@ -17,5 +17,4 @@ module load anaconda
 source activate $WRKDIR/conda/envs/navex
 
 export TUNE_RESULT_DIR=$WRKDIR/navex/output
-srun ray start --verbose --no-redirect-output --address=$HEAD_ADDR \
-               --block --num-cpus=$CPUS --num-gpus=1
+srun ray start --address=$HEAD_ADDR --verbose --block --num-cpus=$CPUS --num-gpus=1
