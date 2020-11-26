@@ -30,7 +30,6 @@ class Connection:
 
         self._forwarding_thread = None
         self._reversing_thread = None
-        self._proxy_client = None
         self._host_client = None
         self._sftp = None
 
@@ -45,7 +44,6 @@ class Connection:
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
             c.connect(self._proxy, username=self._username, key_filename=self._keyfile)
             Connection._forward_tunnel(self.local_forwarded_port, self._host, 22, c.get_transport(), timeout=None)
-            self._proxy_client = c
 
         self._forwarding_thread = threading.Thread(target=forward, daemon=True)
         self._forwarding_thread.start()
@@ -67,8 +65,6 @@ class Connection:
     def _close_connection(self):
         if self._host_client is not None:
             self._host_client.close()
-        if self._proxy_client is not None:
-            self._proxy_client.close()
         if self._sftp is not None:
             self._sftp.close()
 
@@ -77,7 +73,11 @@ class Connection:
 
     def tunnel(self, src_port, dst_port, dst_host='localhost'):
         logging.debug('init tunnel %d => %s:%d' % (src_port, dst_host, dst_port))
-        Connection._forward_tunnel(src_port, dst_host, dst_port, self._host_client.get_transport())
+
+        def _tunnel():
+            Connection._forward_tunnel(src_port, dst_host, dst_port, self._host_client.get_transport())
+
+        threading.Thread(target=_tunnel, daemon=True).start()
 
     def reverse_tunnel(self, local_host, local_port, remote_host='localhost', remote_port=0):
         transport = self._host_client.get_transport()
