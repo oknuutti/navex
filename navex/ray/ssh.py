@@ -1,3 +1,4 @@
+import os
 import threading
 import socket
 import time
@@ -22,9 +23,9 @@ class Connection:
 
     def __init__(self, host, username=None, keyfile=None, proxy=None, local_forwarded_port=None):
         self._host = host
-        self._username = username
-        self._keyfile = keyfile
-        self._proxy = proxy
+        self._username = username or None
+        self._keyfile = keyfile or None
+        self._proxy = proxy or None
         self.local_forwarded_port = local_forwarded_port
 
         self._forwarding_thread = None

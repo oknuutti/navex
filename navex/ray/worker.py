@@ -16,7 +16,7 @@ def main():
     parser.add_argument('--address', help="head redis host:port")
     parser.add_argument('--ssh-username', default='', help="head redis host:port")
     parser.add_argument('--ssh-keyfile', default='', help="head redis host:port")
-    parser.add_argument('--redis-password', type=int, help="head redis password")
+    parser.add_argument('--redis-password', help="head redis password")
     parser.add_argument('--object-manager-port', type=int, help="head object manager port")
     parser.add_argument('--node-manager-port', type=int, help="head node manager port")
     args = parser.parse_args()
@@ -27,6 +27,7 @@ def main():
     if args.ssh_tunnel:
         # create ssh connection
         head_host, host_port = args.address.split(':')
+        host_port = int(host_port)
         head_address = '127.0.0.1:%d' % host_port
         ssh = Connection(head_host, args.ssh_username or None, args.ssh_keyfile or None)
 
