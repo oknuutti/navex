@@ -124,34 +124,41 @@ class Connection:
     class _ForwardHandler(SocketServer.BaseRequestHandler):
         def handle(self):
             try:
+                local_addr = self.request.getsockname()
+                remote_addr = self.chain_host, self.chain_port
                 chan = self.ssh_transport.open_channel(
                     "direct-tcpip",
-                    (self.chain_host, self.chain_port),
+                    remote_addr,
                     self.request.getpeername(),
+                    timeout=Connection.TIMEOUT,
                 )
             except Exception as e:
                 logging.error(
                     "Incoming request to %s:%d failed: %s"
-                    % (self.chain_host, self.chain_port, repr(e))
+                    % (*remote_addr, repr(e))
                 )
                 return
             if chan is None:
                 logging.error(
                     "Incoming request to %s:%d was rejected by the SSH server."
-                    % (self.chain_host, self.chain_port)
+                    % remote_addr
                 )
                 return
 
             logging.info(
                 "Connected! Tunnel open %r -> %r -> %r"
                 % (
-                    self.request.getsockname(),
+                    local_addr,
                     chan.getpeername(),
-                    (self.chain_host, self.chain_port),
+                    remote_addr,
                 )
             )
             while True:
-                r, w, x = select.select([self.request, chan], [], [])
+                r, w, x = select.select([self.request, chan], [], [], Connection.TIMEOUT)
+                if not r:
+                    logging.warning(
+                        'fw-tunnel channel read timeout %fs (%s => %s)' % (Connection.TIMEOUT, local_addr, remote_addr))
+                    break
                 if self.request in r:
                     data = self.request.recv(1024)
                     if len(data) == 0:
@@ -213,7 +220,7 @@ def _reverse_handler(chan):
     while True:
         r, w, x = select.select([sock, chan], [], [], Connection.TIMEOUT)
         if not r:
-            logging.warning('channel read timeout %fs (%s <= %s)' % (Connection.TIMEOUT, loc_dst_addr, rem_dst_addr))
+            logging.warning('rev-tunnel channel read timeout %fs (%s <= %s)' % (Connection.TIMEOUT, loc_dst_addr, rem_dst_addr))
             break
         if sock in r:
             data = sock.recv(1024)

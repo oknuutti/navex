@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--node-manager-port', type=int, help="head node manager port")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     head_address = args.address
     if args.ssh_tunnel:
@@ -46,9 +46,10 @@ def main():
             worker_node_port = ssh.reverse_tunnel('127.0.0.1', 23030)
             # TODO: how to set these ports for the worker?
 
+    logging.info('starting ray worker...')
     ray.services.get_node_ip_address = lambda x=None: '127.0.0.1'
     addr = ray.init(address=head_address, num_cpus=args.num_cpus, num_gpus=args.num_gpus,
-                    log_to_driver=False, _redis_password=args.redis_pwd)
+                    log_to_driver=False, logging_level=logging.DEBUG, _redis_password=args.redis_pwd)
     node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
     # ports on which the worker is listening on
@@ -56,7 +57,7 @@ def main():
                    node_info['NodeManagerPort'],
                    node_info['ObjectManagerPort']]
 
-    logging.info('ports: %s' % (local_ports,))
+    logging.info('ray worker started, ports: %s' % (local_ports,))
 
     time.sleep(3600)
 
