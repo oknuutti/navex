@@ -75,7 +75,7 @@ class Connection:
     def __del__(self):
         self._close_connection()
 
-    def tunnel(self, src_port, dst_port, dst_host='127.0.0.1'):
+    def tunnel(self, src_port, dst_port, dst_host='localhost'):
         return Connection._forward_tunnel(src_port, dst_host, dst_port, self._host_client.get_transport())
 
     def reverse_tunnel(self, local_host, local_port, remote_host='localhost', remote_port=0):
