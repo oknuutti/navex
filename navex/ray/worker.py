@@ -49,7 +49,7 @@ def main():
     logging.info('starting ray worker...')
     ray.services.get_node_ip_address = lambda x=None: '127.0.0.1'
     addr = ray.init(address=head_address, num_cpus=args.num_cpus, num_gpus=args.num_gpus,
-                    log_to_driver=False, logging_level=logging.DEBUG, _redis_password=args.redis_pwd)
+                    log_to_driver=False, logging_level=logging.DEBUG, _redis_password=args.redis_password)
     node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
     # ports on which the worker is listening on
