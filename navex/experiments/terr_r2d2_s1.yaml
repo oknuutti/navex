@@ -3,6 +3,11 @@ search:
   workers: 1
   grace_period: 2
   reduction_factor: 4
+  username: ''
+  keyfile: ''
+  proxy: ''
+  host: ''
+  port: 0
 
 training:
   name: 'v0'

@@ -55,10 +55,11 @@ def main():
     workers = []
     for i in range(search_conf['workers']):
         out, err = ssh.exec(
-            ("sbatch -c %d --export=ALL,CPUS=%d,HEAD_PORT=%d,NODE_PORT=%d,OBJ_PORT=%d,REDIS_PWD=%s "
+            ("sbatch -c %d --export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,NODE_PORT=%d,OBJ_PORT=%d,REDIS_PWD=%s "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,
+            search_conf['host'],
             *remote_ports,
             redis_pwd,
         ))
