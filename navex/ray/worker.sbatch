@@ -18,12 +18,8 @@ source activate $WRKDIR/conda/envs/navex
 
 set -x    # echo all commands for debug purposes
 
-ssh -o ExitOnForwardFailure=yes -f -N -R 0.0.0.0:$HEAD_PORT:localhost:$HEAD_PORT \
-                                      -R 0.0.0.0:$OBJ_PORT:localhost:$OBJ_PORT \
-                                      -R 0.0.0.0:$NODE_PORT:localhost:$NODE_PORT triton.aalto.fi
-sleep 3s
-
 export TUNE_RESULT_DIR=$WRKDIR/navex/output
-srun ray start --address=127.0.0.1:$HEAD_PORT --object-manager-port=$OBJ_PORT --redis-password=$REDIS_PWD \
-               --node-manager-port=$NODE_PORT --verbose --block --num-cpus=$CPUS --num-gpus=1
+srun python -m navex.ray.worker --num-cpus=$CPUS --num-gpus=1 --ssh-tunnel \
+                                --address=$HEAD_HOST:$HEAD_PORT --redis-password=$REDIS_PWD \
+                                --object-manager-port=$OBJ_PORT --node-manager-port=$NODE_PORT
 sleep 1h

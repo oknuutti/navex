@@ -20,7 +20,7 @@ class Connection:
     TIMEOUT = 10    # in seconds
     reverse_map = {}
 
-    def __init__(self, host, username, keyfile, proxy, local_forwarded_port):
+    def __init__(self, host, username=None, keyfile=None, proxy=None, local_forwarded_port=None):
         self._host = host
         self._username = username
         self._keyfile = keyfile
@@ -33,7 +33,8 @@ class Connection:
         self._host_client = None
         self._sftp = None
 
-        self._init_forwarding()
+        if self._proxy is not None:
+            self._init_forwarding()
         self._open_connection()
 
     def _init_forwarding(self):
@@ -50,13 +51,16 @@ class Connection:
 
     def _open_connection(self):
         if self._host_client is None:
+            if self._forwarding_thread is None:
+                host, port = self._host, 22
+            else:
+                host, port = '127.0.0.1', self.local_forwarded_port
             c = paramiko.SSHClient()
             c.load_system_host_keys()
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message=r"Unknown \S+ host key")
-                c.connect('127.0.0.1', port=self.local_forwarded_port,
-                          username=self._username, key_filename=self._keyfile)
+                c.connect(host, port=port, username=self._username, key_filename=self._keyfile)
             self._host_client = c
 
     def _close_connection(self):
@@ -69,6 +73,9 @@ class Connection:
 
     def __del__(self):
         self._close_connection()
+
+    def tunnel(self, src_port, dst_port, dst_host='127.0.0.1'):
+        return Connection._forward_tunnel(src_port, dst_host, dst_port, self._host_client.get_transport())
 
     def reverse_tunnel(self, local_host, local_port, remote_host='localhost', remote_port=0):
         transport = self._host_client.get_transport()
