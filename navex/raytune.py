@@ -24,7 +24,7 @@ def main():
     # start a ray cluster by creating the head, connect to it
     redis_pwd = '5241590000000000'
     if 1:
-        ray.services.get_node_ip_address = lambda x: '127.0.0.1'
+        ray.services.get_node_ip_address = lambda x=None: '127.0.0.1'
         addr = ray.init(num_cpus=1, num_gpus=0, log_to_driver=False, _redis_password=redis_pwd)
         node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
         local_ports = [int(addr['redis_address'].split(':')[-1]),

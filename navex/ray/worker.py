@@ -45,7 +45,7 @@ def main():
             worker_node_port = ssh.reverse_tunnel('127.0.0.1', 23030)
             # TODO: how to set these ports for the worker?
 
-    ray.services.get_node_ip_address = lambda x: '127.0.0.1'
+    ray.services.get_node_ip_address = lambda x=None: '127.0.0.1'
     addr = ray.init(address=head_address, num_cpus=args.num_cpus, num_gpus=args.num_gpus,
                     log_to_driver=False, _redis_password=args.redis_pwd)
     node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
