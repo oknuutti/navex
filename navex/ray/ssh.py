@@ -18,7 +18,7 @@ except ImportError:
 
 # based on paramiko demos forward.py and rforward.py
 class Connection:
-    TIMEOUT = 10    # in seconds
+    TIMEOUT = 30    # in seconds
     reverse_map = {}
 
     def __init__(self, host, username=None, keyfile=None, proxy=None, local_forwarded_port=None):
@@ -44,7 +44,7 @@ class Connection:
             c.load_system_host_keys()
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
             c.connect(self._proxy, username=self._username, key_filename=self._keyfile)
-            Connection._forward_tunnel(self.local_forwarded_port, self._host, 22, c.get_transport())
+            Connection._forward_tunnel(self.local_forwarded_port, self._host, 22, c.get_transport(), timeout=None)
             self._proxy_client = c
 
         self._forwarding_thread = threading.Thread(target=forward, daemon=True)
@@ -76,7 +76,8 @@ class Connection:
         self._close_connection()
 
     def tunnel(self, src_port, dst_port, dst_host='localhost'):
-        return Connection._forward_tunnel(src_port, dst_host, dst_port, self._host_client.get_transport())
+        logging.debug('init tunnel %d => %s:%d' % (src_port, dst_host, dst_port))
+        Connection._forward_tunnel(src_port, dst_host, dst_port, self._host_client.get_transport())
 
     def reverse_tunnel(self, local_host, local_port, remote_host='localhost', remote_port=0):
         transport = self._host_client.get_transport()
@@ -106,11 +107,12 @@ class Connection:
         self._sftp.get(src, dst)
 
     @staticmethod
-    def _forward_tunnel(local_port, remote_host, remote_port, transport):
+    def _forward_tunnel(local_port, remote_host, remote_port, transport, timeout=TIMEOUT):
         # this is a little convoluted, but lets me configure things for the Handler
         # object.  (SocketServer doesn't give Handlers any way to access the outer
         # server normally.)
         class SubHandler(Connection._ForwardHandler):
+            _timeout = timeout
             chain_host = remote_host
             chain_port = remote_port
             ssh_transport = transport
@@ -154,7 +156,7 @@ class Connection:
                 )
             )
             while True:
-                r, w, x = select.select([self.request, chan], [], [], Connection.TIMEOUT)
+                r, w, x = select.select([self.request, chan], [], [], self._timeout)
                 if not r:
                     logging.warning(
                         'fw-tunnel channel read timeout %fs (%s => %s)' % (Connection.TIMEOUT, local_addr, remote_addr))
