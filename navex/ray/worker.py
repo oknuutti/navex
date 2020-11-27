@@ -3,9 +3,9 @@ import argparse
 import time
 
 import ray
-import ray.services
 
 from .ssh import Connection
+from . import overrides         # overrides e.g. services.get_node_ip_address
 
 
 def main():
@@ -23,17 +23,17 @@ def main():
 
     logging.basicConfig(level=logging.DEBUG)
 
-    head_address = args.address
+    head_host, head_port = args.address.split(':')
+    head_port = int(head_port)
+
     if args.ssh_tunnel:
         # create ssh connection
-        head_host, host_port = args.address.split(':')
-        host_port = int(host_port)
-        head_address = '127.0.0.1:%d' % host_port
         ssh = Connection(head_host, args.ssh_username or None, args.ssh_keyfile or None)
+        head_host = '127.0.0.1'
 
         # create tunnels to head, for redis, node and object managers
         try:
-            ssh.tunnel(host_port, host_port)
+            ssh.tunnel(head_port, head_port)
             ssh.tunnel(args.object_manager_port, args.object_manager_port)
             ssh.tunnel(args.node_manager_port, args.node_manager_port)
         except Exception as e:
@@ -47,9 +47,23 @@ def main():
             # TODO: how to set these ports for the worker?
 
     logging.info('starting ray worker...')
-    ray.services.get_node_ip_address = lambda x=None: '127.0.0.1'
-    addr = ray.init(address=head_address, num_cpus=args.num_cpus, num_gpus=args.num_gpus,
-                    log_to_driver=False, logging_level=logging.DEBUG, _redis_password=args.redis_password)
+    head_address = '%s:%d' % (head_host, head_port)
+    overrides.start(address=head_address, redis_password=args.redis_password,
+                    num_cpus=args.num_cpus, num_gpus=args.num_gpus,
+                    verbose=True, include_dashboard=False)
+              # node_ip_address, redis_shard_ports, object_manager_port, node_manager_port, gcs_server_port,
+              # min_worker_port, max_worker_port, worker_port_list, memory,
+              # object_store_memory, redis_max_memory, resources,
+              # dashboard_host, dashboard_port, block,
+              # plasma_directory, autoscaling_config, no_redirect_worker_output,
+              # no_redirect_output, plasma_store_socket_name, raylet_socket_name,
+              # temp_dir, java_worker_options, load_code_from_local,
+              # code_search_path, system_config, lru_evict,
+              # enable_object_reconstruction, metrics_export_port, log_style,
+              # log_color)
+
+    addr = ray.init(address=head_address, log_to_driver=False, logging_level=logging.DEBUG,
+                    _redis_password=args.redis_password)
     node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
     # ports on which the worker is listening on
