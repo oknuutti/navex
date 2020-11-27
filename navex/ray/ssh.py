@@ -18,7 +18,7 @@ except ImportError:
 
 # based on paramiko demos forward.py and rforward.py
 class Connection:
-    TIMEOUT = 30    # in seconds
+    TIMEOUT = None    # in seconds
     reverse_map = {}
 
     def __init__(self, host, username=None, keyfile=None, proxy=None, local_forwarded_port=None):
