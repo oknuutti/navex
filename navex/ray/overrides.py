@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 services.get_node_ip_address = lambda x=None: '127.0.0.1'
 services2.get_node_ip_address = lambda x=None: '127.0.0.1'
+SKIP_VERSION_CHECK = True
 
 
 def start(node_ip_address=None, address=None, port=None, redis_password=ray_constants.REDIS_DEFAULT_PASSWORD,
@@ -226,7 +227,8 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
 
         # Check that the version information on this node matches the version
         # information that the cluster was started with.
-        services.check_version_info(redis_client)
+        if SKIP_VERSION_CHECK:
+            services.check_version_info(redis_client)
 
         # Get the node IP address if one is not provided.
         ray_params.update_if_absent(

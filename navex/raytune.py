@@ -48,7 +48,7 @@ def main():
                 rport = ssh.reverse_tunnel('127.0.0.1', lport, search_conf['host'], rport)
                 logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (search_conf['host'], rport, lport))
 
-    search_conf['workers'] = 0
+    #search_conf['workers'] = 0
 
     # schedule workers
     workers = []
