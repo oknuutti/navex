@@ -227,7 +227,7 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
 
         # Check that the version information on this node matches the version
         # information that the cluster was started with.
-        if SKIP_VERSION_CHECK:
+        if not SKIP_VERSION_CHECK:
             services.check_version_info(redis_client)
 
         # Get the node IP address if one is not provided.
