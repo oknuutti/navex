@@ -62,8 +62,7 @@ def main():
               # enable_object_reconstruction, metrics_export_port, log_style,
               # log_color)
 
-    addr = ray.init(address=head_address, log_to_driver=False, logging_level=logging.DEBUG,
-                    _redis_password=args.redis_password)
+    addr = ray.init(address=head_address, logging_level=logging.DEBUG, _redis_password=args.redis_password)
     node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
     # ports on which the worker is listening on

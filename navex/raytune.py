@@ -2,8 +2,10 @@
 import os
 import re
 import logging
+import socket
 
 import ray
+from ray.worker import global_worker
 
 from .ray import overrides      # overrides e.g. services.get_node_ip_address
 from .ray.ssh import Connection
@@ -23,23 +25,46 @@ def main():
 
     # start a ray cluster by creating the head, connect to it
     redis_pwd = '5241590000000000'
+    local_ports = (34735, 34935, 33111, 35124)
     if 1:
-        addr = ray.init(num_cpus=0, num_gpus=0, log_to_driver=False, _redis_password=redis_pwd)
-        node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
-        local_ports = [int(addr['redis_address'].split(':')[-1]),
-                       node_info['NodeManagerPort'], node_info['ObjectManagerPort']]
+        node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
+                               port=local_ports[0], redis_shard_ports=local_ports[1],
+                               node_manager_port=local_ports[2], object_manager_port=local_ports[3],
+                               redis_password=redis_pwd, include_dashboard=False, verbose=True)
+        # node_ip_address, redis_shard_ports, gcs_server_port,
+        # min_worker_port, max_worker_port, worker_port_list, memory,
+        # object_store_memory, redis_max_memory, resources,
+        # dashboard_host, dashboard_port, block,
+        # plasma_directory, autoscaling_config, no_redirect_worker_output,
+        # no_redirect_output, plasma_store_socket_name, raylet_socket_name,
+        # temp_dir, java_worker_options, load_code_from_local,
+        # code_search_path, system_config, lru_evict,
+        # enable_object_reconstruction, metrics_export_port, log_style,
+        # log_color)
+
+        head_address = '127.0.0.1:%d' % local_ports[0]
+        addr = ray.init(head_address, _redis_password=redis_pwd)
+        # node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
+        # local_ports = [int(addr['redis_address'].split(':')[-1]),
+        #                node_info['NodeManagerPort'], node_info['ObjectManagerPort']]
+
+#        node_id = global_worker.core_worker.get_current_node_id()
+#        node_info = [n for n in ray.nodes() if n['NodeID'] == node_id.hex()][0]
+#        local_ports = [int(node.redis_address.split(':')[-1]),
+#                       node_info['NodeManagerPort'], node_info['ObjectManagerPort']]
     else:
-        local_ports = (34735, 33111, 35124)
         os.system("ray start --head --include-dashboard 0 --num-cpus 0 --num-gpus 0 --port 34735 "
                   "          --node-manager-port=33111 --object-manager-port=35124 --redis-password=%s" % redis_pwd)
         ray.init('localhost:34735', _redis_password=redis_pwd)
-    # TODO: fix this: magical port numbers, other similar seem to be blocked by triton firewall
-    remote_ports = (34735, 33111, 35124)
+    # these port numbers need to be unblocked on all node servers
+    # seems that when starting a node it's impossible to define the head node port,
+    #   seems that it still uses the one probably stored in redis
+    remote_ports = local_ports
 
-    hostname = os.getenv('HOSTNAME')
+    hostname = socket.gethostname()
     if hostname and search_conf['host'] in hostname:
-        # TODO: no need tunneling, just open ssh to localhost
-        raise NotImplemented()
+        # TODO: no need tunneling, just open ssh to localhost?
+        ssh = None
     else:
         # ssh reverse tunnels remote_port => local_port
         ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 20022)

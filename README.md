@@ -11,10 +11,12 @@ conda activate navex
 conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
 conda install pytorch-lightning opencv pandas paramiko -c conda-forge
 pip install -e ./r2d2
-pip install -U ray ray[tune] ray[debug]
+pip install -U ray ray[tune]
+ray install-nightly
+ray install ray[tune]
 ```
 
-or [find most recent ray wheel](https://s3-us-west-2.amazonaws.com/ray-wheels/?prefix=latest/) and install like this:
+or for Windows, [find most recent ray wheel](https://s3-us-west-2.amazonaws.com/ray-wheels/?prefix=latest/) and install like this:
 
 ```
 pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-1.1.0.dev0-cp38-cp38-win_amd64.whl

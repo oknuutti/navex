@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 services.get_node_ip_address = lambda x=None: '127.0.0.1'
 services2.get_node_ip_address = lambda x=None: '127.0.0.1'
-SKIP_VERSION_CHECK = True
+SKIP_VERSION_CHECK = False
 
 
 def start(node_ip_address=None, address=None, port=None, redis_password=ray_constants.REDIS_DEFAULT_PASSWORD,
@@ -281,3 +281,5 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
                 cli_logger.newline()
                 cli_logger.error("Remaining processes will be killed.")
                 sys.exit(1)
+    else:
+        return node  # EDITED: own addition

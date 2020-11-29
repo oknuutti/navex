@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from functools import partial
 
 import pytorch_lightning as pl
@@ -25,6 +26,10 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     # set paths
     sj_id = os.getenv('SLURM_JOB_ID')
     if sj_id is None:
+        print('entered training!')
+        with open(r"d:\temp\debug.txt", "a") as fh:
+            fh.write('entered training!')
+        time.sleep(1800)    # for easier debugging
         raise Exception('not a slurm node!')
 
     full_conf['data']['path'] = os.path.join('/tmp', sj_id, full_conf['data']['path'])
