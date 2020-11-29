@@ -19,7 +19,7 @@ source activate $WRKDIR/conda/envs/navex
 set -x    # echo all commands for debug purposes
 
 export TUNE_RESULT_DIR=$WRKDIR/navex/output
-srun python -m navex.ray.worker --num-cpus=$CPUS --num-gpus=1 --ssh-tunnel \
-                                --address=$HEAD_HOST:$HEAD_PORT --redis-password=$REDIS_PWD \
+srun python -m navex.ray.worker --num-cpus=$CPUS --num-gpus=1 --ssh-tunnel --address=$HEAD_HOST:$HEAD_PORT \
+                                --redis-shard-ports=$REDISS_PORTS --redis-password=$REDIS_PWD \
                                 --object-manager-port=$OBJ_PORT --node-manager-port=$NODE_PORT
 sleep 1h

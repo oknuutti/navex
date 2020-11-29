@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--redis-password', help="head redis password")
     parser.add_argument('--object-manager-port', type=int, help="head object manager port")
     parser.add_argument('--node-manager-port', type=int, help="head node manager port")
+    parser.add_argument('--redis-shard-ports', help="redis shard ports")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG)
@@ -49,8 +50,7 @@ def main():
     logging.info('starting ray worker...')
     head_address = '%s:%d' % (head_host, head_port)
     overrides.start(address=head_address, redis_password=args.redis_password,
-                    num_cpus=args.num_cpus, num_gpus=args.num_gpus,
-                    verbose=True, include_dashboard=False)
+                    num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
               # node_ip_address, redis_shard_ports, object_manager_port, node_manager_port, gcs_server_port,
               # min_worker_port, max_worker_port, worker_port_list, memory,
               # object_store_memory, redis_max_memory, resources,
