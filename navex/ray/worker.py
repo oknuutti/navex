@@ -35,6 +35,7 @@ def main():
         # create tunnels to head, for redis, node and object managers
         try:
             ssh.tunnel(head_port, head_port)
+            ssh.tunnel(int(args.redis_shard_ports), int(args.redis_shard_ports))
             ssh.tunnel(args.object_manager_port, args.object_manager_port)
             ssh.tunnel(args.node_manager_port, args.node_manager_port)
         except Exception as e:
