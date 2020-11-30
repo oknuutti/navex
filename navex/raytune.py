@@ -33,6 +33,13 @@ def main():
                                node_manager_port=local_ports[2], object_manager_port=local_ports[3],
                                gcs_server_port=local_ports[4], include_dashboard=False, verbose=True)
 
+        logging.info('ray head node started, interfacing with python...')
+        logging.debug('head node details: %s' % ((
+                       node.address_info,
+                       node.all_processes,
+                       node.metrics_export_port,
+                       node.metrics_agent_port()),))
+
         head_address = '127.0.0.1:%d' % local_ports[0]
         addr = ray.init(head_address, _redis_password=redis_pwd)
         # node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]

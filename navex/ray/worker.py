@@ -52,13 +52,21 @@ def main():
         head_host = '127.0.0.1'
 
     try:
-        logging.info('starting ray worker...')
+        logging.info('starting ray worker node...')
         head_address = '%s:%d' % (head_host, head_port)
-        overrides.start(address=head_address, redis_password=args.redis_password, temp_dir=args.temp_dir,
+        node = overrides.start(address=head_address, redis_password=args.redis_password, temp_dir=args.temp_dir,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
 
-        addr = ray.init(address=head_address, logging_level=logging.DEBUG, _redis_password=args.redis_password)
+        logging.info('ray worker node started, interfacing with python...')
+        logging.debug('worker node details: %s' % ((
+                       node.address_info,
+                       node.all_processes,
+                       node.metrics_export_port,
+                       node.metrics_agent_port()),))
+
+        addr = ray.init(address=head_address, logging_level=logging.DEBUG,
+                        _redis_password=args.redis_password, _temp_dir=args.temp_dir)
         node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
         # ports on which the worker is listening on
@@ -66,7 +74,7 @@ def main():
                        node_info['NodeManagerPort'],
                        node_info['ObjectManagerPort']]
 
-        logging.info('ray worker started, ports: %s' % (local_ports,))
+        logging.info('ray worker successfully initialized, ports: %s' % (local_ports,))
 
         time.sleep(3600)
     except Exception as e:
