@@ -46,8 +46,8 @@ def main():
             ssh.tunnel(args.head_raylet_port, args.head_raylet_port)
 
             # create reverse tunnels from head for local node and object managers
-            ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
-            ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
+            #ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
+            #ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
         except Exception as e:
             logging.warning('ssh tunnel creation failed, maybe tunnels already exist? Exception: %s' % e)
 
@@ -62,9 +62,7 @@ def main():
 
         logging.info('ray worker node started, interfacing with python...')
         logging.debug('worker node details: %s' % ((
-                       node.address_info,
-                       node.metrics_export_port,
-                       node.metrics_agent_port),))
+                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
 
         addr = ray.init(address=head_address, logging_level=logging.DEBUG,
                         _redis_password=args.redis_password, _temp_dir=args.temp_dir)

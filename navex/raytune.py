@@ -36,9 +36,7 @@ def main():
 
         logging.info('ray head node started, interfacing with python...')
         logging.debug('head node details: %s' % ((
-                       node.address_info,
-                       node.metrics_export_port,
-                       node.metrics_agent_port),))
+                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
 
         head_address = '127.0.0.1:%d' % local_ports[0]
         addr = ray.init(head_address, _redis_password=redis_pwd)
