@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--head-node-manager-port', type=int, help="head node manager port")
     parser.add_argument('--head-gcs-port', type=int, help="head node gcs port")
     parser.add_argument('--head-raylet-port', type=int, help="head node raylet port")
+    parser.add_argument('--head-object-store-port', type=int, help="head node object store port")
     parser.add_argument('--head-min-worker-port', type=int, help="head node min worker port")
     parser.add_argument('--head-max-worker-port', type=int, help="head node max worker port")
     parser.add_argument('--ssh-tunnel', action="store_true", help="create tunnels to ray head")
@@ -41,6 +42,8 @@ def main():
         # create ssh connection
         ssh = Connection(head_host, args.ssh_username or None, args.ssh_keyfile or None)
         try:
+            # TODO: do these work or not?
+
             # create tunnels to head, for redis, node and object managers
             ssh.tunnel(head_port, head_port)
             ssh.tunnel(int(args.redis_shard_ports), int(args.redis_shard_ports))
@@ -48,13 +51,13 @@ def main():
             ssh.tunnel(args.head_node_manager_port, args.head_node_manager_port)
             ssh.tunnel(args.head_gcs_port, args.head_gcs_port)
             ssh.tunnel(args.head_raylet_port, args.head_raylet_port)
+            ssh.tunnel(args.head_object_store_port, args.head_object_store_port)
             for p in range(args.head_min_worker_port, args.head_max_worker_port+1):
                 ssh.tunnel(p, p)
 
             # create reverse tunnels from head for local node and object managers (done now in .sbatch file using ssh)
             ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
             ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
-            # TODO: does this work or not? first worker done using command line ssh
             for p in range(args.min_worker_port, args.max_worker_port+1):
                 ssh.reverse_tunnel('127.0.0.1', p, '127.0.0.1', p)
 

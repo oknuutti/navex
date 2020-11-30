@@ -29,13 +29,14 @@ def main():
     # start a ray cluster by creating the head, connect to it
     redis_pwd = '5241590000000000'
     min_wport, max_wport = 10000, 10003
-    local_ports = (34735, 34935, 33111, 35124, 36692, 29321)
+    local_ports = (34735, 34935, 33111, 35124, 36692, 29321, 28543)
     w_ports = tuple(range(min_wport, max_wport+1))
     if 1:
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
                                port=local_ports[0], redis_shard_ports='%d' % local_ports[1], redis_password=redis_pwd,
                                node_manager_port=local_ports[2], object_manager_port=local_ports[3],
                                gcs_server_port=local_ports[4], raylet_socket_name='tcp://127.0.0.1:%d' % local_ports[5],
+                               plasma_store_socket_name='tcp://127.0.0.1:%d' % local_ports[6],
                                include_dashboard=False, verbose=True, temp_dir='/tmp/ray/', min_worker_port=min_wport,
                                max_worker_port=max_wport)
 
@@ -70,7 +71,7 @@ def main():
         ssh = None
     else:
         # ssh reverse tunnels remote_port => local_port
-        ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 20022)
+        ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 19922)
         for lport, rport in zip(local_ports + w_ports, remote_ports + w_ports):
             if lport is not None:
                 rport = ssh.reverse_tunnel('127.0.0.1', lport, '127.0.0.1', rport)
@@ -117,7 +118,7 @@ def main():
         out, err = ssh.exec(
             ("sbatch -c %d "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
-             "H_GCS_PORT=%d,H_RLET_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
+             "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
              "NODE_M_PORT=%d,OBJ_M_PORT=%d,WPORT_S=%d,WPORT_E=%d "
              "$WRKDIR/navex/navex/ray/worker-alt.sbatch") % (
             config.data.workers,

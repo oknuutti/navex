@@ -23,6 +23,7 @@ srun python -m navex.ray.worker --num-cpus=$CPUS --num-gpus=1 --ssh-tunnel --add
                                 --redis-shard-ports=$H_SHARD_PORTS --redis-password=$H_REDIS_PWD \
                                 --head-object-manager-port=$H_OBJ_M_PORT --head-node-manager-port=$H_NODE_M_PORT \
                                 --head-gcs-port=$H_GCS_PORT --head-raylet-port=$H_RLET_PORT \
+                                --head-object-store-port=$H_OBJ_S_PORT \
                                 --head-min-worker-port=$H_WPORT_S --head-max-worker-port=$H_WPORT_E \
                                 --temp-dir=$WRKDIR/navex/logs \
                                 --object-manager-port=$OBJ_M_PORT --node-manager-port=$NODE_M_PORT \
