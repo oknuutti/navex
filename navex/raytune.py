@@ -3,6 +3,7 @@ import os
 import re
 import logging
 import socket
+import random
 
 import ray
 from ray.worker import global_worker
@@ -61,6 +62,8 @@ def main():
     #   seems that it still uses the one probably stored in redis
     remote_ports = local_ports
 
+    #search_conf['workers'] = 0
+
     hostname = socket.gethostname()
     if hostname and search_conf['host'] in hostname:
         # TODO: no need tunneling, just open ssh to localhost?
@@ -70,23 +73,32 @@ def main():
         ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 20022)
         for lport, rport in zip(local_ports, remote_ports):
             if lport is not None:
-                rport = ssh.reverse_tunnel('127.0.0.1', lport, search_conf['host'], rport)
+                rport = ssh.reverse_tunnel('127.0.0.1', lport, search_conf['host'], rport)  # TODO: how come host is triton.aalto.fi and it works?
                 logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (search_conf['host'], rport, lport))
 
-    #search_conf['workers'] = 0
+        # forward tunnels to contact worker nodes, local_ports => remote_ports
+        # if port already used on the worker node that is later allocated, this will fail
+        # TODO: to fix this problem, would need to create the forward tunnels after worker node init
+        r = lambda: random.randint(11000, 2**16-1)
+        worker_ports = [(r(), r()) for i in range(search_conf['workers'])]
+        for ps in worker_ports:
+            for p in ps:
+                ssh.tunnel(p, p)
 
     # schedule workers
     workers = []
     for i in range(search_conf['workers']):
         out, err = ssh.exec(
             ("sbatch -c %d "
-             "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,REDISS_PORTS=%s,NODE_PORT=%d,OBJ_PORT=%d,REDIS_PWD=%s "
+             "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
+             "H_REDIS_PWD=%s,NODE_M_PORT=%d,OBJ_M_PORT=%d "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,
             search_conf['host'],
             *remote_ports,
             redis_pwd,
+            *worker_ports[i],
         ))
         m = re.search(r'\d+$', out)
         if err or not m:
@@ -101,6 +113,7 @@ def main():
         # check if ray syncs the logs to local, if not, use ssh
         # ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
 
+        # TODO: put following in a thread
         # start the search
         try:
             tune_asha(search_conf, hparams, full_conf)

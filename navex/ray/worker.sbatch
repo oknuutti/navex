@@ -20,6 +20,8 @@ set -x    # echo all commands for debug purposes
 
 export TUNE_RESULT_DIR=$WRKDIR/navex/output
 srun python -m navex.ray.worker --num-cpus=$CPUS --num-gpus=1 --ssh-tunnel --address=$HEAD_HOST:$HEAD_PORT \
-                                --redis-shard-ports=$REDISS_PORTS --redis-password=$REDIS_PWD \
-                                --object-manager-port=$OBJ_PORT --node-manager-port=$NODE_PORT
+                                --redis-shard-ports=$H_SHARD_PORTS --redis-password=$H_REDIS_PWD \
+                                --head-object-manager-port=$H_OBJ_M_PORT --head-node-manager-port=$H_NODE_M_PORT \
+                                --object-manager-port=$OBJ_M_PORT --node-manager-port=$NODE_M_PORT \
+                                --temp-dir=$WRKDIR/navex/logs
 sleep 1h

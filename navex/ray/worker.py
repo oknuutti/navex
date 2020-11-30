@@ -12,14 +12,17 @@ def main():
     parser = argparse.ArgumentParser('Start a custom ray worker')
     parser.add_argument('--num-cpus', type=int, help="number of cpus to reserve")
     parser.add_argument('--num-gpus', type=int, help="number of gpus to reserve")
-    parser.add_argument('--ssh-tunnel', action="store_true", help="create tunnels to ray head")
+    parser.add_argument('--temp-dir', help="temporary directory where logs are put")
     parser.add_argument('--address', help="head redis host:port")
+    parser.add_argument('--redis-shard-ports', help="redis shard ports")
+    parser.add_argument('--redis-password', help="head redis password")
+    parser.add_argument('--ssh-tunnel', action="store_true", help="create tunnels to ray head")
     parser.add_argument('--ssh-username', default='', help="head redis host:port")
     parser.add_argument('--ssh-keyfile', default='', help="head redis host:port")
-    parser.add_argument('--redis-password', help="head redis password")
+    parser.add_argument('--head-object-manager-port', type=int, help="head object manager port")
+    parser.add_argument('--head-node-manager-port', type=int, help="head node manager port")
     parser.add_argument('--object-manager-port', type=int, help="head object manager port")
     parser.add_argument('--node-manager-port', type=int, help="head node manager port")
-    parser.add_argument('--redis-shard-ports', help="redis shard ports")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG)
@@ -30,27 +33,24 @@ def main():
     if args.ssh_tunnel:
         # create ssh connection
         ssh = Connection(head_host, args.ssh_username or None, args.ssh_keyfile or None)
-        head_host = '127.0.0.1'
-
-        # create tunnels to head, for redis, node and object managers
         try:
+            # create tunnels to head, for redis, node and object managers
             ssh.tunnel(head_port, head_port)
             ssh.tunnel(int(args.redis_shard_ports), int(args.redis_shard_ports))
-            ssh.tunnel(args.object_manager_port, args.object_manager_port)
-            ssh.tunnel(args.node_manager_port, args.node_manager_port)
+            ssh.tunnel(args.head_object_manager_port, args.head_object_manager_port)
+            ssh.tunnel(args.head_node_manager_port, args.head_node_manager_port)
+
+            # create reverse tunnels from head for local node and object managers
+            ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, head_host, args.object_manager_port)
+            ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, head_host, args.node_manager_port)
         except Exception as e:
             logging.warning('ssh tunnel creation failed, maybe tunnels already exist? Exception: %s' % e)
 
-        if 0:
-            # create reverse tunnels so that head can connect to worker
-            worker_redis_port = ssh.reverse_tunnel('127.0.0.1', 23010)
-            worker_object_port = ssh.reverse_tunnel('127.0.0.1', 23020)
-            worker_node_port = ssh.reverse_tunnel('127.0.0.1', 23030)
-            # TODO: how to set these ports for the worker?
+        head_host = '127.0.0.1'
 
     logging.info('starting ray worker...')
     head_address = '%s:%d' % (head_host, head_port)
-    overrides.start(address=head_address, redis_password=args.redis_password,
+    overrides.start(address=head_address, redis_password=args.redis_password, temp_dir=args.temp_dir,
                     num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
               # node_ip_address, redis_shard_ports, object_manager_port, node_manager_port, gcs_server_port,
               # min_worker_port, max_worker_port, worker_port_list, memory,
