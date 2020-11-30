@@ -36,7 +36,7 @@ def main():
                                port=local_ports[0], redis_shard_ports='%d' % local_ports[1], redis_password=redis_pwd,
                                node_manager_port=local_ports[2], object_manager_port=local_ports[3],
                                gcs_server_port=local_ports[4], raylet_socket_name='tcp://127.0.0.1:%d' % local_ports[5],
-                               include_dashboard=False, verbose=True, temp_dir='/tmp/ray', min_worker_port=min_wport,
+                               include_dashboard=False, verbose=True, temp_dir='/tmp/ray/', min_worker_port=min_wport,
                                max_worker_port=max_wport)
 
         logging.info('head node started with details: %s' % ((
