@@ -63,7 +63,7 @@ def main():
                        node.address_info,
                        node.all_processes,
                        node.metrics_export_port,
-                       node.metrics_agent_port()),))
+                       node.metrics_agent_port),))
 
         addr = ray.init(address=head_address, logging_level=logging.DEBUG,
                         _redis_password=args.redis_password, _temp_dir=args.temp_dir)

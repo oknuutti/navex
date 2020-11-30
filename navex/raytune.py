@@ -38,7 +38,7 @@ def main():
                        node.address_info,
                        node.all_processes,
                        node.metrics_export_port,
-                       node.metrics_agent_port()),))
+                       node.metrics_agent_port),))
 
         head_address = '127.0.0.1:%d' % local_ports[0]
         addr = ray.init(head_address, _redis_password=redis_pwd)
