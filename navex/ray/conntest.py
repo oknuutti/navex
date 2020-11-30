@@ -7,7 +7,7 @@ def main():
     parser = argparse.ArgumentParser('test socket connectivity')
     parser.add_argument('--port', '-p', type=int, help="port")
     parser.add_argument('--host', '-H', default='localhost', help="host")
-    parser.add_argument('--msg', '-m', default='HELO', help="message")
+    parser.add_argument('--msg', '-m', default=r'HELO\n', help="message")
     parser.add_argument('--timeout', '-t', type=int, default=3, help="timeout")
     args = parser.parse_args()
 
@@ -15,7 +15,7 @@ def main():
     # s.setblocking(False)
     try:
         s.connect((args.host, args.port))
-        s.send(args.msg.encode('utf-8'))
+        s.send(args.msg.replace(r'\n', '\n').encode('utf-8'))
 
         ready = select.select([s], [], [], args.timeout)
         if ready[0]:

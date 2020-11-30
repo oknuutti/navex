@@ -52,10 +52,10 @@ def main():
                 ssh.tunnel(p, p)
 
             # create reverse tunnels from head for local node and object managers (done now in .sbatch file using ssh)
-            #ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
-            #ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
+            ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
+            ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
             # TODO: does this work or not? first worker done using command line ssh
-            for p in range(args.min_worker_port+1, args.max_worker_port+1):
+            for p in range(args.min_worker_port, args.max_worker_port+1):
                 ssh.reverse_tunnel('127.0.0.1', p, '127.0.0.1', p)
 
         except Exception as e:

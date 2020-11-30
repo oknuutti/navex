@@ -88,6 +88,7 @@ def main():
                 wps = list(wp0 + np.array(list(range(worker_wport_n))))
                 for p in wps:
                     ssh.tunnel(p, p)
+                    logging.info('Forward tunnel 127.0.0.1:%d => %s:%d' % (p, search_conf['host'], p))
                 worker_wp0.append(wp0)
             except OSError:
                 logging.error('failed to allocate ports for worker node workers')
@@ -118,7 +119,7 @@ def main():
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
              "NODE_M_PORT=%d,OBJ_M_PORT=%d,WPORT_S=%d,WPORT_E=%d "
-             "$WRKDIR/navex/navex/ray/worker.sbatch") % (
+             "$WRKDIR/navex/navex/ray/worker-alt.sbatch") % (
             config.data.workers,
             config.data.workers,
             search_conf['host'],
@@ -127,8 +128,8 @@ def main():
             max_wport + 1,
             redis_pwd,
             *worker_ports[i],
-            worker_wp0,
-            worker_wp0 + worker_wport_n + 1,
+            worker_wp0[i],
+            worker_wp0[i] + worker_wport_n + 1,
         ))
         m = re.search(r'\d+$', out)
         if err or not m:
