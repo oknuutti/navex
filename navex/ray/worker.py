@@ -43,7 +43,7 @@ def main():
             ssh.tunnel(args.head_object_manager_port, args.head_object_manager_port)
             ssh.tunnel(args.head_node_manager_port, args.head_node_manager_port)
             ssh.tunnel(args.head_gcs_port, args.head_gcs_port)
-            ssh.tunnel(args.head_raylet_port, args.head_raylet_port)
+            #ssh.tunnel(args.head_raylet_port, args.head_raylet_port)   # need to create local raylet with same port??
 
             # create reverse tunnels from head for local node and object managers
             #ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
