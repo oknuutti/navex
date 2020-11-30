@@ -63,18 +63,28 @@ def main():
         ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 20022)
         for lport, rport in zip(local_ports, remote_ports):
             if lport is not None:
-                rport = ssh.reverse_tunnel('127.0.0.1', lport, search_conf['host'], rport)  # TODO: how come host is triton.aalto.fi and it works?
+                rport = ssh.reverse_tunnel('127.0.0.1', lport, '127.0.0.1', rport)
                 logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (search_conf['host'], rport, lport))
 
         # forward tunnels to contact worker nodes, local_ports => remote_ports
         # if port already used on the worker node that is later allocated, this will fail
         # TODO: to fix this problem, would need to create the forward tunnels after worker node init
-        r = lambda: random.randint(11000, 2**16-1)
-        worker_ports = [(r(), r()) for i in range(search_conf['workers'])]
-        for ps in worker_ports:
-            for p in ps:
-                ssh.tunnel(p, p)
-                logging.info('Forward tunnel 127.0.0.1:%d => %s:%d' % (p, search_conf['host'], p))
+        worker_ports = []
+        for i in range(search_conf['workers']):
+            ps = [None] * 2
+            for j in range(2):
+                for k in range(10):
+                    try:
+                        p = random.randint(20001, 2 ** 16 - 1)
+                        ssh.tunnel(p, p)
+                        ps[j] = p
+                    except OSError:
+                        continue
+                    break
+                if ps[j] is None:
+                    raise Exception("Can't allocate ports for forward tunnels")
+                logging.info('Forward tunnel 127.0.0.1:%d => %s:%d' % (ps[j], search_conf['host'], ps[j]))
+            worker_ports.append(ps)
 
     # schedule workers
     workers = []

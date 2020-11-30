@@ -44,8 +44,8 @@ def main():
             ssh.tunnel(args.head_gcs_port, args.head_gcs_port)
 
             # create reverse tunnels from head for local node and object managers
-            ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, head_host, args.object_manager_port)
-            ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, head_host, args.node_manager_port)
+            ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
+            ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
         except Exception as e:
             logging.warning('ssh tunnel creation failed, maybe tunnels already exist? Exception: %s' % e)
 
