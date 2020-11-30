@@ -72,12 +72,11 @@ class Connection:
         self._close_connection()
 
     def tunnel(self, src_port, dst_port, dst_host='localhost'):
-        logging.debug('init tunnel %d => %s:%d' % (src_port, dst_host, dst_port))
-
         def _tunnel():
             Connection._forward_tunnel(src_port, dst_host, dst_port, self._host_client.get_transport())
 
         threading.Thread(target=_tunnel, daemon=True).start()
+        logging.debug('init forward tunnel %d => %s:%d' % (src_port, dst_host, dst_port))
 
     def reverse_tunnel(self, local_host, local_port, remote_host='localhost', remote_port=0):
         transport = self._host_client.get_transport()
@@ -93,6 +92,7 @@ class Connection:
 
         threading.Thread(target=reverse, daemon=True).start()
         time.sleep(0.1)
+        logging.debug('init reverse tunnel %s:%d <= %s:%d' % (local_host, local_port, remote_host, remote_port))
         return remote_port
 
     def exec(self, cmd):

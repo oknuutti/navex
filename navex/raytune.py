@@ -32,16 +32,6 @@ def main():
                                port=local_ports[0], redis_shard_ports='%d' % local_ports[1], redis_password=redis_pwd,
                                node_manager_port=local_ports[2], object_manager_port=local_ports[3],
                                gcs_server_port=local_ports[4], include_dashboard=False, verbose=True)
-        # node_ip_address, redis_shard_ports, gcs_server_port,
-        # min_worker_port, max_worker_port, worker_port_list, memory,
-        # object_store_memory, redis_max_memory, resources,
-        # dashboard_host, dashboard_port, block,
-        # plasma_directory, autoscaling_config, no_redirect_worker_output,
-        # no_redirect_output, plasma_store_socket_name, raylet_socket_name,
-        # temp_dir, java_worker_options, load_code_from_local,
-        # code_search_path, system_config, lru_evict,
-        # enable_object_reconstruction, metrics_export_port, log_style,
-        # log_color)
 
         head_address = '127.0.0.1:%d' % local_ports[0]
         addr = ray.init(head_address, _redis_password=redis_pwd)

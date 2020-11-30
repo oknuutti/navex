@@ -1,6 +1,7 @@
 import logging
 import argparse
 import time
+import os
 
 import ray
 
@@ -50,32 +51,30 @@ def main():
 
         head_host = '127.0.0.1'
 
-    logging.info('starting ray worker...')
-    head_address = '%s:%d' % (head_host, head_port)
-    overrides.start(address=head_address, redis_password=args.redis_password, temp_dir=args.temp_dir,
-                    num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
-              # node_ip_address, redis_shard_ports, object_manager_port, node_manager_port, gcs_server_port,
-              # min_worker_port, max_worker_port, worker_port_list, memory,
-              # object_store_memory, redis_max_memory, resources,
-              # dashboard_host, dashboard_port, block,
-              # plasma_directory, autoscaling_config, no_redirect_worker_output,
-              # no_redirect_output, plasma_store_socket_name, raylet_socket_name,
-              # temp_dir, java_worker_options, load_code_from_local,
-              # code_search_path, system_config, lru_evict,
-              # enable_object_reconstruction, metrics_export_port, log_style,
-              # log_color)
+    try:
+        logging.info('starting ray worker...')
+        head_address = '%s:%d' % (head_host, head_port)
+        overrides.start(address=head_address, redis_password=args.redis_password, temp_dir=args.temp_dir,
+                        object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
+                        num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
 
-    addr = ray.init(address=head_address, logging_level=logging.DEBUG, _redis_password=args.redis_password)
-    node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
+        addr = ray.init(address=head_address, logging_level=logging.DEBUG, _redis_password=args.redis_password)
+        node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
-    # ports on which the worker is listening on
-    local_ports = [int(addr['redis_address'].split(':')[-1]),
-                   node_info['NodeManagerPort'],
-                   node_info['ObjectManagerPort']]
+        # ports on which the worker is listening on
+        local_ports = [int(addr['redis_address'].split(':')[-1]),
+                       node_info['NodeManagerPort'],
+                       node_info['ObjectManagerPort']]
 
-    logging.info('ray worker started, ports: %s' % (local_ports,))
+        logging.info('ray worker started, ports: %s' % (local_ports,))
 
-    time.sleep(3600)
+        time.sleep(3600)
+    except Exception as e:
+        msg = 'Exception occurred during ray worker startup: %s' % e
+        logging.error(msg)
+        with open(os.path.join(args.temp_dir, 'crash.log'), 'a') as fh:
+            fh.write(msg)
+        raise Exception("ray worker startup failed") from e
 
 
 if __name__ == '__main__':
