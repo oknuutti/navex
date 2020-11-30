@@ -5,6 +5,8 @@ import logging
 import socket
 import random
 
+import numpy as np
+
 import ray
 from ray.worker import global_worker
 
@@ -26,17 +28,20 @@ def main():
 
     # start a ray cluster by creating the head, connect to it
     redis_pwd = '5241590000000000'
+    min_wport, max_wport = 10000, 10003
     local_ports = (34735, 34935, 33111, 35124, 36692, 29321)
+    w_ports = tuple(range(min_wport, max_wport+1))
     if 1:
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
                                port=local_ports[0], redis_shard_ports='%d' % local_ports[1], redis_password=redis_pwd,
                                node_manager_port=local_ports[2], object_manager_port=local_ports[3],
                                gcs_server_port=local_ports[4], raylet_socket_name='tcp://127.0.0.1:%d' % local_ports[5],
-                               include_dashboard=False, verbose=True)
+                               include_dashboard=False, verbose=True, temp_dir='/tmp/ray', min_worker_port=min_wport,
+                               max_worker_port=max_wport)
 
-        logging.info('ray head node started, interfacing with python...')
-        logging.info('head node details: %s' % ((
+        logging.info('head node started with details: %s' % ((
                        node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
+        logging.info('interfacing with python...')
 
         head_address = '127.0.0.1:%d' % local_ports[0]
         addr = ray.init(head_address, _redis_password=redis_pwd)
@@ -66,7 +71,7 @@ def main():
     else:
         # ssh reverse tunnels remote_port => local_port
         ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 20022)
-        for lport, rport in zip(local_ports, remote_ports):
+        for lport, rport in zip(local_ports + w_ports, remote_ports + w_ports):
             if lport is not None:
                 rport = ssh.reverse_tunnel('127.0.0.1', lport, '127.0.0.1', rport)
                 logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (search_conf['host'], rport, lport))
@@ -74,8 +79,22 @@ def main():
         # forward tunnels to contact worker nodes, local_ports => remote_ports
         # if port already used on the worker node that is later allocated, this will fail
         # TODO: to fix this problem, would need to create the forward tunnels after worker node init
+        worker_wport_n = 3
+        worker_wp0 = []
         worker_ports = []
         for i in range(search_conf['workers']):
+            try:
+                wp0 = random.randint(20001, 2 ** 16 - 1)
+                wps = list(wp0 + np.array(list(range(worker_wport_n))))
+                for p in wps:
+                    ssh.tunnel(p, p)
+                worker_wp0.append(wp0)
+            except OSError:
+                logging.error('failed to allocate ports for worker node workers')
+                os.system("ray stop")
+                del ssh
+                return
+
             ps = [None] * 2
             for j in range(2):
                 for k in range(10):
@@ -97,14 +116,19 @@ def main():
         out, err = ssh.exec(
             ("sbatch -c %d "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
-             "H_GCS_PORT=%d,H_RLET_PORT=%d,H_REDIS_PWD=%s,NODE_M_PORT=%d,OBJ_M_PORT=%d "
+             "H_GCS_PORT=%d,H_RLET_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
+             "NODE_M_PORT=%d,OBJ_M_PORT=%d,WPORT_S=%d,WPORT_E=%d "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,
             search_conf['host'],
             *remote_ports,
+            min_wport,
+            max_wport + 1,
             redis_pwd,
             *worker_ports[i],
+            worker_wp0,
+            worker_wp0 + worker_wport_n + 1,
         ))
         m = re.search(r'\d+$', out)
         if err or not m:

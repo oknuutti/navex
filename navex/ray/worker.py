@@ -21,11 +21,15 @@ def main():
     parser.add_argument('--head-node-manager-port', type=int, help="head node manager port")
     parser.add_argument('--head-gcs-port', type=int, help="head node gcs port")
     parser.add_argument('--head-raylet-port', type=int, help="head node raylet port")
+    parser.add_argument('--head-min-worker-port', type=int, help="head node min worker port")
+    parser.add_argument('--head-max-worker-port', type=int, help="head node max worker port")
     parser.add_argument('--ssh-tunnel', action="store_true", help="create tunnels to ray head")
     parser.add_argument('--ssh-username', default='', help="head redis host:port")
     parser.add_argument('--ssh-keyfile', default='', help="head redis host:port")
-    parser.add_argument('--object-manager-port', type=int, help="head object manager port")
-    parser.add_argument('--node-manager-port', type=int, help="head node manager port")
+    parser.add_argument('--object-manager-port', type=int, help="object manager port")
+    parser.add_argument('--node-manager-port', type=int, help="node manager port")
+    parser.add_argument('--min-worker-port', type=int, help="min worker port")
+    parser.add_argument('--max-worker-port', type=int, help="max worker port")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG)
@@ -43,11 +47,17 @@ def main():
             ssh.tunnel(args.head_object_manager_port, args.head_object_manager_port)
             ssh.tunnel(args.head_node_manager_port, args.head_node_manager_port)
             ssh.tunnel(args.head_gcs_port, args.head_gcs_port)
-            ssh.tunnel(args.head_raylet_port, args.head_raylet_port)  # worker tries to create local raylet with same port??
+            ssh.tunnel(args.head_raylet_port, args.head_raylet_port)
+            for p in range(args.head_min_worker_port, args.head_max_worker_port+1):
+                ssh.tunnel(p, p)
 
             # create reverse tunnels from head for local node and object managers (done now in .sbatch file using ssh)
             #ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
             #ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
+            # TODO: does this work or not? first worker done using command line ssh
+            for p in range(args.min_worker_port+1, args.max_worker_port+1):
+                ssh.reverse_tunnel('127.0.0.1', p, '127.0.0.1', p)
+
         except Exception as e:
             logging.warning('ssh tunnel creation failed, maybe tunnels already exist? Exception: %s' % e)
 
@@ -58,11 +68,12 @@ def main():
         head_address = '%s:%d' % (head_host, head_port)
         node = overrides.start(address=head_address, redis_password=args.redis_password, #temp_dir=args.temp_dir,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
+                        min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
 
-        logging.info('ray worker node started, interfacing with python...')
-        logging.info('worker node details: %s' % ((
+        logging.info('ray worker node started with details: %s' % ((
                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
+        logging.info('interfacing with python...')
 
         addr = ray.init(address=head_address, logging_level=logging.DEBUG, #_temp_dir=args.temp_dir,
                         _redis_password=args.redis_password)
