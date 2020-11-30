@@ -149,8 +149,7 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
                     f"Please specify a different port using the `--port`"
                     f" command to `ray start`.")
 
-        node = ray.node.Node(
-            ray_params, head=True, shutdown_at_exit=block, spawn_reaper=block)
+        node = MyNode(ray_params, head=True, shutdown_at_exit=block, spawn_reaper=block)    # EDITED
         redis_address = node.redis_address
 
         # this is a noop if new-style is not set, so the old logger calls
@@ -242,8 +241,7 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
         check_no_existing_redis_clients(ray_params.node_ip_address,
                                         redis_client)
         ray_params.update(redis_address=redis_address)
-        node = ray.node.Node(
-            ray_params, head=False, shutdown_at_exit=block, spawn_reaper=block)
+        node = MyNode(ray_params, head=False, shutdown_at_exit=block, spawn_reaper=block)   # EDITED
 
         cli_logger.newline()
         startup_msg = "Ray runtime started."
@@ -283,3 +281,12 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
                 sys.exit(1)
     else:
         return node  # EDITED: own addition
+
+
+class MyNode(ray.node.Node):
+    def _init_temp(self, redis_client):
+        # use own temp dir given locally, otherwise e.g. creates a dir with Windows-style name in linux project home dir
+        head = self.head
+        self.head = True
+        super(MyNode, self)._init_temp(redis_client)
+        self.head = head

@@ -84,6 +84,7 @@ def main():
         for ps in worker_ports:
             for p in ps:
                 ssh.tunnel(p, p)
+                logging.info('Forward tunnel 127.0.0.1:%d => %s:%d' % (p, search_conf['host'], p))
 
     # schedule workers
     workers = []

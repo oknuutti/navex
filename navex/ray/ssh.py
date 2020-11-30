@@ -89,7 +89,7 @@ class Connection:
             while True:
                 chan = transport.accept(1000)
                 if chan is not None:
-                    _reverse_handler(chan)
+                    threading.Thread(target=_reverse_handler, args=(chan,), daemon=True).start()
 
         threading.Thread(target=reverse, daemon=True).start()
         time.sleep(0.1)
