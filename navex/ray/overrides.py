@@ -286,7 +286,7 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
 class MyNode(ray.node.Node):
     def _init_temp(self, redis_client):
         # use own temp dir given locally, otherwise e.g. creates a dir with Windows-style name in linux project home dir
-        head = self.head
-        self.head = True
+        #head = self.head
+        #self.head = True
         super(MyNode, self)._init_temp(redis_client)
-        self.head = head
+        #self.head = head

@@ -61,7 +61,7 @@ def main():
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
 
         logging.info('ray worker node started, interfacing with python...')
-        logging.debug('worker node details: %s' % ((
+        logging.info('worker node details: %s' % ((
                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
 
         addr = ray.init(address=head_address, logging_level=logging.DEBUG, #_temp_dir=args.temp_dir,

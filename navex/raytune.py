@@ -17,7 +17,7 @@ from .experiments.parser import ExperimentConfigParser, to_dict
 def main():
     def_file = os.path.join(os.path.dirname(__file__), 'experiments', 'definition.yaml')
     config = ExperimentConfigParser(definition=def_file).parse_args()
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     os.makedirs(config.training.output, exist_ok=True)
 
@@ -35,7 +35,7 @@ def main():
                                include_dashboard=False, verbose=True)
 
         logging.info('ray head node started, interfacing with python...')
-        logging.debug('head node details: %s' % ((
+        logging.info('head node details: %s' % ((
                        node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
 
         head_address = '127.0.0.1:%d' % local_ports[0]
