@@ -20,6 +20,7 @@ def main():
     parser.add_argument('--head-object-manager-port', type=int, help="head object manager port")
     parser.add_argument('--head-node-manager-port', type=int, help="head node manager port")
     parser.add_argument('--head-gcs-port', type=int, help="head node gcs port")
+    parser.add_argument('--head-raylet-port', type=int, help="head node raylet port")
     parser.add_argument('--ssh-tunnel', action="store_true", help="create tunnels to ray head")
     parser.add_argument('--ssh-username', default='', help="head redis host:port")
     parser.add_argument('--ssh-keyfile', default='', help="head redis host:port")
@@ -42,6 +43,7 @@ def main():
             ssh.tunnel(args.head_object_manager_port, args.head_object_manager_port)
             ssh.tunnel(args.head_node_manager_port, args.head_node_manager_port)
             ssh.tunnel(args.head_gcs_port, args.head_gcs_port)
+            ssh.tunnel(args.head_raylet_port, args.head_raylet_port)
 
             # create reverse tunnels from head for local node and object managers
             ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
@@ -61,7 +63,6 @@ def main():
         logging.info('ray worker node started, interfacing with python...')
         logging.debug('worker node details: %s' % ((
                        node.address_info,
-                       node.all_processes,
                        node.metrics_export_port,
                        node.metrics_agent_port),))
 

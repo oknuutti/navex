@@ -22,7 +22,8 @@ export TUNE_RESULT_DIR=$WRKDIR/navex/output
 srun python -m navex.ray.worker --num-cpus=$CPUS --num-gpus=1 --ssh-tunnel --address=$HEAD_HOST:$HEAD_PORT \
                                 --redis-shard-ports=$H_SHARD_PORTS --redis-password=$H_REDIS_PWD \
                                 --head-object-manager-port=$H_OBJ_M_PORT --head-node-manager-port=$H_NODE_M_PORT \
-                                --head-gcs-port=$H_GCS_PORT --temp-dir=$WRKDIR/navex/logs \
+                                --head-gcs-port=$H_GCS_PORT --head-raylet-port=$H_RLET_PORT \
+                                --temp-dir=$WRKDIR/navex/logs \
                                 --object-manager-port=$OBJ_M_PORT --node-manager-port=$NODE_M_PORT
 
 sleep 1h
