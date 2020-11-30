@@ -43,9 +43,9 @@ def main():
             ssh.tunnel(args.head_object_manager_port, args.head_object_manager_port)
             ssh.tunnel(args.head_node_manager_port, args.head_node_manager_port)
             ssh.tunnel(args.head_gcs_port, args.head_gcs_port)
-            #ssh.tunnel(args.head_raylet_port, args.head_raylet_port)   # need to create local raylet with same port??
+            ssh.tunnel(args.head_raylet_port, args.head_raylet_port)  # worker tries to create local raylet with same port??
 
-            # create reverse tunnels from head for local node and object managers
+            # create reverse tunnels from head for local node and object managers (done now in .sbatch file using ssh)
             #ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
             #ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
         except Exception as e:
@@ -56,16 +56,16 @@ def main():
     try:
         logging.info('starting ray worker node...')
         head_address = '%s:%d' % (head_host, head_port)
-        node = overrides.start(address=head_address, redis_password=args.redis_password, temp_dir=args.temp_dir,
+        node = overrides.start(address=head_address, redis_password=args.redis_password, #temp_dir=args.temp_dir,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
 
         logging.info('ray worker node started, interfacing with python...')
         logging.debug('worker node details: %s' % ((
-                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
+                      node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
 
-        addr = ray.init(address=head_address, logging_level=logging.DEBUG,
-                        _redis_password=args.redis_password, _temp_dir=args.temp_dir)
+        addr = ray.init(address=head_address, logging_level=logging.DEBUG, #_temp_dir=args.temp_dir,
+                        _redis_password=args.redis_password)
         node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
         # ports on which the worker is listening on
