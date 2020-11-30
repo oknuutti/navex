@@ -26,12 +26,12 @@ def main():
 
     # start a ray cluster by creating the head, connect to it
     redis_pwd = '5241590000000000'
-    local_ports = (34735, 34935, 33111, 35124)
+    local_ports = (34735, 34935, 33111, 35124, 36692)
     if 1:
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
-                               port=local_ports[0], redis_shard_ports='%d' % local_ports[1],
+                               port=local_ports[0], redis_shard_ports='%d' % local_ports[1], redis_password=redis_pwd,
                                node_manager_port=local_ports[2], object_manager_port=local_ports[3],
-                               redis_password=redis_pwd, include_dashboard=False, verbose=True)
+                               gcs_server_port=local_ports[4], include_dashboard=False, verbose=True)
         # node_ip_address, redis_shard_ports, gcs_server_port,
         # min_worker_port, max_worker_port, worker_port_list, memory,
         # object_store_memory, redis_max_memory, resources,
@@ -92,7 +92,7 @@ def main():
         out, err = ssh.exec(
             ("sbatch -c %d "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
-             "H_REDIS_PWD=%s,NODE_M_PORT=%d,OBJ_M_PORT=%d "
+             "H_GCS_PORT=%d,H_REDIS_PWD=%s,NODE_M_PORT=%d,OBJ_M_PORT=%d "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,

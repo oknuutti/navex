@@ -16,11 +16,12 @@ def main():
     parser.add_argument('--address', help="head redis host:port")
     parser.add_argument('--redis-shard-ports', help="redis shard ports")
     parser.add_argument('--redis-password', help="head redis password")
+    parser.add_argument('--head-object-manager-port', type=int, help="head object manager port")
+    parser.add_argument('--head-node-manager-port', type=int, help="head node manager port")
+    parser.add_argument('--head-gcs-port', type=int, help="head node gcs port")
     parser.add_argument('--ssh-tunnel', action="store_true", help="create tunnels to ray head")
     parser.add_argument('--ssh-username', default='', help="head redis host:port")
     parser.add_argument('--ssh-keyfile', default='', help="head redis host:port")
-    parser.add_argument('--head-object-manager-port', type=int, help="head object manager port")
-    parser.add_argument('--head-node-manager-port', type=int, help="head node manager port")
     parser.add_argument('--object-manager-port', type=int, help="head object manager port")
     parser.add_argument('--node-manager-port', type=int, help="head node manager port")
     args = parser.parse_args()
@@ -39,6 +40,7 @@ def main():
             ssh.tunnel(int(args.redis_shard_ports), int(args.redis_shard_ports))
             ssh.tunnel(args.head_object_manager_port, args.head_object_manager_port)
             ssh.tunnel(args.head_node_manager_port, args.head_node_manager_port)
+            ssh.tunnel(args.head_gcs_port, args.head_gcs_port)
 
             # create reverse tunnels from head for local node and object managers
             ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, head_host, args.object_manager_port)
