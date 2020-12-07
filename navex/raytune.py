@@ -29,7 +29,7 @@ def main():
     # start a ray cluster by creating the head, connect to it
     redis_pwd = '5241590000000000'
     min_wport, max_wport = 10000, 10003
-    local_ports = (34735, 34935, 33111, 35124, 36692, 29321, 28543)
+    local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543)
     w_ports = tuple(range(min_wport, max_wport+1))
     if 1:
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
