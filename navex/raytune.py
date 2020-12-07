@@ -85,6 +85,10 @@ def main():
                 return out, err
 
         ssh = Terminal()
+        worker_ports = []
+        for i in range(search_conf['workers']):
+            worker_ports.append([random.randint(20001, 2 ** 16 - 1) for _ in range(2)])
+
     else:
         # ssh reverse tunnels remote_port => local_port
         ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 19922)
