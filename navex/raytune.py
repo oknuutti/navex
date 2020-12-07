@@ -26,6 +26,9 @@ def main():
     full_conf = to_dict(config)
     search_conf, hparams = full_conf.pop('search'), full_conf.pop('hparams')
 
+    hostname = socket.gethostname()
+    local_linux = hostname and search_conf['host'] in hostname
+
     # start a ray cluster by creating the head, connect to it
     redis_pwd = '5241590000000000'
     min_wport, max_wport = 10000, 10003
@@ -35,8 +38,9 @@ def main():
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
                                port=local_ports[0], redis_shard_ports='%d' % local_ports[1], redis_password=redis_pwd,
                                node_manager_port=local_ports[2], object_manager_port=local_ports[3],
-                               gcs_server_port=local_ports[4], raylet_socket_name='tcp://127.0.0.1:%d' % local_ports[5],
-                               plasma_store_socket_name='tcp://127.0.0.1:%d' % local_ports[6],
+                               gcs_server_port=local_ports[4],
+                               raylet_socket_name='tcp://127.0.0.1:%d' % local_ports[5] if not local_linux else None,
+                               plasma_store_socket_name='tcp://127.0.0.1:%d' % local_ports[6] if not local_linux else None,
                                include_dashboard=False, verbose=True, temp_dir='/tmp/ray/', min_worker_port=min_wport,
                                max_worker_port=max_wport)
 
@@ -65,8 +69,7 @@ def main():
 
     #search_conf['workers'] = 0
 
-    hostname = socket.gethostname()
-    if hostname and search_conf['host'] in hostname:
+    if local_linux:
         # no need tunneling, just execute commands locally
         import subprocess
 
