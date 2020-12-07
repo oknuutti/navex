@@ -80,9 +80,10 @@ def main():
             def exec(self, command):
                 cmd_arr = shlex.split(command)
                 logging.debug('executing command: %s' % (cmd_arr,))
-                proc = subprocess.Popen(cmd_arr, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
+                proc = subprocess.Popen(cmd_arr, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                        stdin=subprocess.PIPE, shell=True, text=True)
                 try:
-                    out, err = proc.communicate(timeout=30)
+                    out, err = proc.communicate("", timeout=30)
                 except subprocess.TimeoutExpired as e:
                     logging.error('something went wrong and command "%s" timeout reached' % command)
                     os.system("ray stop")
