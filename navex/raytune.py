@@ -67,8 +67,21 @@ def main():
 
     hostname = socket.gethostname()
     if hostname and search_conf['host'] in hostname:
-        # TODO: no need tunneling, just open ssh to localhost?
-        ssh = None
+        # no need tunneling, just execute commands locally
+        import subprocess
+
+        class Terminal:
+            def exec(self, command):
+                cmd_arr = command.split(' ')
+                assert not np.any(['"' in p or "'" in p for p in cmd_arr]), \
+                    '" or \' chars currently not supported locally'
+
+                proc = subprocess.Popen(cmd_arr, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                        shell=True, close_fds=True)
+                out, err = proc.communicate()
+                return out, err
+
+        ssh = Terminal()
     else:
         # ssh reverse tunnels remote_port => local_port
         ssh = Connection(config.search.host, config.search.username, config.search.keyfile, config.search.proxy, 19922)
@@ -153,6 +166,7 @@ def main():
             exception = e
 
     logging.info('cleaning up...')
+    time.sleep(900)
 
     # clean up
     for wid in workers:
