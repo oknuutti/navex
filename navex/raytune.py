@@ -8,7 +8,6 @@ import random
 import numpy as np
 
 import ray
-from ray.worker import global_worker
 
 from .ray import overrides      # overrides e.g. services.get_node_ip_address
 from .ray.ssh import Connection
@@ -19,7 +18,7 @@ from .experiments.parser import ExperimentConfigParser, to_dict
 def main():
     def_file = os.path.join(os.path.dirname(__file__), 'experiments', 'definition.yaml')
     config = ExperimentConfigParser(definition=def_file).parse_args()
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     os.makedirs(config.training.output, exist_ok=True)
 
@@ -75,16 +74,20 @@ def main():
     if local_linux:
         # no need tunneling, just execute commands locally
         import subprocess
+        import shlex
 
         class Terminal:
             def exec(self, command):
-                cmd_arr = command.split(' ')
-                assert not np.any(['"' in p or "'" in p for p in cmd_arr]), \
-                    '" or \' chars currently not supported locally'
-
-                proc = subprocess.Popen(cmd_arr, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        shell=True, close_fds=True)
-                out, err = proc.communicate()
+                cmd_arr = shlex.split(command)
+                logging.debug('executing command: %s' % (cmd_arr,))
+                with subprocess.Popen(cmd_arr, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True) as proc:
+                    try:
+                        out, err = proc.communicate(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        logging.error('something went wrong and command "%s" timeout reached' % command)
+                        os.system("ray stop")
+                        return
+                logging.debug('response: %s (err: %s)' % (out, err))
                 return out, err
 
         ssh = Terminal()
@@ -133,6 +136,7 @@ def main():
             worker_ports.append(ps)
 
     # schedule workers
+    logging.info('scheduling %d workers...' % search_conf['workers'])
     workers = []
     for i in range(search_conf['workers']):
         out, err = ssh.exec(
