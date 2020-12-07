@@ -1,0 +1,66 @@
+#Select parent image 
+FROM nvidia/cuda:11.0-devel-ubuntu20.04
+
+#how many threads are used to build with make
+ENV THREADS=4
+
+#supported cuda version (https://developer.nvidia.com/cuda-gpus)
+ENV CUDA_VERSION=sm_61
+#cmake will set this off if cuda is not found
+ENV USE_CUDA=OFF
+
+#Install some necessary dependencies
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y nano gcc g++ cmake gawk cmake cmake-curses-gui \
+                      build-essential libjpeg-dev libpng-dev libtiff-dev \
+                      git libfreetype6-dev libx11-dev flex bison libtbb-dev \
+                      libxxf86vm-dev libxcursor-dev libxi-dev wget libsqlite3-dev \
+                      libxrandr-dev libxinerama-dev libbz2-dev libncurses5-dev \
+                      libssl-dev liblzma-dev libreadline-dev libopenal-dev \
+                      libglew-dev yasm libtheora-dev libogg-dev \
+					  &&  rm -rf /var/lib/apt/lists/*
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \					  
+                      libsdl1.2-dev libfftw3-dev patch bzip2 libxml2-dev \
+                      libtinyxml-dev libjemalloc-dev libopenimageio-dev \
+                      libopencolorio-dev libopenexr-dev libsndfile1-dev libx264-dev \
+                      autotools-dev libtool m4 automake cmake libblkid-dev \
+                      e2fslibs-dev libaudit-dev libavformat-dev ffmpeg libavdevice-dev \
+                      libswscale-dev libalut-dev libalut0 libspnav-dev \
+                      libspnav0 libboost-all-dev libpcl-dev libcgal-dev libeigen3-dev \
+                      liblapack-dev  libflann-dev libceres-dev tzdata libglfw3-dev \
+                      &&  rm -rf /var/lib/apt/lists/*
+					
+RUN apt-get update && apt-get -y install libopencv-dev vim wget && rm -rf /var/lib/apt/lists/*
+RUN apt-get autoremove
+
+#Set up conda environment and python
+ARG CONDA="Miniconda3-latest-Linux-x86_64.sh"
+ARG CONDAREPO="https://repo.anaconda.com/miniconda/"$CONDA
+
+ENV PATH="/root/miniconda3/bin:${PATH}"
+ARG PATH="/root/miniconda3/bin:${PATH}"
+
+RUN wget $CONDAREPO \
+	&& bash $CONDA -b \
+	&& rm -f $CONDA 
+
+ENV CONDA_ENV=/root/miniconda3/
+ENV PYVERSION=3.8
+
+#install python environment
+RUN conda install pip
+RUN conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
+RUN conda install pytorch-lightning opencv pandas paramiko -c conda-forge
+RUN pip install -U ray ray[tune]
+RUN ray install-nightly
+RUN ray install ray[tune]
+
+# create app
+RUN mkdir /app
+RUN mkdir /app/navex
+RUN cd /app/navex
+#RUN git clone https://github.com/oknuutti/navex.git navex
+COPY ../../navex /app/navex/navex
+RUN git clone https://github.com/oknuutti/r2d2.git r2d2
+#COPY ../../r2d2 /app/navex/r2d2
+RUN pip install -e ./r2d2
+

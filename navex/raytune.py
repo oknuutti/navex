@@ -68,6 +68,9 @@ def main():
     remote_ports = local_ports
 
     #search_conf['workers'] = 0
+    worker_wport_n = 3
+    worker_wp0 = []
+    worker_ports = []
 
     if local_linux:
         # no need tunneling, just execute commands locally
@@ -85,9 +88,9 @@ def main():
                 return out, err
 
         ssh = Terminal()
-        worker_ports = []
         for i in range(search_conf['workers']):
             worker_ports.append([random.randint(20001, 2 ** 16 - 1) for _ in range(2)])
+            worker_wp0.append(random.randint(20001, 2 ** 16 - 1))
 
     else:
         # ssh reverse tunnels remote_port => local_port
@@ -100,9 +103,6 @@ def main():
         # forward tunnels to contact worker nodes, local_ports => remote_ports
         # if port already used on the worker node that is later allocated, this will fail
         # TODO: to fix this problem, would need to create the forward tunnels after worker node init
-        worker_wport_n = 3
-        worker_wp0 = []
-        worker_ports = []
         for i in range(search_conf['workers']):
             try:
                 wp0 = random.randint(20001, 2 ** 16 - 1)
