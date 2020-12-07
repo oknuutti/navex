@@ -52,7 +52,7 @@ RUN conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
 RUN conda install pytorch-lightning opencv pandas paramiko -c conda-forge
 RUN pip install -U ray ray[tune]
 RUN ray install-nightly
-RUN ray install ray[tune]
+RUN pip install ray[tune]
 
 # create app
 RUN mkdir /app
