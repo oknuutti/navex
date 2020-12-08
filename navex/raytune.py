@@ -85,6 +85,7 @@ def main():
                                         stdin=subprocess.PIPE, shell=True, text=True)
                 try:
                     proc.stdin.close()
+                    proc.stdin = None
                     out, err = proc.communicate(timeout=30)
                 except subprocess.TimeoutExpired as e:
                     logging.error('something went wrong and command "%s" timeout reached' % command)
