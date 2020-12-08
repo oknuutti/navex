@@ -4,6 +4,7 @@ import re
 import logging
 import socket
 import random
+import time
 
 import numpy as np
 
@@ -80,11 +81,11 @@ def main():
             def exec(self, command):
                 cmd_arr = shlex.split(command)
                 logging.debug('executing command: %s' % (cmd_arr,))
-                cmd_arr, input = (cmd_arr[:-1], cmd_arr[-1]) if len(cmd_arr) > 1 else (cmd_arr, "")
                 proc = subprocess.Popen(cmd_arr, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                         stdin=subprocess.PIPE, shell=True, text=True)
                 try:
-                    out, err = proc.communicate(input, timeout=30)
+                    proc.stdin.close()
+                    out, err = proc.communicate(timeout=30)
                 except subprocess.TimeoutExpired as e:
                     logging.error('something went wrong and command "%s" timeout reached' % command)
                     os.system("ray stop")
