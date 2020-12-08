@@ -1,7 +1,9 @@
+import threading
 from typing import Union, Dict, Any, Optional
 from argparse import Namespace
 
 import torch
+from pytorch_lightning.trainer.connectors.slurm_connector import SLURMConnector
 from torch import Tensor
 
 import pytorch_lightning as pl
@@ -91,3 +93,8 @@ class MyLogger(TensorBoardLogger):
         metrics = float('nan') if metrics is None else metrics
         return super(MyLogger, self).log_hyperparams(params, metrics)
 
+
+class MySLURMConnector(SLURMConnector):
+    def register_slurm_signal_handlers(self):
+        if threading.current_thread() == threading.main_thread():
+            super(MySLURMConnector, self).register_slurm_signal_handlers()

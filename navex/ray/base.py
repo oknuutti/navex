@@ -13,7 +13,7 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
 
 from ..experiments.parser import set_nested, nested_update
-from ..lightning.base import TrialWrapperBase, MyLogger
+from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
 from ..trials.terrestrial import TerrestrialTrial
 
 
@@ -78,6 +78,9 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
         auto_lr_find=bool(train_conf['auto_lr_find']),
         precision=16 if train_conf['gpu'] and train_conf['reduced_precision'] else 32
     )
+    # Workaround for problem where signal.signal(signal.SIGUSR1, self.sig_handler) throws error
+    #   "ValueError: signal only works in main thread", means that lightning based rescheduling won't work
+    trainer.slurm_connector = MySLURMConnector()
 
     if checkpoint_dir:
         if 1:

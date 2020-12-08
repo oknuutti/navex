@@ -16,6 +16,11 @@ cd $WRKDIR/navex
 module load anaconda
 source activate $WRKDIR/conda/envs/navex
 
+WPORT_TUNNELS=""
+for ((p=WPORT_S;p<=WPORT_E;p++)); do
+  WPORT_TUNNELS="$WPORT_TUNNELS -R $p:127.0.0.1:$p"
+done
+
 set -x    # echo all commands for debug purposes
 
 # forward and reverse tunnels
@@ -27,7 +32,7 @@ ssh -f -N -T -L $HEAD_PORT:127.0.0.1:$HEAD_PORT \
              -L $H_WPORT_S:127.0.0.1:$H_WPORT_S \
              -R $NODE_M_PORT:127.0.0.1:$NODE_M_PORT \
              -R $OBJ_M_PORT:127.0.0.1:$OBJ_M_PORT \
-             -R $WPORT_S:127.0.0.1:$WPORT_S \
+             $WPORT_TUNNELS \
              $HEAD_HOST
 
 #             -L $H_RLET_PORT:127.0.0.1:$H_RLET_PORT \

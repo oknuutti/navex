@@ -89,7 +89,8 @@ def main():
 
         logging.info('ray worker successfully initialized, ports: %s' % (local_ports,))
 
-        time.sleep(3600)
+        while True:
+            time.sleep(100000)
     except Exception as e:
         msg = 'Exception occurred during ray worker startup: %s' % e
         logging.error(msg)
