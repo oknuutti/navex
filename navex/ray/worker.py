@@ -89,6 +89,8 @@ def main():
 
         logging.info('ray worker successfully initialized, ports: %s' % (local_ports,))
 
+        # hook to signal
+
         while True:
             time.sleep(100000)
     except Exception as e:

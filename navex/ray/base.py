@@ -80,7 +80,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     )
     # Workaround for problem where signal.signal(signal.SIGUSR1, self.sig_handler) throws error
     #   "ValueError: signal only works in main thread", means that lightning based rescheduling won't work
-    trainer.slurm_connector = MySLURMConnector()
+    trainer.slurm_connector = MySLURMConnector(trainer)
 
     if checkpoint_dir:
         if 1:
