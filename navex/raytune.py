@@ -74,27 +74,29 @@ def main():
 
     if local_linux:
         # no need tunneling, just execute commands locally
-        import subprocess
-        import shlex
+        if 0:
+            import subprocess
+            import shlex
 
-        class Terminal:
-            def exec(self, command):
-                cmd_arr = shlex.split(command)
-                logging.debug('executing command: %s' % (cmd_arr,))
-                proc = subprocess.Popen(cmd_arr, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        stdin=subprocess.PIPE, shell=True, text=True)
-                try:
-                    proc.stdin.close()
-                    proc.stdin = None
-                    out, err = proc.communicate(timeout=30)
-                except subprocess.TimeoutExpired as e:
-                    logging.error('something went wrong and command "%s" timeout reached' % command)
-                    os.system("ray stop")
-                    raise e
-                logging.debug('response: %s (err: %s)' % (out, err))
-                return out, err
+            class Terminal:
+                def exec(self, command):
+                    cmd_arr = shlex.split(command)
+                    logging.debug('executing command: %s' % (cmd_arr,))
+                    proc = subprocess.Popen(cmd_arr, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
+                    try:
+                        # FIX: will hang as sbatch command will, for some reason, wait for stdin even though not opened
+                        out, err = proc.communicate(timeout=30)
+                    except subprocess.TimeoutExpired as e:
+                        logging.error('something went wrong and command "%s" timeout reached' % command)
+                        os.system("ray stop")
+                        raise e
+                    logging.debug('response: %s (err: %s)' % (out, err))
+                    return out, err
 
-        ssh = Terminal()
+            ssh = Terminal()
+        else:
+            ssh = Connection(config.search.host)
+
         for i in range(search_conf['workers']):
             worker_ports.append([random.randint(20001, 2 ** 16 - 1) for _ in range(2)])
             worker_wp0.append(random.randint(20001, 2 ** 16 - 1))
