@@ -1,16 +1,22 @@
 import os
 import re
 import time
+import signal
+import logging
+from subprocess import call
 from functools import partial
+from typing import Union, List, Dict
 
 import pytorch_lightning as pl
+from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.callbacks import EarlyStopping
 
+import ray
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
-from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
+from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, _TuneCheckpointCallback, TuneCallback
 
 from ..experiments.parser import set_nested, nested_update
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
@@ -25,14 +31,10 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
 
     # set paths
     sj_id = os.getenv('SLURM_JOB_ID')
-    if sj_id is None:
-        print('entered training!')
-        with open(r"d:\temp\debug.txt", "a") as fh:
-            fh.write('entered training!')
-        time.sleep(1800)    # for easier debugging
-        raise Exception('not a slurm node!')
+    assert sj_id, 'not a slurm node!'
 
-    full_conf['data']['path'] = os.path.join('/tmp', sj_id, full_conf['data']['path'])
+    datadir = full_conf['data']['path'].split('/')[-1].split('.')[0]       # e.g. data/aachen.tar => aachen
+    full_conf['data']['path'] = os.path.join('/tmp', sj_id, datadir)
     full_conf['training']['output'] = tune.get_trial_dir()
     full_conf['training']['cache'] = os.path.join(full_conf['training']['output'], '..', 'cache')
     full_conf['model']['cache_dir'] = full_conf['training']['cache']
@@ -46,13 +48,16 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     logger = MyLogger(train_conf['output'],
                       name=train_conf['name'], version=version)
 
-    callbacks = [TuneReportCheckpointCallback(metrics={
-        "loss": "val_loss_epoch",
-        "tot_ratio": "val_tot_epoch",
-        "inl_ratio": "val_inl_epoch",
-        "px_err": "val_dst_epoch",
-        "mAP": "val_map_epoch",
-    }, filename="checkpoint", on="validation_end")]
+    callbacks = [
+        TuneReportCheckpointCallback(metrics={
+            "loss": "val_loss_epoch",
+            "tot_ratio": "val_tot_epoch",
+            "inl_ratio": "val_inl_epoch",
+            "px_err": "val_dst_epoch",
+            "mAP": "val_map_epoch",
+        }, filename="checkpoint", on="validation_end"),
+#        CheckOnSLURM(),
+    ]
 
     if train_conf['early_stopping']:
         callbacks.append(EarlyStopping(monitor='val_loss_epoch',
@@ -131,3 +136,83 @@ def tune_asha(search_conf, hparams, full_conf):
         queue_trials=True,
         progress_reporter=reporter,
         name=train_conf['name'])
+
+
+# class _MyTuneCheckpointCallback(_TuneCheckpointCallback):
+#     def _handle(self, trainer: Trainer, pl_module: LightningModule):
+#         if trainer.running_sanity_check:
+#             return
+#         with tune.checkpoint_dir(step=trainer.global_step) as checkpoint_dir:
+#             node_id = ray.get_runtime_context().node_id
+#             terminate = ray.get(ray.get_actor('term_' + node_id).is_set.remote())
+#             if terminate:
+#                 logging.warning('should save as node %s will terminate soon!' % node_id)
+#                 # TODO: what should do here?
+#
+#             trainer.save_checkpoint(
+#                 os.path.join(checkpoint_dir, self._filename))
+#
+# class MyTuneReportCheckpointCallback(TuneReportCheckpointCallback):
+#     def __init__(self,
+#                  metrics: Union[None, str, List[str], Dict[str, str]] = None,
+#                  filename: str = "checkpoint",
+#                  on: Union[str, List[str]] = "validation_end"):
+#         super(MyTuneReportCheckpointCallback, self).__init__(metrics, filename, on)
+#         self._checkpoint = _MyTuneCheckpointCallback(filename, on)
+
+
+class CheckOnSLURM(TuneCallback):
+    def __init__(self):
+        super(CheckOnSLURM, self).__init__('batch_end')
+
+    def _handle(self, trainer: Trainer, pl_module: LightningModule):
+        node_id = ray.get_runtime_context().node_id
+        terminate = ray.get(ray.get_actor('term_' + node_id).is_set.remote())
+        if terminate:
+            trainer.checkpoint_connector.hpc_save(trainer.weights_save_path, trainer.logger)
+
+
+@ray.remote(num_cpus=0)
+class Signal:
+    def __init__(self):
+        self._flag = False
+
+    def set(self):
+        self._flag = True
+
+    def clear(self):
+        self._flag = False
+
+    def is_set(self):
+        return self._flag
+
+
+def register_slurm_signal_handlers(node_id):
+    """ call this after worker node init """
+
+    # signal = Signal.options(name="term_" + node_id).remote()      # OPTIONAL?
+
+    def sig_handler(signum, frame):  # pragma: no-cover
+        # instruct worker(s) to save a checkpoint and exit
+        logging.info('handling SIGUSR1')
+        # signal.set.remote()   # OPTIONAL?
+
+        # find job id
+        job_id = os.environ['SLURM_JOB_ID']
+        cmd = ['scontrol', 'requeue', job_id]
+
+        # requeue job
+        logging.info(f'requeing job {job_id}...')
+        result = call(cmd)
+
+        # print result text
+        if result == 0:
+            logging.info(f'requeued exp {job_id}')
+        else:
+            logging.warning('requeue failed...')
+
+    def term_handler(signum, frame):  # pragma: no-cover
+        logging.info("bypassing sigterm")
+
+    signal.signal(signal.SIGUSR1, sig_handler)
+    signal.signal(signal.SIGTERM, term_handler)

@@ -149,8 +149,8 @@ def main():
             ("sbatch -c %d "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
-             "NODE_M_PORT=%d,OBJ_M_PORT=%d,WPORT_S=%d,WPORT_E=%d "
-             "$WRKDIR/navex/navex/ray/worker-alt.sbatch") % (
+             "NODE_M_PORT=%d,OBJ_M_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=%s "
+             "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,
             search_conf['host'],
@@ -161,6 +161,7 @@ def main():
             *worker_ports[i],
             worker_wp0[i],
             worker_wp0[i] + worker_wport_n + 1,
+            config.data.path,
         ))
         m = re.search(r'\d+$', out)
         if err or not m:

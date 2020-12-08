@@ -36,7 +36,7 @@ class TerrestrialTrial(TrialBase):
         params = [m.params_to_optimize(split=split_params, excl_batch_norm=excl_bn)
                   for m in (self.model, self.loss_fn)]
         if split_params:
-            params = [sum(p, ()) for p in zip(*params)]
+            params = [sum(p, []) for p in zip(*params)]
         else:
             params = sum(params, [])
 

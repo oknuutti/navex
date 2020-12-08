@@ -1,9 +1,18 @@
-
+search:
+  samples: 1
+  workers: 1
+  grace_period: 0
+  reduction_factor: 0
+  username: ''
+  keyfile: ''
+  proxy: ''
+  host: ''
+  port: 0
 
 training:
   name: 'v0'
-  cache: 'c:/project-data/navex/cache'
-  output: 'd:/projects/navex/output'
+  cache: 'cache'
+  output: 'output'
   batch_size: 16
   acc_grad_batches: 1
   gpu: 1
@@ -29,7 +38,7 @@ model:
   batch_norm: 1
   direct_detection: 0
   pretrained: 0
-  cache_dir: 'c:/project-data/navex/cache'
+  cache_dir: 'cache'
 
 loss:
   wp: 1.0         # peakiness loss weight
@@ -58,7 +67,7 @@ optimizer:
   eps: !!float 1e-8
 
 data:
-  path: 'c:/project-data/navex/data/aachen'
+  path: 'data/aachen'
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1

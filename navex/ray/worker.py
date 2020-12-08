@@ -5,6 +5,7 @@ import os
 
 import ray
 
+from navex.ray.base import register_slurm_signal_handlers
 from .ssh import Connection
 from . import overrides         # overrides e.g. services.get_node_ip_address
 
@@ -13,7 +14,6 @@ def main():
     parser = argparse.ArgumentParser('Start a custom ray worker')
     parser.add_argument('--num-cpus', type=int, help="number of cpus to reserve")
     parser.add_argument('--num-gpus', type=int, help="number of gpus to reserve")
-    parser.add_argument('--temp-dir', help="temporary directory where logs are put")
     parser.add_argument('--address', help="head redis host:port")
     parser.add_argument('--redis-shard-ports', help="redis shard ports")
     parser.add_argument('--redis-password', help="head redis password")
@@ -69,7 +69,7 @@ def main():
     try:
         logging.info('starting ray worker node...')
         head_address = '%s:%d' % (head_host, head_port)
-        node = overrides.start(address=head_address, redis_password=args.redis_password, #temp_dir=args.temp_dir,
+        node = overrides.start(address=head_address, redis_password=args.redis_password,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
@@ -78,7 +78,7 @@ def main():
                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
         logging.info('interfacing with python...')
 
-        addr = ray.init(address=head_address, logging_level=logging.DEBUG, #_temp_dir=args.temp_dir,
+        addr = ray.init(address=head_address, logging_level=logging.DEBUG,
                         _redis_password=args.redis_password)
         node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
 
@@ -87,17 +87,16 @@ def main():
                        node_info['NodeManagerPort'],
                        node_info['ObjectManagerPort']]
 
-        logging.info('ray worker successfully initialized, ports: %s' % (local_ports,))
+        logging.info('ray worker node successfully initialized, ports: %s' % (local_ports,))
 
-        # hook to signal
+        # hook signals
+        register_slurm_signal_handlers(addr['node_id'])
 
         while True:
             time.sleep(100000)
     except Exception as e:
         msg = 'Exception occurred during ray worker startup: %s' % e
         logging.error(msg)
-        with open(os.path.join(args.temp_dir, 'crash.log'), 'a') as fh:
-            fh.write(msg)
         raise Exception("ray worker startup failed") from e
 
 
