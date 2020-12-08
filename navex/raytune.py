@@ -150,7 +150,7 @@ def main():
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
              "NODE_M_PORT=%d,OBJ_M_PORT=%d,WPORT_S=%d,WPORT_E=%d "
-             "$WRKDIR/navex/navex/ray/worker-alt" + ("2" if local_linux else "") + ".sbatch") % (
+             "$WRKDIR/navex/navex/ray/worker-alt.sbatch") % (
             config.data.workers,
             config.data.workers,
             search_conf['host'],
