@@ -1,8 +1,8 @@
 search:
-  samples: 64
+  samples: 128
   workers: 1
-  grace_period: 2
-  reduction_factor: 4
+  grace_period: 1
+  reduction_factor: 3
   username: ''
   keyfile: ''
   proxy: ''

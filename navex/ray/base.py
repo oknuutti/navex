@@ -41,12 +41,8 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
 
     train_conf = full_conf['training']
 
-    version = None
-    if checkpoint_dir:
-        m = re.findall(r'(/|\\)version_(\d+)(/|\\|$)', checkpoint_dir)
-        version = int(m[-1][1]) if m else None
-    logger = MyLogger(train_conf['output'],
-                      name=train_conf['name'], version=version)
+    # version is always 0 as output dir is unique for each trial (version=0 restores log if previous file exists)
+    logger = MyLogger(train_conf['output'], name=train_conf['name'], version=0)
 
     callbacks = [
         TuneReportCheckpointCallback(metrics={
@@ -134,6 +130,12 @@ def tune_asha(search_conf, hparams, full_conf):
         num_samples=search_conf['samples'],
         scheduler=scheduler,
         queue_trials=True,
+        reuse_actors=True,
+        max_failures=3,
+        # checkpoint_freq=200,
+        # checkpoint_at_end=True,
+        keep_checkpoints_num=5,
+        checkpoint_score_attr='min-validation_loss',
         progress_reporter=reporter,
         name=train_conf['name'])
 
@@ -210,6 +212,9 @@ def register_slurm_signal_handlers(node_id):
             logging.info(f'requeued exp {job_id}')
         else:
             logging.warning('requeue failed...')
+
+        # shutdown worker node  # IS THIS GOOD?
+        ray.shutdown()
 
     def term_handler(signum, frame):  # pragma: no-cover
         logging.info("bypassing sigterm")
