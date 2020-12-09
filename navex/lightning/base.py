@@ -8,24 +8,38 @@ from torch import Tensor
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
+from pl_bolts.datamodules import AsynchronousLoader
 
 from ..trials.base import TrialBase
 
 
 class TrialWrapperBase(pl.LightningModule):
-    def __init__(self, trial: TrialBase, extra_hparams=None):
+    def __init__(self, trial: TrialBase, extra_hparams=None, use_gpu=True):
         super(TrialWrapperBase, self).__init__()
         self.trial = trial
         self.trial.loss_backward_fn = lambda x: None
         self.trial.step_optimizer_fn = lambda x: None
         self.trial.hparams.update(extra_hparams or {})
         self.save_hyperparameters(self.trial.hparams)
+        self.use_gpu = use_gpu
 
     def forward(self, x):
         return self.trial.model(x)
 
     def configure_optimizers(self):
         return self.trial.optimizer
+
+    def build_training_data_loader(self, rgb=False):
+        return self._wrap_dl(self.trial.build_training_data_loader(rgb=rgb))
+
+    def build_validation_data_loader(self, rgb=False):
+        return self._wrap_dl(self.trial.build_validation_data_loader(rgb=rgb))
+
+    def build_test_data_loader(self, rgb=False):
+        return self._wrap_dl(self.trial.build_test_data_loader(rgb=rgb))
+
+    def _wrap_dl(self, dl):
+        return AsynchronousLoader(dl) if self.use_gpu else dl
 
     def training_step(self, batch, batch_idx):
         data, labels = batch

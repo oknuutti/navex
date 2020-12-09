@@ -27,7 +27,6 @@ class TrialBase(abc.ABC, torch.nn.Module):
         self.optimizer = self.get_optimizer(**optimizer_conf) if isinstance(optimizer_conf, dict) else optimizer_conf
         self.hparams = {}
 
-
     @abc.abstractmethod
     def get_optimizer(self, **kwargs):
         raise NotImplemented()
@@ -92,14 +91,14 @@ class TrialBase(abc.ABC, torch.nn.Module):
         return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), success_px_limit)
 
     @abc.abstractmethod
-    def build_training_data_loader(self):
+    def build_training_data_loader(self, rgb=False):
         raise NotImplemented()
 
     @abc.abstractmethod
-    def build_validation_data_loader(self):
+    def build_validation_data_loader(self, rgb=False):
         raise NotImplemented()
 
     @abc.abstractmethod
-    def build_test_data_loader(self):
+    def build_test_data_loader(self, rgb=False):
         raise NotImplemented()
 

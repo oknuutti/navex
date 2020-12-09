@@ -26,7 +26,7 @@ class Connection:
         self._username = username or None
         self._keyfile = keyfile or None
         self._proxy = proxy or None
-        self.local_forwarded_port = local_forwarded_port
+        self.local_forwarded_port = local_forwarded_port or 20022
 
         self._forwarding_thread = None
         self._reversing_thread = None

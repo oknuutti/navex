@@ -10,6 +10,7 @@ conda create -n navex python=3.8 pip
 conda activate navex
 conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
 conda install pytorch-lightning opencv pandas paramiko -c conda-forge
+pip install pytorch-lightning-bolts
 pip install -e ./r2d2
 pip install -U ray ray[tune]
 ray install-nightly

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=0-00:59:00               # estimated execution time (~80s/epoch)
+#SBATCH --time=0-03:59:00               # estimated execution time (~80s/epoch)
 #SBATCH --mem-per-cpu=4G                # memory needed (~2Gb/core)
 #SBATCH --gres=gpu:1                    # GPUs needed
 #SBATCH --constraint='pascal|volta'     # exclude the slowest GPUs
@@ -31,9 +31,11 @@ ssh -f -N -T -L $HEAD_PORT:127.0.0.1:$HEAD_PORT \
              -L $H_WPORT_S:127.0.0.1:$H_WPORT_S \
              -R $NODE_M_PORT:127.0.0.1:$NODE_M_PORT \
              -R $OBJ_M_PORT:127.0.0.1:$OBJ_M_PORT \
+             -R $MEX_PORT:127.0.0.1:$MEX_PORT \
              $WPORT_TUNNELS \
              $HEAD_HOST
 
+#             maybe don't need tunnel for $H_WPORT_S, haven't tried
 #             -L $H_RLET_PORT:127.0.0.1:$H_RLET_PORT \
 #             -L $H_OBJ_S_PORT:127.0.0.1:$H_OBJ_S_PORT \
 
@@ -44,6 +46,7 @@ srun python -m navex.ray.worker --num-cpus=$CPUS --num-gpus=1 --address=127.0.0.
                                 --head-gcs-port=$H_GCS_PORT \
                                 --head-min-worker-port=$H_WPORT_S --head-max-worker-port=$H_WPORT_E \
                                 --object-manager-port=$OBJ_M_PORT --node-manager-port=$NODE_M_PORT \
+                                --metrics-export-port=$MEX_PORT \
                                 --min-worker-port=$WPORT_S --max-worker-port=$WPORT_E
 
 #                                --head-raylet-port=$H_RLET_PORT --head-object-store-port=$H_OBJ_S_PORT \

@@ -29,6 +29,7 @@ def main():
     parser.add_argument('--ssh-keyfile', default='', help="head redis host:port")
     parser.add_argument('--object-manager-port', type=int, help="object manager port")
     parser.add_argument('--node-manager-port', type=int, help="node manager port")
+    parser.add_argument('--metrics-export-port', type=int, help="metrics export port")
     parser.add_argument('--min-worker-port', type=int, help="min worker port")
     parser.add_argument('--max-worker-port', type=int, help="max worker port")
     args = parser.parse_args()
@@ -58,6 +59,7 @@ def main():
             # create reverse tunnels from head for local node and object managers (done now in .sbatch file using ssh)
             ssh.reverse_tunnel('127.0.0.1', args.object_manager_port, '127.0.0.1', args.object_manager_port)
             ssh.reverse_tunnel('127.0.0.1', args.node_manager_port, '127.0.0.1', args.node_manager_port)
+            ssh.reverse_tunnel('127.0.0.1', args.metrics_export_port, '127.0.0.1', args.metrics_export_port)
             for p in range(args.min_worker_port, args.max_worker_port+1):
                 ssh.reverse_tunnel('127.0.0.1', p, '127.0.0.1', p)
 
@@ -72,7 +74,8 @@ def main():
         node = overrides.start(address=head_address, redis_password=args.redis_password,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
-                        num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True, include_dashboard=False)
+                        metrics_export_port=args.metrics_export_port,
+                        num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True)
 
         logging.info('ray worker node started with details: %s' % ((
                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))

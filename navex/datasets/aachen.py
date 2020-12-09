@@ -13,11 +13,9 @@ from .base import RandomDarkNoise, RandomExposure, ImagePairDataset, Photometric
 
 class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
     TRFM_EVAL = ComposedTransforms([
-        PhotometricTransform(tr.Grayscale(num_output_channels=1)),
-        # transforms.Resize(256),
-        # transforms.RandomCrop(224) if random_crop else transforms.CenterCrop(224),
         PairedCenterCrop(512, max_sc_diff=2**(1/4)),
         GeneralTransform(tr.ToTensor()),
+        PhotometricTransform(tr.Grayscale(num_output_channels=1)),
         PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226])),
     ])
 
@@ -28,18 +26,16 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
             transforms = self.TRFM_EVAL
         else:
             transforms = ComposedTransforms([
-                PhotometricTransform(tr.Grayscale(num_output_channels=1)),
-                # tr.Resize(256),
-                # tr.RandomCrop(224) if random_crop else tr.CenterCrop(224),
                 PairedRandomCrop(512, max_sc_diff=2**(1/3)),
                 GeneralTransform(tr.ToTensor()),
+                PhotometricTransform(tr.Grayscale(num_output_channels=1)),
                 PhotometricTransform(RandomDarkNoise(0, 0.25, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
                 PhotometricTransform(RandomExposure(0.5, 3)),  # apply a random gain on the image
                 PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226])),
             ])
 
         if rgb:
-            transforms.transforms[0] = IdentityTransform()
+            transforms.transforms[2] = IdentityTransform()
 
         ImagePairDataset.__init__(self, root, None, transforms=transforms)
 
@@ -68,7 +64,7 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
             eval_ds = copy(self)    # shallow copy should be enough
             eval_ds.transforms = self.TRFM_EVAL
             if rgb:
-                eval_ds.transforms.transforms[0] = IdentityTransform()
+                eval_ds.transforms.transforms[2] = IdentityTransform()
 
         total = len(self)
         lengths = []

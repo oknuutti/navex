@@ -144,78 +144,47 @@ class ComposedTransforms:
 
 
 class PairedRandomCrop:
-    def __init__(self, shape, norm_sd=0.1, max_sc_diff=None, random_sc=True):
+    def __init__(self, shape, random=True, max_sc_diff=None, random_sc=True):
         self.shape = (shape, shape) if isinstance(shape, int) else shape       # xy i.e. ij, similar to aflow.shape
-        self.norm_sd = norm_sd
+        self.random = random
         self.max_sc_diff = max_sc_diff
         self.random_sc = random_sc
 
+    def most_ok_in_window(self, mask, sc=4):
+        m, n = np.array(self.shape) // sc
+        c = 1 / m / n
+        mask = cv2.resize(mask.astype(np.float32), None, fx=1/sc, fy=1/sc, interpolation=cv2.INTER_AREA)
+
+        res = cv2.filter2D(mask, ddepth=cv2.CV_32F, anchor=(0, 0),
+                           kernel=np.ones((m, n), dtype='float32') * c,
+                           borderType=cv2.BORDER_ISOLATED)
+        res[res.shape[0] - m:, :] = 0
+        res[:, res.shape[1] - n:] = 0
+
+        a = np.cumsum(res.flatten())
+        rnd_idx = np.argmax(a > np.random.uniform(0, a[-1]))
+        bst_idx = np.argmax(res.flatten())
+
+        rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc
+        bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc
+        return bst_idxs, rnd_idxs
+
     def __call__(self, imgs, aflow):
         img1, img2 = imgs
-
-        mask = np.logical_not(np.isnan(aflow[:, :, 0]))
-        res = cv2.filter2D(mask.astype('float32'), ddepth=cv2.CV_32F, anchor=(0, 0),
-                           kernel=np.ones(self.shape, dtype='float32')/np.prod(self.shape), borderType=cv2.BORDER_ISOLATED)
         m, n = self.shape
-        res[res.shape[0]-m:, :] = 0
-        res[:, res.shape[1]-n:] = 0
-
-        if self.norm_sd > 0:
-            n_res = res * np.random.lognormal(0, self.norm_sd, res.shape).astype('float32')
-        else:
-            n_res = res
+        mask = np.logical_not(np.isnan(aflow[:, :, 0]))
+        bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
 
         for t in range(2):
-            j1, i1 = np.unravel_index(np.argmax(n_res), n_res.shape)
-            c_img1 = img1.crop((i1, j1, i1+m, j1+n))
-            c_aflow = aflow[j1:j1+n, i1:i1+m]
-            c_mask = mask[j1:j1+n, i1:i1+m]
-
-            # determine current scale of img2 relative to img1 based on aflow
-            xy1 = np.stack(np.meshgrid(range(m), range(n)), axis=2).reshape((-1, 2))
-            ic1, jc1 = np.mean(xy1[c_mask.flatten(), :], axis=0)
-            sc1 = np.sqrt(np.mean(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
-            ic2, jc2 = np.nanmean(c_aflow, axis=(0, 1))
-            sc2 = np.sqrt(np.nanmean(np.sum((c_aflow - np.array((ic2, jc2)))**2, axis=2)))
-            curr_sc = sc2 / sc1
-
-            # determine target scale based on current scale, self.max_sc_diff, and self.random_sc
-            lsc = abs(np.log10(self.max_sc_diff))
-            if self.random_sc and t == 0:                       # if first try fails, don't scale for second try
-                trg_sc = 10**np.random.uniform(-lsc, lsc)
+            if t == 1 or not self.random:
+                j1, i1 = bst_idxs
+                is_random = False
             else:
-                min_sc, max_sc = 10 ** (-lsc), 10 ** lsc
-                trg_sc = np.clip(curr_sc, min_sc, max_sc)
-
-            # resize img2, scale aflow
-            sc_img2 = img2.resize((int(img2.size[0]*trg_sc/curr_sc), int(img2.size[1]*trg_sc/curr_sc)))
-            c_aflow = c_aflow * trg_sc/curr_sc
-
-            # instead of calculating mean coordinates, use cv2.filter2D and argmax for img2 also
-            xy_shape = sc_img2.size[:2]
-            idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype('uint16')
-            idxs = idxs[np.logical_and(idxs[:, 0] < xy_shape[0], idxs[:, 1] < xy_shape[1]), :]
-            c_ok = np.zeros(xy_shape, dtype='float32')
-            c_ok[idxs[:, 0], idxs[:, 1]] = 1
-            res2 = cv2.filter2D(c_ok, ddepth=cv2.CV_32F, anchor=(0, 0), borderType=cv2.BORDER_ISOLATED,
-                                kernel=np.ones(self.shape, dtype='float32') / np.prod(self.shape))
-            res2[res2.shape[0] - n:, :] = 0
-            res2[:, res2.shape[1] - m:] = 0
-            i2, j2 = np.unravel_index(np.argmax(res2), res2.shape)
-
-            c_img2 = sc_img2.crop((i2, j2, i2+m, j2+n))
-
-            assert tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
-            assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
-            assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
-
-            c_aflow = (c_aflow - np.array((i2, j2), dtype=c_aflow.dtype)).reshape((-1, 2))
-            c_aflow[np.any(c_aflow < 0, axis=1), :] = np.nan
-            c_aflow[np.logical_or(c_aflow[:, 0] > m - 1, c_aflow[:, 1] > n - 1), :] = np.nan
-            c_aflow = c_aflow.reshape((m, n, 2))
+                j1, i1 = rnd_idxs
+                is_random = True
+            c_aflow = aflow[j1:j1+n, i1:i1+m]
 
             # if too few valid correspondences, pick the central crop instead
-            n_res = res
             ratio_valid = 1 - np.mean(np.isnan(c_aflow[:, :, 0]))
             if ratio_valid > 0.05:
                 break
@@ -223,6 +192,48 @@ class PairedRandomCrop:
         if ratio_valid == 0:
             # if this becomes a real problem, use SafeDataset and SafeDataLoader from nonechucks, then return None here
             raise DataLoadingException("no valid correspondences even for central crop")
+
+        c_img1 = img1.crop((i1, j1, i1+m, j1+n))
+        c_mask = mask[j1:j1+n, i1:i1+m]
+
+        # determine current scale of img2 relative to img1 based on aflow
+        xy1 = np.stack(np.meshgrid(range(m), range(n)), axis=2).reshape((-1, 2))
+        ic1, jc1 = np.mean(xy1[c_mask.flatten(), :], axis=0)
+        sc1 = np.sqrt(np.mean(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
+        ic2, jc2 = np.nanmean(c_aflow, axis=(0, 1))
+        sc2 = np.sqrt(np.nanmean(np.sum((c_aflow - np.array((ic2, jc2)))**2, axis=2)))
+        curr_sc = sc2 / sc1
+
+        # determine target scale based on current scale, self.max_sc_diff, and self.random_sc
+        lsc = abs(np.log10(self.max_sc_diff))
+        if self.random_sc and is_random:                       # if first try fails, don't scale for second try
+            trg_sc = 10**np.random.uniform(-lsc, lsc)
+        else:
+            min_sc, max_sc = 10 ** (-lsc), 10 ** lsc
+            trg_sc = np.clip(curr_sc, min_sc, max_sc)
+
+        # use cv2.filter2D and argmax for img2 also
+        xy_shape = int(img2.size[0]*trg_sc/curr_sc), int(img2.size[1]*trg_sc/curr_sc)
+        idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype('uint16')
+        idxs = idxs[np.logical_and(idxs[:, 0] < xy_shape[0], idxs[:, 1] < xy_shape[1]), :]
+        c_ok = np.zeros(xy_shape, dtype='float32')
+        c_ok[idxs[:, 0], idxs[:, 1]] = 1
+        (i2, j2), _ = self.most_ok_in_window(c_ok)
+
+        # scale and massage aflow
+        c_aflow = c_aflow * trg_sc/curr_sc
+        c_aflow = (c_aflow - np.array((i2, j2), dtype=c_aflow.dtype)).reshape((-1, 2))
+        c_aflow[np.any(c_aflow < 0, axis=1), :] = np.nan
+        c_aflow[np.logical_or(c_aflow[:, 0] > m - 1, c_aflow[:, 1] > n - 1), :] = np.nan
+        c_aflow = c_aflow.reshape((m, n, 2))
+
+        # crop and resize image 2
+        c_img2 = img2.crop((i2, j2, i2 + int(m*curr_sc/trg_sc + 0.5), j2 + int(n*curr_sc/trg_sc + 0.5))) \
+                     .resize((m, n))
+
+        assert tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
+        assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
+        assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
 
         if 0:
             import matplotlib.pyplot as plt
@@ -242,7 +253,7 @@ class PairedRandomCrop:
 
 class PairedCenterCrop(PairedRandomCrop):
     def __init__(self, shape, max_sc_diff=None):
-        super(PairedCenterCrop, self).__init__(shape, norm_sd=0, max_sc_diff=max_sc_diff, random_sc=False)
+        super(PairedCenterCrop, self).__init__(shape, random=0, max_sc_diff=max_sc_diff, random_sc=False)
 
     def __call__(self, imgs, aflow):
         return super(PairedCenterCrop, self).__call__(imgs, aflow)

@@ -13,11 +13,16 @@ from .experiments.parser import ExperimentConfigParser, to_dict
 from .trials.terrestrial import TerrestrialTrial
 from .lightning.base import TrialWrapperBase, MyLogger
 
+PROFILING_ONLY = True
+
 
 def main():
     def_file = os.path.join(os.path.dirname(__file__), 'experiments', 'definition.yaml')
     config = ExperimentConfigParser(definition=def_file).parse_args()
     args = config.training
+
+    if PROFILING_ONLY:
+        config.data.workers = 0
 
     os.makedirs(args.output, exist_ok=True)
 
@@ -32,9 +37,9 @@ def main():
     trial = TerrestrialTrial(to_dict(config.model), to_dict(config.loss),
                              to_dict(config.optimizer), to_dict(config.data),
                              gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
-    model = TrialWrapperBase(trial)
-    trn_dl = trial.build_training_data_loader()
-    val_dl = trial.build_validation_data_loader()
+    model = TrialWrapperBase(trial, use_gpu=bool(args.gpu))
+    trn_dl = model.build_training_data_loader()
+    val_dl = model.build_validation_data_loader()
 
     version = None
     if args.resume:
@@ -61,20 +66,25 @@ def main():
                          logger=logger,
                          callbacks=callbacks,
                          accumulate_grad_batches=acc_grad_batches,
-                         max_epochs=args.epochs,
+                         max_epochs=1 if PROFILING_ONLY else args.epochs,
                          progress_bar_refresh_rate=args.print_freq,
                          check_val_every_n_epoch=args.test_freq,
                          resume_from_checkpoint=getattr(args, 'resume', None),
                          log_every_n_steps=args.print_freq,
                          flush_logs_every_n_steps=10,
                          gpus=1 if args.gpu else 0,
+                         limit_train_batches=0.01 if PROFILING_ONLY else 1.0,
+                         limit_val_batches=0.02 if PROFILING_ONLY else 1.0,
                          auto_select_gpus=bool(args.gpu),
                          deterministic=bool(args.deterministic),
                          auto_lr_find=bool(args.auto_lr_find),
                          precision=16 if args.gpu and args.reduced_precision else 32)
     trainer.fit(model, trn_dl, val_dl)
 
-    tst_dl = trial.build_test_data_loader()
+    if PROFILING_ONLY:
+        return
+
+    tst_dl = model.build_test_data_loader()
     trainer.test(model, test_dataloaders=tst_dl)
 
 

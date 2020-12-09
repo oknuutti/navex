@@ -75,6 +75,6 @@ class TerrestrialTrial(TrialBase):
         return self._tr_data, self._val_data, self._test_data
 
     def _wrap_ds(self, dataset, shuffle=False):
-        return DataLoader(dataset, batch_size=self.batch_size, num_workers=self.data_conf['workers'],
-                          shuffle=shuffle, pin_memory=True, worker_init_fn=worker_init_fn)
-
+        dl = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.data_conf['workers'],
+                        shuffle=shuffle, pin_memory=True, worker_init_fn=worker_init_fn)
+        return dl

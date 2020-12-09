@@ -19,16 +19,28 @@ def main():
     parser.add_argument('--local', '-l', type=int, help="local port for tunneling")
     parser.add_argument('--fw', '-L', action='store_true', help="forward tunnel from local to remote")
     parser.add_argument('--rev', '-R', action='store_true', help="reverse tunnel from remote to local")
+    parser.add_argument('--proxy', '-P', help="use this host as proxy for tunnels")
     args = parser.parse_args()
 
     if args.fw or args.rev:
-        ssh = Connection(args.host, args.username or None, args.keyfile or None)
+        ssh = Connection(args.host, args.username or None, args.keyfile or None, args.proxy or None)
+        timeout = 3600
         if args.fw:
             assert not args.rev, "can't give both --fw and --rev"
             ssh.tunnel(args.local or args.port, args.port)
+            print('forward tunnel from 127.0.0.1:%d to %s:%d has been set up for %ds' % (
+                args.local or args.port,
+                args.host, args.port,
+                timeout,
+            ))
         else:
             ssh.reverse_tunnel('127.0.0.1', args.local or args.port, '127.0.0.1', args.port)
-        time.sleep(3600)
+            print('reverse tunnel from %s:%d to 127.0.0.1:%d has been set up for %ds' % (
+                args.host, args.port,
+                args.local or args.port,
+                timeout,
+            ))
+        time.sleep(timeout)
         return
 
     addr = (args.host, args.port)

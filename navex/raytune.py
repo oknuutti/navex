@@ -98,7 +98,7 @@ def main():
             ssh = Connection(config.search.host)
 
         for i in range(search_conf['workers']):
-            worker_ports.append([random.randint(20001, 2 ** 16 - 1) for _ in range(2)])
+            worker_ports.append([random.randint(20001, 2 ** 16 - 1) for _ in range(3)])
             worker_wp0.append(random.randint(20001, 2 ** 16 - 1))
 
     else:
@@ -126,8 +126,8 @@ def main():
                 del ssh
                 return
 
-            ps = [None] * 2
-            for j in range(2):
+            ps = [None] * 3
+            for j in range(3):
                 for k in range(10):
                     try:
                         p = random.randint(20001, 2 ** 16 - 1)
@@ -149,7 +149,7 @@ def main():
             ("sbatch -c %d "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
-             "NODE_M_PORT=%d,OBJ_M_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=%s "
+             "NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=%s "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
             config.data.workers,
             config.data.workers,

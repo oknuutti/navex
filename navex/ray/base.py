@@ -142,7 +142,7 @@ def tune_asha(search_conf, hparams, full_conf):
         scheduler=scheduler,
         queue_trials=True,
         reuse_actors=True,
-        max_failures=3,
+        max_failures=5,
         # checkpoint_freq=200,
         # checkpoint_at_end=True,
         keep_checkpoints_num=5,
