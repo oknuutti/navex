@@ -13,8 +13,8 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 16
-  acc_grad_batches: 1
+  batch_size: 32
+  batch_mem: 32000
   gpu: 1
   epochs: 30
   print_freq: 1
@@ -71,4 +71,4 @@ data:
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
-  workers: 3
+  workers: 6

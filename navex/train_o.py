@@ -34,7 +34,7 @@ def main():
     _set_random_seed()
     trial = TerrestrialTrial(to_dict(config.model), to_dict(config.loss),
                              to_dict(config.optimizer), to_dict(config.data),
-                             args.batch_size, args.acc_grad_batches)
+                             args.batch_size, 1)
 
     # optionally resume from a checkpoint
     best_loss = float('inf')

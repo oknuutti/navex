@@ -1,6 +1,10 @@
 
 import os
 import re
+import math
+import psutil
+
+import torch
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
@@ -17,9 +21,17 @@ def main():
 
     os.makedirs(args.output, exist_ok=True)
 
+    if args.gpu:
+        totmem = torch.cuda.get_device_properties(0).total_memory  # in bytes
+    else:
+        totmem = psutil.virtual_memory().available  # in bytes
+    totmem -= 256 * 1024 * 1024  # overhead
+    acc_grad_batches = 2 ** max(0, math.ceil(math.log2((args.batch_mem * 1024 * 1024) / totmem)))  # in MB
+    gpu_batch_size = args.batch_size // acc_grad_batches
+
     trial = TerrestrialTrial(to_dict(config.model), to_dict(config.loss),
                              to_dict(config.optimizer), to_dict(config.data),
-                             args.batch_size, args.acc_grad_batches, to_dict(config.hparams))
+                             gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
     model = TrialWrapperBase(trial)
     trn_dl = trial.build_training_data_loader()
     val_dl = trial.build_validation_data_loader()
@@ -48,7 +60,7 @@ def main():
     trainer = pl.Trainer(default_root_dir=args.output,
                          logger=logger,
                          callbacks=callbacks,
-                         accumulate_grad_batches=args.acc_grad_batches,
+                         accumulate_grad_batches=acc_grad_batches,
                          max_epochs=args.epochs,
                          progress_bar_refresh_rate=args.print_freq,
                          check_val_every_n_epoch=args.test_freq,

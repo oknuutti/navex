@@ -62,10 +62,10 @@ training:
     type: int
     help: "training batch size"
 
-  acc_grad_batches:
-    alt: ['--bx']
+  batch_mem:
+    alt: ['--bm']
     type: int
-    help: "accumulate gradient this many batches before optimizing"
+    help: "GPU memory (in MB) needed by a batch, used to calculate how many batches to accumulate gradient before optimizing"
 
   epochs:
     alt: ['-e', '--epochs']

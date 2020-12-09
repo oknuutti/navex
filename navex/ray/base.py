@@ -1,3 +1,4 @@
+import math
 import os
 import re
 import time
@@ -6,6 +7,8 @@ import logging
 from subprocess import call
 from functools import partial
 from typing import Union, List, Dict
+
+import torch
 
 import pytorch_lightning as pl
 from pytorch_lightning import LightningModule, Trainer
@@ -62,11 +65,16 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
                                        patience=train_conf['early_stopping'],
                                        verbose=True))
 
+    totmem = torch.cuda.get_device_properties(0).total_memory  # in bytes
+    totmem -= 256 * 1024 * 1024  # overhead
+    acc_grad_batches = 2 ** max(0, math.ceil(math.log2((train_conf['batch_mem'] * 1024 * 1024) / totmem)))  # in MB
+    gpu_batch_size = train_conf['batch_size'] // acc_grad_batches
+
     trainer = pl.Trainer(
         default_root_dir=tune.get_trial_dir(),  # was train_conf['output'],
         logger=logger,
         callbacks=callbacks,
-        accumulate_grad_batches=train_conf['acc_grad_batches'],
+        accumulate_grad_batches=acc_grad_batches,
         max_epochs=train_conf['epochs'],
         progress_bar_refresh_rate=0,
         check_val_every_n_epoch=train_conf['test_freq'],
@@ -94,8 +102,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
             trainer.current_epoch = ckpt["epoch"]
     else:
         trial = TerrestrialTrial(full_conf['model'], full_conf['loss'], full_conf['optimizer'], full_conf['data'],
-                                 train_conf['batch_size'], train_conf['acc_grad_batches'],
-                                 hparams)
+                                 gpu_batch_size, acc_grad_batches, hparams)
         model = TrialWrapperBase(trial)
         trn_dl = trial.build_training_data_loader()
         val_dl = trial.build_validation_data_loader()
@@ -113,7 +120,11 @@ def tune_asha(search_conf, hparams, full_conf):
         grace_period=search_conf['grace_period'],
         reduction_factor=search_conf['reduction_factor'])
 
-    reporter = CLIReporter(
+    class MyReporter(CLIReporter):
+        def report(self, trials, done, *sys_info):
+            logging.info(self._progress_str(trials, done, *sys_info))
+
+    reporter = MyReporter(
         parameter_columns=list(hparams.keys())[:4],
         metric_columns=["loss", "inl_ratio", "mAP"])
 
@@ -135,7 +146,7 @@ def tune_asha(search_conf, hparams, full_conf):
         # checkpoint_freq=200,
         # checkpoint_at_end=True,
         keep_checkpoints_num=5,
-        checkpoint_score_attr='min-validation_loss',
+        checkpoint_score_attr='min-loss',
         progress_reporter=reporter,
         name=train_conf['name'])
 

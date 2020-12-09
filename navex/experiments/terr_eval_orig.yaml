@@ -4,8 +4,8 @@ training:
   name: 'v0'
   cache: 'c:/project-data/navex/cache'
   output: 'd:/projects/navex/output'
-  batch_size: 8
-  acc_grad_batches: 8
+  batch_size: 32
+  batch_mem: 32000
   epochs: 10
   print_freq: 10
   test_freq: 1

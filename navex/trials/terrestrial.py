@@ -25,8 +25,7 @@ class TerrestrialTrial(TrialBase):
             'loss': loss_conf,
             'optimizer': optimizer_conf,
             'data_conf': data_conf,
-            'batch_size': batch_size,
-            'acc_grad_batches': acc_grad_batches,
+            'batch_size': batch_size * acc_grad_batches,
         }
 
         self._tr_data, self._val_data, self._test_data = [None] * 3
