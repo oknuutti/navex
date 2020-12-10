@@ -22,7 +22,7 @@ class Connection:
     reverse_map = {}
 
     def __init__(self, host, username=None, keyfile=None, proxy=None, local_forwarded_port=None):
-        self._host = host
+        self.host = host
         self._username = username or None
         self._keyfile = keyfile or None
         self._proxy = proxy or None
@@ -43,7 +43,7 @@ class Connection:
             c.load_system_host_keys()
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
             c.connect(self._proxy, username=self._username, key_filename=self._keyfile)
-            Connection._forward_tunnel(self.local_forwarded_port, self._host, 22, c.get_transport(), timeout=None)
+            Connection._forward_tunnel(self.local_forwarded_port, self.host, 22, c.get_transport(), timeout=None)
 
         self._forwarding_thread = threading.Thread(target=forward, daemon=True)
         self._forwarding_thread.start()
@@ -51,7 +51,7 @@ class Connection:
     def _open_connection(self):
         if self._host_client is None:
             if self._forwarding_thread is None:
-                host, port = self._host, 22
+                host, port = self.host, 22
             else:
                 host, port = '127.0.0.1', self.local_forwarded_port
             c = paramiko.SSHClient()

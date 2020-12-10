@@ -2,9 +2,7 @@ import math
 import os
 import re
 import time
-import signal
 import logging
-from subprocess import call
 from functools import partial
 from typing import Union, List, Dict
 
@@ -185,50 +183,16 @@ class CheckOnSLURM(TuneCallback):
             trainer.checkpoint_connector.hpc_save(trainer.weights_save_path, trainer.logger)
 
 
-@ray.remote(num_cpus=0)
-class Signal:
-    def __init__(self):
-        self._flag = False
-
-    def set(self):
-        self._flag = True
-
-    def clear(self):
-        self._flag = False
-
-    def is_set(self):
-        return self._flag
-
-
-def register_slurm_signal_handlers(node_id):
-    """ call this after worker node init """
-
-    # signal = Signal.options(name="term_" + node_id).remote()      # OPTIONAL?
-
-    def sig_handler(signum, frame):  # pragma: no-cover
-        # instruct worker(s) to save a checkpoint and exit
-        logging.info('handling SIGUSR1')
-        # signal.set.remote()   # OPTIONAL?
-
-        # find job id
-        job_id = os.environ['SLURM_JOB_ID']
-        cmd = ['scontrol', 'requeue', job_id]
-
-        # requeue job
-        logging.info(f'requeing job {job_id}...')
-        result = call(cmd)
-
-        # print result text
-        if result == 0:
-            logging.info(f'requeued exp {job_id}')
-        else:
-            logging.warning('requeue failed...')
-
-        # shutdown worker node  # IS THIS GOOD?
-        ray.shutdown()
-
-    def term_handler(signum, frame):  # pragma: no-cover
-        logging.info("bypassing sigterm")
-
-    signal.signal(signal.SIGUSR1, sig_handler)
-    signal.signal(signal.SIGTERM, term_handler)
+# @ray.remote(num_cpus=0)
+# class Signal:
+#     def __init__(self):
+#         self._flag = False
+#
+#     def set(self):
+#         self._flag = True
+#
+#     def clear(self):
+#         self._flag = False
+#
+#     def is_set(self):
+#         return self._flag

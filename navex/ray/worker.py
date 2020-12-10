@@ -2,10 +2,11 @@ import logging
 import argparse
 import time
 import os
+import signal
+from subprocess import call
 
 import ray
 
-from navex.ray.base import register_slurm_signal_handlers
 from .ssh import Connection
 from . import overrides         # overrides e.g. services.get_node_ip_address
 
@@ -34,7 +35,8 @@ def main():
     parser.add_argument('--max-worker-port', type=int, help="max worker port")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
 
     head_host, head_port = args.address.split(':')
     head_port = int(head_port)
@@ -93,7 +95,7 @@ def main():
         logging.info('ray worker node successfully initialized, ports: %s' % (local_ports,))
 
         # hook signals
-        register_slurm_signal_handlers(addr['node_id'])
+        _register_signals()
 
         while True:
             time.sleep(100000)
@@ -101,6 +103,40 @@ def main():
         msg = 'Exception occurred during ray worker startup: %s' % e
         logging.error(msg)
         raise Exception("ray worker startup failed") from e
+
+
+def _register_signals():
+    """ call this after worker node init """
+
+    # signal = Signal.options(name="term_" + node_id).remote()      # OPTIONAL?
+
+    def sig_handler(signum, frame):  # pragma: no-cover
+        # instruct worker(s) to save a checkpoint and exit
+        logging.info('handling SIGUSR1')
+        # signal.set.remote()   # OPTIONAL?
+
+        # find job id
+        job_id = os.environ['SLURM_JOB_ID']
+        cmd = ['scontrol', 'requeue', job_id]
+
+        # requeue job
+        logging.info(f'requeing job {job_id}...')
+        result = call(cmd)
+
+        # print result text
+        if result == 0:
+            logging.info(f'requeued exp {job_id}')
+        else:
+            logging.warning('requeue failed...')
+
+        # shutdown worker node  # IS THIS GOOD?
+        ray.shutdown()
+
+    def term_handler(signum, frame):  # pragma: no-cover
+        logging.info("bypassing sigterm")
+
+    signal.signal(signal.SIGUSR1, sig_handler)
+    signal.signal(signal.SIGTERM, term_handler)
 
 
 if __name__ == '__main__':

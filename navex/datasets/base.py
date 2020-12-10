@@ -145,21 +145,22 @@ class ComposedTransforms:
 
 class PairedRandomCrop:
     def __init__(self, shape, random=True, max_sc_diff=None, random_sc=True):
-        self.shape = (shape, shape) if isinstance(shape, int) else shape       # xy i.e. ij, similar to aflow.shape
+        self.shape = (shape, shape) if isinstance(shape, int) else shape       # yx i.e. similar to aflow.shape
         self.random = random
         self.max_sc_diff = max_sc_diff
         self.random_sc = random_sc
 
     def most_ok_in_window(self, mask, sc=4):
-        m, n = np.array(self.shape) // sc
+        n, m = np.array(self.shape) // sc
         c = 1 / m / n
-        mask = cv2.resize(mask.astype(np.float32), None, fx=1/sc, fy=1/sc, interpolation=cv2.INTER_AREA)
+        mask_sc = cv2.resize(mask.astype(np.float32), None, fx=1/sc, fy=1/sc, interpolation=cv2.INTER_AREA)
 
-        res = cv2.filter2D(mask, ddepth=cv2.CV_32F, anchor=(0, 0),
-                           kernel=np.ones((m, n), dtype='float32') * c,
+        res = cv2.filter2D(mask_sc, ddepth=cv2.CV_32F, anchor=(0, 0),
+                           kernel=np.ones((n, m), dtype='float32') * c,
                            borderType=cv2.BORDER_ISOLATED)
-        res[res.shape[0] - m:, :] = 0
-        res[:, res.shape[1] - n:] = 0
+        res[res.shape[0] - n:, :] = 0
+        res[:, res.shape[1] - m:] = 0
+        res[res < np.max(res) * 0.5] = 0  # only possible to select windows that are at most half as bad as best window
 
         a = np.cumsum(res.flatten())
         rnd_idx = np.argmax(a > np.random.uniform(0, a[-1]))
@@ -171,7 +172,7 @@ class PairedRandomCrop:
 
     def __call__(self, imgs, aflow):
         img1, img2 = imgs
-        m, n = self.shape
+        n, m = self.shape
         mask = np.logical_not(np.isnan(aflow[:, :, 0]))
         bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
 
@@ -182,7 +183,7 @@ class PairedRandomCrop:
             else:
                 j1, i1 = rnd_idxs
                 is_random = True
-            c_aflow = aflow[j1:j1+n, i1:i1+m]
+            c_aflow = aflow[j1:j1+m, i1:i1+n]
 
             # if too few valid correspondences, pick the central crop instead
             ratio_valid = 1 - np.mean(np.isnan(c_aflow[:, :, 0]))
@@ -194,7 +195,7 @@ class PairedRandomCrop:
             raise DataLoadingException("no valid correspondences even for central crop")
 
         c_img1 = img1.crop((i1, j1, i1+m, j1+n))
-        c_mask = mask[j1:j1+n, i1:i1+m]
+        c_mask = mask[j1:j1+m, i1:i1+n]
 
         # determine current scale of img2 relative to img1 based on aflow
         xy1 = np.stack(np.meshgrid(range(m), range(n)), axis=2).reshape((-1, 2))
@@ -212,35 +213,44 @@ class PairedRandomCrop:
             min_sc, max_sc = 10 ** (-lsc), 10 ** lsc
             trg_sc = np.clip(curr_sc, min_sc, max_sc)
 
-        # use cv2.filter2D and argmax for img2 also
-        xy_shape = int(img2.size[0]*trg_sc/curr_sc), int(img2.size[1]*trg_sc/curr_sc)
-        idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype('uint16')
-        idxs = idxs[np.logical_and(idxs[:, 0] < xy_shape[0], idxs[:, 1] < xy_shape[1]), :]
-        c_ok = np.zeros(xy_shape, dtype='float32')
-        c_ok[idxs[:, 0], idxs[:, 1]] = 1
-        (i2, j2), _ = self.most_ok_in_window(c_ok)
-
-        # scale and massage aflow
+        # scale aflow
         c_aflow = c_aflow * trg_sc/curr_sc
+
+        # use cv2.filter2D and argmax for img2 also
+        trg_full_shape = int(img2.size[1] * trg_sc/curr_sc), int(img2.size[0] * trg_sc/curr_sc)
+        idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype('uint16')
+        idxs = idxs[np.logical_and(idxs[:, 0] < trg_full_shape[1], idxs[:, 1] < trg_full_shape[0]), :]
+        c_ok = np.zeros(trg_full_shape, dtype='float32')
+        c_ok[idxs[:, 1], idxs[:, 0]] = 1
+        (j2, i2), _ = self.most_ok_in_window(c_ok)
+
+        # massage aflow
         c_aflow = (c_aflow - np.array((i2, j2), dtype=c_aflow.dtype)).reshape((-1, 2))
         c_aflow[np.any(c_aflow < 0, axis=1), :] = np.nan
         c_aflow[np.logical_or(c_aflow[:, 0] > m - 1, c_aflow[:, 1] > n - 1), :] = np.nan
-        c_aflow = c_aflow.reshape((m, n, 2))
+        c_aflow = c_aflow.reshape((n, m, 2))
 
         # crop and resize image 2
-        c_img2 = img2.crop((i2, j2, i2 + int(m*curr_sc/trg_sc + 0.5), j2 + int(n*curr_sc/trg_sc + 0.5))) \
-                     .resize((m, n))
+        i2s, j2s, i2e, j2e = (np.array((i2, j2, i2+m, j2+n))*curr_sc/trg_sc + 0.5).astype('uint16')
+        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
 
         assert tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
         assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
         assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
 
-        if 0:
+        if 1:
             import matplotlib.pyplot as plt
-            plt.figure(1)
-            plt.imshow(c_img1)
-            plt.figure(2)
-            plt.imshow(c_img2)
+            plt.figure(1), plt.imshow(np.array(c_img1))
+            plt.figure(2), plt.imshow(np.array(c_img2))
+            for i in range(8):
+                idx = np.argmax((1-np.isnan(c_aflow[:, :, 0].flatten()).astype(np.float32))
+                                * np.random.lognormal(0, 1, (n*m,)))
+                y0, x0 = np.unravel_index(idx, c_aflow.shape[:2])
+                plt.figure(1), plt.plot(x0, y0, 'x')
+                plt.figure(2), plt.plot(c_aflow[y0, x0, 0], c_aflow[y0, x0, 1], 'x')
+
+            # plt.figure(3), plt.imshow(img1), plt.figure(4), plt.imshow(img2)
+            # plt.figure(3), plt.imshow(c_mask), plt.figure(4), plt.imshow(c_ok.T[j2:j2+n, i2:i2+m])
             plt.show()
 
             min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
