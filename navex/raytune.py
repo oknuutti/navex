@@ -102,6 +102,7 @@ class RayTuneHeadNode:
             # check if ray syncs the logs to local, if not, use ssh
             # ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
 
+            self._register_signals()
             node = self
 
             def run_search():
@@ -111,7 +112,7 @@ class RayTuneHeadNode:
                 logging.info('TUNE FINISHED SUCCESSFULLY!')
 
             # start the search in a thread so that won't block
-            threading.Thread(target=run_search)
+            threading.Thread(target=run_search).start()
 
             try:
                 while self.healthy:
