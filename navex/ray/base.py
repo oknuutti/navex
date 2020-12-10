@@ -139,7 +139,7 @@ def tune_asha(search_conf, hparams, full_conf):
         num_samples=search_conf['samples'],
         scheduler=scheduler,
         queue_trials=True,
-        reuse_actors=True,
+        reuse_actors=False,     # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
         max_failures=5,
         # checkpoint_freq=200,
         # checkpoint_at_end=True,

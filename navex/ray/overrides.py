@@ -12,6 +12,7 @@ import ray.services as services2
 
 import ray.ray_constants as ray_constants
 import ray.utils
+from ray.tune.trial_runner import TrialRunner
 
 from ray.autoscaler._private.cli_logger import cli_logger, cf
 
@@ -19,8 +20,19 @@ from ray.scripts.scripts import check_no_existing_redis_clients
 
 logger = logging.getLogger(__name__)
 
+# monkey patching node ip address so that can use tunneling
 services.get_node_ip_address = lambda x=None: '127.0.0.1'
 services2.get_node_ip_address = lambda x=None: '127.0.0.1'
+
+# injecting a sleep as might help with dying / hanging trials, see https://github.com/ray-project/ray/issues/11239
+parent = TrialRunner._get_next_trial
+def _my_get_next_trial(self):
+    val = parent(self)
+    time.sleep(2)
+    return val
+TrialRunner._get_next_trial = _my_get_next_trial
+
+
 SKIP_VERSION_CHECK = False
 
 

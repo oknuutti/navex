@@ -234,11 +234,7 @@ class PairedRandomCrop:
         i2s, j2s, i2e, j2e = (np.array((i2, j2, i2+m, j2+n))*curr_sc/trg_sc + 0.5).astype('uint16')
         c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
 
-        assert tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
-        assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
-        assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
-
-        if 1:
+        if 0:
             import matplotlib.pyplot as plt
             plt.figure(1), plt.imshow(np.array(c_img1))
             plt.figure(2), plt.imshow(np.array(c_img2))
@@ -252,11 +248,14 @@ class PairedRandomCrop:
             # plt.figure(3), plt.imshow(img1), plt.figure(4), plt.imshow(img2)
             # plt.figure(3), plt.imshow(c_mask), plt.figure(4), plt.imshow(c_ok.T[j2:j2+n, i2:i2+m])
             plt.show()
-
             min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
             max_i, max_j = np.nanmax(c_aflow, axis=(0, 1))
             assert min_i >= 0 and min_j >= 0, 'flow coord less than zero: i: %s, j: %s' % (min_i, min_j)
             assert max_i < m and max_j < n, 'flow coord greater than cropped size: i: %s, j: %s' % (max_i, max_j)
+
+        assert tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
+        assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
+        assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
 
         return (c_img1, c_img2), c_aflow
 
