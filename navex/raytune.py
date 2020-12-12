@@ -43,9 +43,9 @@ class RayTuneHeadNode:
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
         self.workers = []
         self.remote_ports = None
-        self.healthy = True
-        self.finished = False
         self.ssh = None
+        self.healthy = True
+        self.exception = None
 
     def start(self):
         """
@@ -97,9 +97,6 @@ class RayTuneHeadNode:
             self._schedule_worker()
         logging.info('following workers scheduled: %s' % ([w.slurm_job_id for w in self.workers],))
 
-        exception = None
-        global exception
-
         if len(self.workers) == self.search_conf['workers']:
             # check if ray syncs the logs to local, if not, use ssh
             # ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
@@ -108,15 +105,13 @@ class RayTuneHeadNode:
             node = self
 
             def run_search():
-                global exception
                 try:
                     tune_asha(node.search_conf, node.hparams, node.config)
                 except Exception as e:
                     logging.error('Exception %s detected, terminating' % (e.__class__,))
-                    exception = e
-                if exception is None:
+                    node.exception = e
+                if node.exception is None:
                     logging.info('TUNE FINISHED SUCCESSFULLY!')
-                node.finished = True
                 node.healthy = False
 
             # start the search in a thread so that won't block
@@ -127,10 +122,10 @@ class RayTuneHeadNode:
                     time.sleep(1)
 
             except (Exception, KeyboardInterrupt) as e:
-                exception = e
+                self.exception = e
 
         logging.info('cleaning up...')
-        if exception and not isinstance(exception, KeyboardInterrupt):
+        if self.exception and not isinstance(self.exception, KeyboardInterrupt):
             time.sleep(900)
 
         # clean up
@@ -140,11 +135,11 @@ class RayTuneHeadNode:
         del self.ssh
         os.system("ray stop")
 
-        if exception:
-            if isinstance(exception, KeyboardInterrupt):
+        if self.exception:
+            if isinstance(self.exception, KeyboardInterrupt):
                 logging.info('Ctrl+C detected, exiting')
             else:
-                raise Exception('This happended when running tune') from exception
+                raise Exception('This happended when running tune') from self.exception
         else:
             logging.info('exiting')
 
