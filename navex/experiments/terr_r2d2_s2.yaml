@@ -45,7 +45,7 @@ loss:
   wc: 1.0         # cosim loss weight        # TODO: optimize during training
   wa: 1.0         # ap loss weight           # TODO: optimize during training
   det_n: !h_tune_choice    '[12, 14, 16]'        # detector neighbourhood size
-  base: !h_tune_quniform   '0.60, 0.70, 0.05'     # quality loss target mAP
+  base: !h_tune_quniform   '0.60, 0.70, 0.05'    # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for descriptor head output size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -60,8 +60,8 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_quniform  '1e-4, 5e-4, 2e-4'
-  weight_decay: !h_tune_quniform   '1e-5, 3e-5, 1e-5'
+  learning_rate: !h_tune_quniform   '2e-4, 6e-4, 1e-5'
+  weight_decay: !h_tune_qloguniform '1e-5, 3e-5, 1e-6'
   split_params: 0
   excl_bn: 0
   eps: !!float 1e-8
