@@ -26,25 +26,24 @@ def main():
 
     if args.fw or args.rev or args.src:
         ssh = Connection(args.host, args.username or None, args.keyfile or None, args.proxy or None)
-        timeout = 3600
         if args.fw:
             assert not args.rev and not args.src and not args.dst, "only one of --fw, --rev, and --src can be given"
             ssh.tunnel(args.local or args.port, args.port)
-            print('forward tunnel from 127.0.0.1:%d to %s:%d has been set up for %ds' % (
+            print('forward tunnel from 127.0.0.1:%d to %s:%d has been set up' % (
                 args.local or args.port,
                 args.host, args.port,
-                timeout,
             ))
-            time.sleep(timeout)
+            while True:
+                time.sleep(3600)
         elif args.rev:
             assert not args.fw and not args.src and not args.dst, "only one of --fw, --rev, and --src can be given"
             ssh.reverse_tunnel('127.0.0.1', args.local or args.port, '127.0.0.1', args.port)
-            print('reverse tunnel from %s:%d to 127.0.0.1:%d has been set up for %ds' % (
+            print('reverse tunnel from %s:%d to 127.0.0.1:%d has been set up' % (
                 args.host, args.port,
                 args.local or args.port,
-                timeout,
             ))
-            time.sleep(timeout)
+            while True:
+                time.sleep(3600)
         elif args.src:
             ssh.fetch(args.src, args.dst)
         return

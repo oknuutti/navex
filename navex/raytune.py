@@ -98,6 +98,8 @@ class RayTuneHeadNode:
         logging.info('following workers scheduled: %s' % ([w.slurm_job_id for w in self.workers],))
 
         exception = None
+        global exception
+
         if len(self.workers) == self.search_conf['workers']:
             # check if ray syncs the logs to local, if not, use ssh
             # ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
@@ -106,10 +108,16 @@ class RayTuneHeadNode:
             node = self
 
             def run_search():
-                tune_asha(node.search_conf, node.hparams, node.config)
+                global exception
+                try:
+                    tune_asha(node.search_conf, node.hparams, node.config)
+                except Exception as e:
+                    logging.error('Exception %s detected, terminating' % (e.__class__,))
+                    exception = e
+                if exception is None:
+                    logging.info('TUNE FINISHED SUCCESSFULLY!')
                 node.finished = True
                 node.healthy = False
-                logging.info('TUNE FINISHED SUCCESSFULLY!')
 
             # start the search in a thread so that won't block
             threading.Thread(target=run_search).start()
@@ -136,7 +144,7 @@ class RayTuneHeadNode:
             if isinstance(exception, KeyboardInterrupt):
                 logging.info('Ctrl+C detected, exiting')
             else:
-                raise Exception('This happended when trying to setup tune') from exception
+                raise Exception('This happended when running tune') from exception
         else:
             logging.info('exiting')
 

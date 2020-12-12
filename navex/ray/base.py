@@ -143,7 +143,7 @@ def tune_asha(search_conf, hparams, full_conf):
         max_failures=5,
         # checkpoint_freq=200,
         # checkpoint_at_end=True,
-        keep_checkpoints_num=5,
+        keep_checkpoints_num=1,
         checkpoint_score_attr='min-loss',
         progress_reporter=reporter,
         name=train_conf['name'])
