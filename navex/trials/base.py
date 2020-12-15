@@ -90,6 +90,13 @@ class TrialBase(abc.ABC, torch.nn.Module):
 
         return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), success_px_limit)
 
+    def log_values(self):
+        """
+        override to return parameters to be logged during training, validation and testing
+        :return: dict with param:value pairs to be logged
+        """
+        return None
+
     @abc.abstractmethod
     def build_training_data_loader(self, rgb=False):
         raise NotImplemented()

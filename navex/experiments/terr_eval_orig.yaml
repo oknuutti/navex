@@ -50,7 +50,6 @@ optimizer:
   learning_rate: 1e-3
   weight_decay: 2e-5
   split_params: false
-  excl_bn: false
   eps: !!float 1e-8
 
 data:

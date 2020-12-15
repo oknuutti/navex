@@ -48,7 +48,7 @@ class TrialWrapperBase(pl.LightningModule):
 
         with torch.no_grad():
             acc = self.trial.accuracy(*output, labels, top_k=300, mutual=True, ratio=False, success_px_limit=12)
-            self._log('trn', loss, acc)
+            self._log('trn', loss, acc, self.trial.log_values())
 
         return loss
 
@@ -62,21 +62,26 @@ class TrialWrapperBase(pl.LightningModule):
         data, labels = batch
         loss, acc, output = self.trial.evaluate_batch(data, labels, top_k=300, mutual=True,
                                                       ratio=False, success_px_limit=12)
-        self._log(log_prefix, loss, acc)
+        self._log(log_prefix, loss, acc, self.trial.log_values())
         return loss
 
-    def _log(self, lp, loss, acc):
+    def _log(self, lp, loss, acc, trial_params=None):
         tot, inl, dst, map = self.nanmean(acc)
         postfix = '_epoch' if lp == 'val' else ''
 
-        # logger only
-        self.log_dict({
+        log_values = {
             lp + '_loss' + postfix: loss,
             lp + '_tot' + postfix: tot * 100,
             lp + '_inl' + postfix: inl * 100,
             lp + '_dst' + postfix: dst,
             lp + '_map' + postfix: map * 100,
-        }, prog_bar=False, logger=True, on_step=None, on_epoch=True, reduce_fx=self.nanmean)
+        }
+
+        if trial_params is not None:
+            log_values.update({'%s_%s%s' % (lp, p, postfix): v for p, v in trial_params.items()})
+
+        # logger only
+        self.log_dict(log_values, prog_bar=False, logger=True, on_step=None, on_epoch=True, reduce_fx=self.nanmean)
 
         # progress bar only
         self.log_dict({

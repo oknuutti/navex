@@ -1,5 +1,7 @@
+import math
 
 import torch
+from torch import nn
 from torch.functional import F
 
 from .base import BaseLoss
@@ -12,9 +14,9 @@ class R2D2Loss(BaseLoss):
     def __init__(self, wp=1.0, wc=1.0, wa=1.0, det_n=16, base=0.5, nq=20, sampler=None):
         super(R2D2Loss, self).__init__()
 
-        self.wp = wp
-        self.wc = wc
-        self.wa = wa
+        self.wp = wp if wp >= 0 else nn.Parameter(torch.Tensor([math.log(-wp)]))
+        self.wc = wc if wp >= 0 else nn.Parameter(torch.Tensor([math.log(-wp)]))
+        self.wa = wa if wp >= 0 else nn.Parameter(torch.Tensor([math.log(-wp)]))
 
         self.ap_loss = AveragePrecisionLoss(base=base, nq=nq, sampler_conf=sampler)
         self.cosim_loss = CosSimilarityLoss(det_n)
@@ -38,4 +40,24 @@ class R2D2Loss(BaseLoss):
 
         a_loss = self.ap_loss(des1, des2, qlt1, qlt2, sc_aflow)
 
-        return self.wp * p_loss + self.wc * c_loss + self.wa * a_loss
+        # maybe optimize weights during training
+        p_loss = (self.wp * p_loss) if isinstance(self.wp, float) else (torch.exp(-self.wp) * p_loss + self.wp)
+        c_loss = (self.wc * c_loss) if isinstance(self.wc, float) else (torch.exp(-self.wc) * c_loss + self.wc)
+        a_loss = (self.wa * a_loss) if isinstance(self.wa, float) else (torch.exp(-self.wa) * a_loss + self.wa)
+
+        return p_loss + c_loss + a_loss
+
+    def params_to_optimize(self, split=False):
+        params = []
+        if not isinstance(self.wp, float):
+            params.append(self.wp)
+        if not isinstance(self.wc, float):
+            params.append(self.wc)
+        if not isinstance(self.wa, float):
+            params.append(self.wa)
+
+        if split:
+            # new_biases, new_weights, biases, weights, others
+            return [[], [], [], [], params]
+        else:
+            return params

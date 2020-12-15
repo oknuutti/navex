@@ -63,7 +63,6 @@ optimizer:
   learning_rate: !h_tune_qloguniform  '5e-5, 1e-3, 5e-5'
   weight_decay: !h_tune_qloguniform   '1e-5, 1e-4, 1e-5'
   split_params: !h_tune_choice        '[0, 1]'
-  excl_bn: 0
   eps: !!float 1e-8
 
 data:

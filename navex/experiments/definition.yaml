@@ -252,10 +252,6 @@ optimizer:
     type: int
     help: "use different optimization params for bias, weight and loss function params"
 
-  excl_bn:
-    type: int
-    help: "exclude batch norm params from optimization"
-
   eps:
     type: float
     help: "term added to the denominator to improve numerical stability"

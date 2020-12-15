@@ -30,9 +30,9 @@ class TerrestrialTrial(TrialBase):
 
         self._tr_data, self._val_data, self._test_data = [None] * 3
 
-    def get_optimizer(self, method, split_params, excl_bn, weight_decay, learning_rate, eps):
+    def get_optimizer(self, method, split_params, weight_decay, learning_rate, eps):
         # get optimizable params from both the network and the loss function
-        params = [m.params_to_optimize(split=split_params, excl_batch_norm=excl_bn)
+        params = [m.params_to_optimize(split=split_params)
                   for m in (self.model, self.loss_fn)]
         if split_params:
             params = [sum(p, []) for p in zip(*params)]
@@ -54,6 +54,16 @@ class TerrestrialTrial(TrialBase):
         else:
             assert False, 'Invalid optimizer: %s' % method
         return optimizer
+
+    def log_values(self):
+        log = {}
+        if not isinstance(self.loss_fn.wp, float):
+            log['wp'] = self.loss_fn.wp
+        if not isinstance(self.loss_fn.wc, float):
+            log['wc'] = self.loss_fn.wc
+        if not isinstance(self.loss_fn.wa, float):
+            log['wa'] = self.loss_fn.wa
+        return log or None
 
     def build_training_data_loader(self, rgb=False):
         return self._get_datasets(rgb)[0]
