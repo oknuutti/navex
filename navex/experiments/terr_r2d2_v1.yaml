@@ -30,9 +30,9 @@ training:
 
 model:
   arch: 'own_vgg'
-  head_conv_ch: !h_int 128
-  descriptor_dim: !h_int 128
-  width_mult: !h_float 1.0
+  head_conv_ch: 128
+  descriptor_dim: 128
+  width_mult: 1.0
   dropout: !h_float 0.0
   excl_bn_affine: 1
   batch_norm: 1
@@ -42,10 +42,10 @@ model:
 
 loss:
   wp: -1.0        # peakiness loss weight
-  wc: -1.0        # cosim loss weight
-  wa: -1.0        # ap loss weight
-  det_n: 12       # detector neighbourhood size
-  base: 0.7       # quality loss target mAP
+  wc: -30.0       # cosim loss weight
+  wa: -10.0       # ap loss weight
+  det_n: !h_int  12       # detector neighbourhood size
+  base: !h_float 0.7       # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for descriptor head output size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells

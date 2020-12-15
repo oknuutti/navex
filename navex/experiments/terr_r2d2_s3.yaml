@@ -23,7 +23,7 @@ training:
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 3
+  early_stopping: 5
   reduced_precision: 1
   auto_lr_find: 0
   deterministic: 1
@@ -41,9 +41,9 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wp: -1.0         # peakiness loss weight, if negative, optimize during training
-  wc: -1.0         # cosim loss weight, if negative, optimize during training
-  wa: -1.0         # ap loss weight, if negative, optimize during training
+  wp: -1.0        # peakiness loss weight, if negative, optimize during training
+  wc: !h_tune_choice    '[-100, -30, -10]'   # cosim loss weight, if negative, optimize during training
+  wa: !h_tune_choice    '[-30, -10, -3]'     # ap loss weight, if negative, optimize during training
   det_n: !h_tune_quniform  '8, 16, 4'       # detector neighbourhood size
   base: !h_tune_quniform   '0.65, 0.85, 0.05'    # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
