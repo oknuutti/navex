@@ -18,7 +18,10 @@ PROFILING_ONLY = False
 
 def main():
     def_file = os.path.join(os.path.dirname(__file__), 'experiments', 'definition.yaml')
-    config = ExperimentConfigParser(definition=def_file).parse_args()
+    parser = ExperimentConfigParser(definition=def_file)
+    parser.add_argument('--to-npy', action="store_true", help="just convert data to npy-format, don't do anything else")
+
+    config = parser.parse_args()
     args = config.training
 
     if PROFILING_ONLY:
@@ -38,6 +41,10 @@ def main():
                              to_dict(config.optimizer), to_dict(config.data),
                              gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
     model = TrialWrapperBase(trial, use_gpu=bool(args.gpu))
+    if config.to_npy:
+        convert_data_to_npy(model)
+        return
+
     trn_dl = model.build_training_data_loader()
     val_dl = model.build_validation_data_loader()
 
@@ -86,6 +93,19 @@ def main():
 
     tst_dl = model.build_test_data_loader()
     trainer.test(model, test_dataloaders=tst_dl)
+
+
+def convert_data_to_npy(model):
+    import tqdm
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    trn_dl = model.build_training_data_loader(npy=0)
+    val_dl = model.build_validation_data_loader(npy=0)
+    tst_dl = model.build_test_data_loader(npy=0)
+    for name, dl in {'trn': trn_dl, 'val': val_dl, 'tst': tst_dl}.items():
+        logging.info('starting %s' % name)
+        for _ in tqdm.tqdm(dl):
+            pass
 
 
 if __name__ == '__main__':

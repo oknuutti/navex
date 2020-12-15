@@ -98,14 +98,14 @@ class TrialBase(abc.ABC, torch.nn.Module):
         return None
 
     @abc.abstractmethod
-    def build_training_data_loader(self, rgb=False):
+    def build_training_data_loader(self, rgb=False, npy=False):
         raise NotImplemented()
 
     @abc.abstractmethod
-    def build_validation_data_loader(self, rgb=False):
+    def build_validation_data_loader(self, rgb=False, npy=False):
         raise NotImplemented()
 
     @abc.abstractmethod
-    def build_test_data_loader(self, rgb=False):
+    def build_test_data_loader(self, rgb=False, npy=False):
         raise NotImplemented()
 

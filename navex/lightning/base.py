@@ -29,14 +29,14 @@ class TrialWrapperBase(pl.LightningModule):
     def configure_optimizers(self):
         return self.trial.optimizer
 
-    def build_training_data_loader(self, rgb=False):
-        return self._wrap_dl(self.trial.build_training_data_loader(rgb=rgb))
+    def build_training_data_loader(self, rgb=False, npy=False):
+        return self._wrap_dl(self.trial.build_training_data_loader(rgb=rgb, npy=npy))
 
-    def build_validation_data_loader(self, rgb=False):
-        return self._wrap_dl(self.trial.build_validation_data_loader(rgb=rgb))
+    def build_validation_data_loader(self, rgb=False, npy=False):
+        return self._wrap_dl(self.trial.build_validation_data_loader(rgb=rgb, npy=npy))
 
-    def build_test_data_loader(self, rgb=False):
-        return self._wrap_dl(self.trial.build_test_data_loader(rgb=rgb))
+    def build_test_data_loader(self, rgb=False, npy=False):
+        return self._wrap_dl(self.trial.build_test_data_loader(rgb=rgb, npy=npy))
 
     def _wrap_dl(self, dl):
         return AsynchronousLoader(dl) if self.use_gpu else dl
