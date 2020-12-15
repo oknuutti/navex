@@ -65,18 +65,18 @@ class TerrestrialTrial(TrialBase):
             log['wa'] = self.loss_fn.wa
         return log or None
 
-    def build_training_data_loader(self, rgb=False, npy=False):
-        return self._get_datasets(rgb, npy=npy)[0]
+    def build_training_data_loader(self, rgb=False):
+        return self._get_datasets(rgb)[0]
 
-    def build_validation_data_loader(self, rgb=False, npy=False):
-        return self._get_datasets(rgb, npy=npy)[1]
+    def build_validation_data_loader(self, rgb=False):
+        return self._get_datasets(rgb)[1]
 
-    def build_test_data_loader(self, rgb=False, npy=False):
-        return self._get_datasets(rgb, npy=npy)[2]
+    def build_test_data_loader(self, rgb=False):
+        return self._get_datasets(rgb)[2]
 
-    def _get_datasets(self, rgb, npy):
+    def _get_datasets(self, rgb):
         if self._tr_data is None:
-            fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy)
+            fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=self.data_conf['npy'])
             datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),
                                      self.data_conf.get('val_ratio', 0.1),
                                      self.data_conf.get('tst_ratio', 0.1), eval=(2,), rgb=rgb)

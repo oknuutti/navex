@@ -67,6 +67,7 @@ optimizer:
 
 data:
   path: 'data/aachen'
+  npy: true,
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1

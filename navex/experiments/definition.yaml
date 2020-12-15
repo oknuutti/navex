@@ -264,6 +264,10 @@ data:
     alt: ['-d', '--data']
     help: "path to dataset"
 
+  npy:
+    alt: ['--npy']
+    help: "use npy format data instead of jpg and png"
+
   trn_ratio:
     type: float
     help: "what ratio to use for training"
