@@ -99,9 +99,9 @@ def convert_data_to_npy(model):
     import tqdm
     import logging
     logging.basicConfig(level=logging.INFO)
-    trn_dl = model.build_training_data_loader(npy=0)
-    val_dl = model.build_validation_data_loader(npy=0)
-    tst_dl = model.build_test_data_loader(npy=0)
+    trn_dl = model.build_training_data_loader()
+    val_dl = model.build_validation_data_loader()
+    tst_dl = model.build_test_data_loader()
     for name, dl in {'trn': trn_dl, 'val': val_dl, 'tst': tst_dl}.items():
         logging.info('starting %s' % name)
         for _ in tqdm.tqdm(dl):

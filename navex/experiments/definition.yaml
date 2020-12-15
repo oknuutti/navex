@@ -181,10 +181,12 @@ loss:
     help: "average precision loss weight"
 
   det_n:
+    alt: ['--det-n']
     type: int
     help: "size of kernel for detector losses"
 
   base:
+    alt: ['--base-ap']
     type: float
     help: "expected average precision for ap loss"
 
