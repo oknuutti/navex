@@ -42,8 +42,8 @@ model:
 
 loss:
   wp: -1.0        # peakiness loss weight
-  wc: -30.0       # cosim loss weight
-  wa: -10.0       # ap loss weight
+  wc: -150.0      # cosim loss weight
+  wa: -5.0        # ap loss weight
   det_n: !h_int  12       # detector neighbourhood size
   base: !h_float 0.7       # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
