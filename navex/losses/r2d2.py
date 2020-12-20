@@ -11,12 +11,11 @@ from .peakiness import PeakinessLoss
 
 
 class R2D2Loss(BaseLoss):
-    def __init__(self, wp=1.0, wc=1.0, wa=1.0, det_n=16, base=0.5, nq=20, sampler=None):
+    def __init__(self, wdt=1.0, wap=1.0, det_n=16, base=0.5, nq=20, sampler=None):
         super(R2D2Loss, self).__init__()
 
-        self.wp = wp if wp >= 0 else nn.Parameter(torch.Tensor([-math.log(-wp)]))
-        self.wc = wc if wc >= 0 else nn.Parameter(torch.Tensor([-math.log(-wc)]))
-        self.wa = wa if wa >= 0 else nn.Parameter(torch.Tensor([-math.log(-wa)]))
+        self.wdt = wdt if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
+        self.wap = wap if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
 
         self.ap_loss = AveragePrecisionLoss(base=base, nq=nq, sampler_conf=sampler)
         self.cosim_loss = CosSimilarityLoss(det_n)
@@ -41,20 +40,18 @@ class R2D2Loss(BaseLoss):
         a_loss = self.ap_loss(des1, des2, qlt1, qlt2, sc_aflow)
 
         # maybe optimize weights during training
-        p_loss = (self.wp * p_loss) if isinstance(self.wp, float) else (torch.exp(-self.wp) * p_loss + self.wp)
-        c_loss = (self.wc * c_loss) if isinstance(self.wc, float) else (torch.exp(-self.wc) * c_loss + self.wc)
-        a_loss = (self.wa * a_loss) if isinstance(self.wa, float) else (torch.exp(-self.wa) * a_loss + self.wa)
+        p_loss = (self.wdt * p_loss) if isinstance(self.wdt, float) else (torch.exp(-self.wdt) * p_loss + self.wdt)
+        c_loss = (self.wdt * c_loss) if isinstance(self.wdt, float) else (torch.exp(-self.wdt) * c_loss + self.wdt)
+        a_loss = (self.wap * a_loss) if isinstance(self.wap, float) else (torch.exp(-self.wap) * a_loss + self.wap)
 
         return p_loss + c_loss + a_loss
 
     def params_to_optimize(self, split=False):
         params = []
-        if not isinstance(self.wp, float):
-            params.append(self.wp)
-        if not isinstance(self.wc, float):
-            params.append(self.wc)
-        if not isinstance(self.wa, float):
-            params.append(self.wa)
+        if not isinstance(self.wdt, float):
+            params.append(self.wdt)
+        if not isinstance(self.wap, float):
+            params.append(self.wap)
 
         if split:
             # new_biases, new_weights, biases, weights, others

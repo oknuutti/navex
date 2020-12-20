@@ -28,9 +28,8 @@ model:
   cache_dir: 'c:/project-data/navex/cache'
 
 loss:
-  wp: 1.0
-  wc: 1.0
-  wa: 1.0
+  wdt: 1.0        # weight for peakiness and cosim losses
+  wap: 1.0        # weight for expected ap loss
   det_n: 16
   base: 0.5
   nq: 20

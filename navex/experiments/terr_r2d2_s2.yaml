@@ -41,9 +41,8 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wp: 1.0         # peakiness loss weight    # TODO: optimize during training
-  wc: 1.0         # cosim loss weight        # TODO: optimize during training
-  wa: 1.0         # ap loss weight           # TODO: optimize during training
+  wdt: 1.0        # weight for peakiness and cosim losses
+  wap: 1.0        # weight for expected ap loss
   det_n: !h_tune_choice    '[12, 14, 16]'        # detector neighbourhood size
   base: !h_tune_quniform   '0.60, 0.70, 0.05'    # quality loss target mAP
   nq: 20          # quantizer bins for ap calc

@@ -168,17 +168,13 @@ model:
 loss:
   __group__: 1
 
-  wp:
+  wdt:
     type: float
-    help: "peakiness loss weight"
+    help: "weight for peakiness and cosim losses"
 
-  wc:
+  wap:
     type: float
-    help: "cosim loss weight"
-
-  wa:
-    type: float
-    help: "average precision loss weight"
+    help: "weight for expected ap loss"
 
   det_n:
     alt: ['--det-n']

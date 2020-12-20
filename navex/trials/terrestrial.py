@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 
 import torch
@@ -57,12 +59,10 @@ class TerrestrialTrial(TrialBase):
 
     def log_values(self):
         log = {}
-        if not isinstance(self.loss_fn.wp, float):
-            log['wp'] = self.loss_fn.wp
-        if not isinstance(self.loss_fn.wc, float):
-            log['wc'] = self.loss_fn.wc
-        if not isinstance(self.loss_fn.wa, float):
-            log['wa'] = self.loss_fn.wa
+        if not isinstance(self.loss_fn.wdt, float):
+            log['wdt'] = self.loss_fn.wdt
+        if not isinstance(self.loss_fn.wap, float):
+            log['wap'] = self.loss_fn.wap
         return log or None
 
     def build_training_data_loader(self, rgb=False):
@@ -76,10 +76,7 @@ class TerrestrialTrial(TrialBase):
 
     def _get_datasets(self, rgb):
         if self._tr_data is None:
-            try:
-                npy = int(self.data_conf['npy'])
-            except:
-                npy = bool(self.data_conf['npy'])
+            npy = json.loads(self.data_conf['npy'])
             fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy)
             datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),
                                      self.data_conf.get('val_ratio', 0.1),
