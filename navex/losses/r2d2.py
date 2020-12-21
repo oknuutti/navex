@@ -28,8 +28,8 @@ class R2D2Loss(BaseLoss):
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
 
-        p_loss = self.peakiness_loss(det1, det2)
-        c_loss = self.cosim_loss(det1, det2, aflow)
+        p_loss = self.peakiness_loss(det1, det2) + 1e-8
+        c_loss = self.cosim_loss(det1, det2, aflow) + 1e-8
 
         # downscale aflow to des and qlt shape
         th, tw = des1.shape[2:]
@@ -40,15 +40,15 @@ class R2D2Loss(BaseLoss):
         else:
             sc_aflow = aflow
 
-        a_loss = self.ap_loss(des1, des2, qlt1, qlt2, sc_aflow)
+        a_loss = self.ap_loss(des1, des2, qlt1, qlt2, sc_aflow) + 1e-8
 
         # maybe optimize weights during training
         # p_loss = (self.wdt * p_loss) if isinstance(self.wdt, float) else (torch.exp(-self.wdt) * p_loss + self.wdt)
         # c_loss = (self.wdt * c_loss) if isinstance(self.wdt, float) else (torch.exp(-self.wdt) * c_loss + self.wdt)
         # a_loss = (self.wap * a_loss) if isinstance(self.wap, float) else (torch.exp(-self.wap) * a_loss + self.wap)
-        p_loss = self.wdt * torch.log(p_loss) + (0 if isinstance(self.wdt, float) else -torch.log(self.wdt))
-        c_loss = self.wc * torch.log(c_loss) + (0 if isinstance(self.wc, float) else -torch.log(self.wc))
-        a_loss = self.wap * torch.log(a_loss) + (0 if isinstance(self.wap, float) else -torch.log(self.wap))
+        p_loss = (self.wdt + 1e-8) * torch.log(p_loss) + (0 if isinstance(self.wdt, float) else -torch.log(self.wdt + 1e-8))
+        c_loss = (self.wc + 1e-8) * torch.log(c_loss) + (0 if isinstance(self.wc, float) else -torch.log(self.wc + 1e-8))
+        a_loss = (self.wap + 1e-8) * torch.log(a_loss) + (0 if isinstance(self.wap, float) else -torch.log(self.wap + 1e-8))
 
         return p_loss + c_loss + a_loss
 
