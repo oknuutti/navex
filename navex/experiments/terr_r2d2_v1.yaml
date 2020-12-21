@@ -41,8 +41,9 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wdt: -1.0        # weight for peakiness and cosim losses
-  wap: -5.0        # weight for expected ap loss
+  wdt: -2.0        # weight for peakiness and cosim losses
+  wc: -2.0
+  wap: -4.0        # weight for expected ap loss
   det_n: !h_int  12       # detector neighbourhood size
   base: !h_float 0.7      # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
@@ -66,7 +67,7 @@ optimizer:
 
 data:
   path: 'data/aachen'
-  npy: true,
+  npy: true
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
