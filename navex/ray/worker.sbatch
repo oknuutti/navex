@@ -33,7 +33,7 @@ ssh -f -N -T -L "$HEAD_PORT:127.0.0.1:$HEAD_PORT" \
              -R "$NODE_M_PORT:127.0.0.1:$NODE_M_PORT" \
              -R "$OBJ_M_PORT:127.0.0.1:$OBJ_M_PORT" \
              -R "$MEX_PORT:127.0.0.1:$MEX_PORT" \
-             "$WPORT_TUNNELS" \
+             $WPORT_TUNNELS \
              "$HEAD_HOST"
 
 #             maybe don't need tunnel for $H_WPORT_S, haven't tried
