@@ -77,7 +77,7 @@ class TerrestrialTrial(TrialBase):
 
     def _get_datasets(self, rgb):
         if self._tr_data is None:
-            npy = json.loads(self.data_conf['npy'])
+            npy = json.loads(str(self.data_conf['npy']))
             fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy)
             datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),
                                      self.data_conf.get('val_ratio', 0.1),
