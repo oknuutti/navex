@@ -18,8 +18,8 @@ class R2D2Loss(BaseLoss):
         self.wap = wap if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
 
         self.ap_loss = AveragePrecisionLoss(base=base, nq=nq, sampler_conf=sampler)
-        self.cosim_loss = CosSimilarityLoss(det_n)
-        self.peakiness_loss = PeakinessLoss(det_n)
+        self.cosim_loss = CosSimilarityLoss(int(det_n))
+        self.peakiness_loss = PeakinessLoss(int(det_n))
 
     def forward(self, output1, output2, aflow):
         des1, det1, qlt1 = output1
