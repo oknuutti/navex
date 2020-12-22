@@ -2,7 +2,7 @@
 #SBATCH --time=0-03:59:00               # estimated execution time (~80s/epoch)
 #SBATCH --mem-per-cpu=4G                # memory needed (~2Gb/core)
 #SBATCH --gres=gpu:1                    # GPUs needed
-####SBATCH --constraint='kepler|pascal|volta'     # exclude the slowest GPUs   # commented out as can also use smaller gpus
+#SBATCH --constraint='kepler|pascal'    # 'kepler|pascal|volta'
 #SBATCH --signal=SIGUSR1@90             # wall time auto-resubmit using Lightning
 
 ## copy image data to local drive
