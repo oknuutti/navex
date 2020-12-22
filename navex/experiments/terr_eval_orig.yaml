@@ -53,7 +53,7 @@ optimizer:
 
 data:
   path: 'c:/project-data/navex/data/aachen'
-  npy: false,
+  npy: false
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1

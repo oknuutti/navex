@@ -66,7 +66,7 @@ optimizer:
 
 data:
   path: 'data/aachen.tar'
-  npy: false,
+  npy: false
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
