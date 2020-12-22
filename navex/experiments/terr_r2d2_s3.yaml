@@ -33,7 +33,7 @@ model:
   head_conv_ch: 128
   descriptor_dim: 128    # try lower values
   width_mult: 1.0        # try lower values
-  dropout: !h_tune_choice    '[0, 10]'
+  dropout: !h_tune_choice    '[0, 0.1]'
   batch_norm: 1
   excl_bn_affine: 1
   direct_detection: 0    # not implemented

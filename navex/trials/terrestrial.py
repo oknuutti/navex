@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data.dataloader import DataLoader
 
+from .. import RND_SEED
 from ..datasets.aachen import AachenFlowDataset
 from ..datasets.base import worker_init_fn
 from ..losses.r2d2 import R2D2Loss
@@ -82,10 +83,15 @@ class TerrestrialTrial(TrialBase):
                                      self.data_conf.get('val_ratio', 0.1),
                                      self.data_conf.get('tst_ratio', 0.1), eval=(2,), rgb=rgb)
             self._tr_data, self._val_data, self._test_data = \
-                    self._wrap_ds(datasets[0], shuffle=True), self._wrap_ds(datasets[1]), self._wrap_ds(datasets[2])
+                    self._wrap_ds(datasets[0], shuffle=False), self._wrap_ds(datasets[1]), self._wrap_ds(datasets[2])
         return self._tr_data, self._val_data, self._test_data
 
     def _wrap_ds(self, dataset, shuffle=False):
+        generator = None
+        if shuffle:
+            # second batch already differs significantly, not sure how to solve, better just use shuffle=False
+            generator = torch.Generator()
+            generator.manual_seed(RND_SEED)
         dl = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.data_conf['workers'],
-                        shuffle=shuffle, pin_memory=True, worker_init_fn=worker_init_fn)
+                        shuffle=shuffle, generator=generator, pin_memory=True, worker_init_fn=worker_init_fn)
         return dl

@@ -25,7 +25,7 @@ def main():
     args = config.training
 
     if PROFILING_ONLY:
-        config.data.workers = 0
+       config.data.workers = 0
 
     os.makedirs(args.output, exist_ok=True)
 

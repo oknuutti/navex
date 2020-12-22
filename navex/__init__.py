@@ -1,10 +1,5 @@
-import random
-import numpy as np
-import torch
+from pytorch_lightning import seed_everything
 
 # random seed used
 RND_SEED = 10
-
-random.seed(RND_SEED)
-np.random.seed(RND_SEED)
-torch.manual_seed(RND_SEED)
+seed_everything(RND_SEED)

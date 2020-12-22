@@ -14,7 +14,9 @@ from .. import RND_SEED
 
 
 def worker_init_fn(id):
+    random.seed(RND_SEED)
     np.random.seed(RND_SEED)
+    torch.random.manual_seed(RND_SEED)
 
 
 class IndexFileLoader:
