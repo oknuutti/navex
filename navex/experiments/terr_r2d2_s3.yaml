@@ -1,7 +1,7 @@
 search:
-  samples: 81
+  samples: 243
   workers: 1
-  grace_period: 1
+  grace_period: 2
   reduction_factor: 3
   username: ''
   keyfile: ''
@@ -14,9 +14,9 @@ training:
   cache: 'cache'
   output: 'output'
   batch_size: 32
-  batch_mem: 32000
+  batch_mem: 28000
   gpu: 1
-  epochs: 30
+  epochs: 40
   print_freq: 1
   test_freq: 1
   save_freq: 1
@@ -41,10 +41,10 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wdt: -1.0        # weight for peakiness and cosim losses
-  wap: -5.0        # weight for expected ap loss
-  det_n: !h_tune_quniform  '8, 16, 4'       # detector neighbourhood size
-  base: !h_tune_quniform   '0.65, 0.85, 0.05'    # quality loss target mAP
+  wdt: !h_tune_choice    '[-1, -2, -3, -4]'     # weight for peakiness and cosim losses
+  wap: !h_tune_choice    '[-2, -4, -6, -8]'     # weight for expected ap loss
+  det_n: !h_tune_quniform  '8, 16, 4'           # detector neighbourhood size
+  base: !h_tune_quniform   '0.65, 0.85, 0.05'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for descriptor head output size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
