@@ -41,7 +41,7 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wdt: !h_tune_choice    '[-1, -2, -3, -4]'     # weight for peakiness and cosim losses
+  wdt: 2.0        # weight for peakiness and cosim losses
   wap: !h_tune_choice    '[-2, -4, -6, -8]'     # weight for expected ap loss
   det_n: !h_tune_quniform  '8, 16, 4'           # detector neighbourhood size
   base: !h_tune_quniform   '0.65, 0.85, 0.05'   # quality loss target mAP
@@ -70,4 +70,4 @@ data:
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
-  workers: 6
+  workers: 4
