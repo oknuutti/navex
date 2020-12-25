@@ -41,8 +41,9 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wdt: !h_float -2.0      # weight for peakiness and cosim losses
-  wap: !h_float -4.7      # weight for expected ap loss
+  wc: !h_float -1.0      # weight for peakiness and cosim losses
+  wdt: !h_float -1.0      # weight for peakiness and cosim losses
+  wap: !h_float -3.0      # weight for expected ap loss
   det_n: !h_int  12       # detector neighbourhood size
   base: !h_float 0.75     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc

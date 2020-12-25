@@ -60,6 +60,8 @@ class TerrestrialTrial(TrialBase):
 
     def log_values(self):
         log = {}
+        if not isinstance(self.loss_fn.wc, float):
+            log['wc'] = self.loss_fn.wc
         if not isinstance(self.loss_fn.wdt, float):
             log['wdt'] = self.loss_fn.wdt
         if not isinstance(self.loss_fn.wap, float):
