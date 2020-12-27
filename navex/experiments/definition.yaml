@@ -168,10 +168,6 @@ model:
 loss:
   __group__: 1
 
-  wc:
-    type: float
-    help: "weight for peakiness and cosim losses"
-
   wdt:
     type: float
     help: "weight for peakiness and cosim losses"
