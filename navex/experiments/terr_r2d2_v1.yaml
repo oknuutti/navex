@@ -41,7 +41,6 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wc: !h_float -1.0      # weight for peakiness and cosim losses
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
   wap: !h_float -3.0      # weight for expected ap loss
   det_n: !h_int  12       # detector neighbourhood size
