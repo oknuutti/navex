@@ -258,6 +258,14 @@ optimizer:
 data:
   __group__: 1
 
+  noise_max:
+    alt: ['--noise-max']
+    help: "mean noise sampled between [0, max_noise] and applied to training images, noise sd = sqrt(0.3*noise_level)"
+
+  rnd_gain:
+    alt: ['--rnd-gain']
+    help: "random gain is sampled uniformly between [1/G, G] and applied to training images after adding noise"
+
   path:
     alt: ['-d', '--data']
     help: "path to dataset"

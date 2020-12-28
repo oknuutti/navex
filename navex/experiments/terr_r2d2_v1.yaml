@@ -42,7 +42,7 @@ model:
 
 loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -3.0      # weight for expected ap loss
+  wap: !h_float -2.0      # weight for expected ap loss
   det_n: !h_int  12       # detector neighbourhood size
   base: !h_float 0.75     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
@@ -65,6 +65,8 @@ optimizer:
   eps: !!float 1e-8
 
 data:
+  noise_max: 0.20
+  rnd_gain: 2.0
   path: 'data/aachen'
   npy: 'true'
   trn_ratio: 0.8

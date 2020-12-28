@@ -19,18 +19,21 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
         PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226])),
     ])
 
-    def __init__(self, root, eval=False, rgb=False, npy=False):
+    def __init__(self, root, noise_max=0.25, rnd_gain=(0.5, 3), eval=False, rgb=False, npy=False):
         AachenPairs_OpticalFlow.__init__(self, root, rgb=rgb, npy=npy)
 
         if eval:
             transforms = self.TRFM_EVAL
         else:
+            if not isinstance(rnd_gain, (tuple, list)):
+                rnd_gain = (1/rnd_gain, rnd_gain)
+
             transforms = ComposedTransforms([
                 PhotometricTransform(tr.Grayscale(num_output_channels=1)),
-                PairedRandomCrop(512, max_sc_diff=2**(1/3)),
+                PairedRandomCrop(512, max_sc_diff=2**(1/4)),
                 GeneralTransform(tr.ToTensor()),
-                PhotometricTransform(RandomDarkNoise(0, 0.25, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
-                PhotometricTransform(RandomExposure(0.5, 3)),  # apply a random gain on the image
+                PhotometricTransform(RandomDarkNoise(0, noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
+                PhotometricTransform(RandomExposure(*rnd_gain)),  # apply a random gain on the image
                 PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226])),
             ])
 
