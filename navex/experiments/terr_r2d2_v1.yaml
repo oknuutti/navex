@@ -58,11 +58,11 @@ loss:
     maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
 
 optimizer:
-  method: 'adam'
+  method: 'adabelief'
   learning_rate: !h_float 3.5e-4
   weight_decay: !h_float 2e-6
   split_params: 0
-  eps: !!float 1e-8
+  eps: !!float 1e-16
 
 data:
   noise_max: 0.20

@@ -234,7 +234,8 @@ optimizer:
 
   method:
     alt: ['--op']
-    help: "optimizer method, only 'adam' is currently supported"
+    choices: ['adam', 'adabelief']
+    help: "optimizer method"
 
   learning_rate:
     alt: ['--lr']
@@ -252,7 +253,7 @@ optimizer:
 
   eps:
     type: float
-    help: "term added to the denominator to improve numerical stability"
+    help: "term added to the denominator to improve numerical stability, default for adam is 1e-8, for adabelief 1e-16"
 
 
 data:

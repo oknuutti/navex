@@ -42,18 +42,23 @@ class TerrestrialTrial(TrialBase):
         else:
             params = sum(params, [])
 
+        if split_params:
+            assert method in ('adam', 'adabelief'), 'method not supported'
+            new_biases, new_weights, biases, weights, others = params
+            params = [
+                {'params': new_biases, 'lr': learning_rate * 2, 'weight_decay': 0.0, 'eps': eps},
+                {'params': new_weights, 'lr': learning_rate, 'weight_decay': weight_decay, 'eps': eps},
+                {'params': biases, 'lr': learning_rate * 2, 'weight_decay': 0.0, 'eps': eps},
+                {'params': weights, 'lr': learning_rate, 'weight_decay': weight_decay, 'eps': eps},
+                {'params': others, 'lr': learning_rate, 'weight_decay': 0, 'eps': eps},
+            ]
+
         if method == 'adam':
-            if split_params:
-                new_biases, new_weights, biases, weights, others = params
-                optimizer = torch.optim.Adam([
-                    {'params': new_biases, 'lr': learning_rate * 2, 'weight_decay': 0.0, 'eps': eps},
-                    {'params': new_weights, 'lr': learning_rate, 'weight_decay': weight_decay, 'eps': eps},
-                    {'params': biases, 'lr': learning_rate * 2, 'weight_decay': 0.0, 'eps': eps},
-                    {'params': weights, 'lr': learning_rate, 'weight_decay': weight_decay, 'eps': eps},
-                    {'params': others, 'lr': learning_rate, 'weight_decay': 0, 'eps': eps},
-                ])
-            else:
-                optimizer = torch.optim.Adam(params, lr=learning_rate, weight_decay=weight_decay, eps=eps)
+            optimizer = torch.optim.Adam(params, lr=learning_rate, weight_decay=weight_decay, eps=eps)
+        elif method == 'adabelief':
+            from adabelief_pytorch import AdaBelief
+            optimizer = AdaBelief(params, lr=learning_rate, weight_decay=weight_decay, eps=eps, weight_decouple=False,
+                                  betas=(0.9, 0.999), rectify=False, fixed_decay=False, print_change_log=False)
         else:
             assert False, 'Invalid optimizer: %s' % method
         return optimizer
