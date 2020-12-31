@@ -281,12 +281,12 @@ class ScheduledWorkerNode:
                 self.worker_ports_start + self.max_workers + 1,
                 head.config['data']['path'],
             )
+        logging.debug('Executing command:\n%s' % cmd)
         out, err = ssh.exec(cmd)
         m = re.search(r'\d+$', out)
 
         if err or not m:
             logging.error('Could not schedule a worker, out: %s, err: %s' % (out, err))
-            logging.debug('Command that failed:\n%s' % cmd)
         else:
             self.slurm_job_id = int(m[0])
 

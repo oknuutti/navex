@@ -23,7 +23,7 @@ search:
     help: ""
 
   workers:
-    alt: []
+    alt: ['-n', '--nodes']
     type: int
     help: ""
 
