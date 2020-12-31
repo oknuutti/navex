@@ -165,7 +165,7 @@ class RayTuneHeadNode:
         for i in range(n):
             if i < n-1:
                 sub_list = set(random.sample(nodes - selected, k))
-                selected += sub_list
+                selected = selected + sub_list
             else:
                 sub_list = nodes - selected
             self.excl_nodes.append(nodes - sub_list)
