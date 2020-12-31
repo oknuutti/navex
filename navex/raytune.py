@@ -260,7 +260,7 @@ class ScheduledWorkerNode:
         self.listen_ports = ps
 
     def schedule_slurm_node(self, head, ssh, nodes=None):
-        w_arg = '' if nodes else ('-w %s' % ','.join(nodes))
+        w_arg = '' if nodes is None else ('-w %s' % ','.join(nodes))
 
         # schedule work on a slurm node
         cmd = ("sbatch -c %d %s "
