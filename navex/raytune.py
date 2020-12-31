@@ -159,15 +159,16 @@ class RayTuneHeadNode:
                     for line in out.split('\n')[1:]
                     if len(incl.intersection(line.split(' ')[1].split(','))) > 0}
 
-        self.node_lists = []
+        selected = set()
+        self.excl_nodes = []
         k = len(nodes)//n
         for i in range(n):
             if i < n-1:
-                sub_list = random.sample(nodes, k)
-                nodes = nodes - set(sub_list)
+                sub_list = random.sample(nodes - selected, k)
+                selected += sub_list
             else:
-                sub_list = list(nodes)
-            self.node_lists.append(sub_list)
+                sub_list = nodes - selected
+            self.excl_nodes.append(nodes - sub_list)
 
     def _schedule_worker(self):
         worker = ScheduledWorkerNode(self.local_linux)
@@ -176,7 +177,7 @@ class RayTuneHeadNode:
             # create tunnels to/from non-slurm accessing machine
             worker.create_tunnels(self.ssh)
 
-        worker.schedule_slurm_node(self, self.ssh, nodes=self.node_lists[len(self.workers)])
+        worker.schedule_slurm_node(self, self.ssh, excl_nodes=self.excl_nodes[len(self.workers)])
         if worker.slurm_job_id:
             self.workers.append(worker)
 
@@ -259,8 +260,8 @@ class ScheduledWorkerNode:
             logging.info('Forward tunnel 127.0.0.1:%d => %s:%d' % (ps[j], ssh.host, ps[j]))
         self.listen_ports = ps
 
-    def schedule_slurm_node(self, head, ssh, nodes=None):
-        w_arg = '' if nodes is None else ('-w %s' % ','.join(nodes))
+    def schedule_slurm_node(self, head, ssh, excl_nodes=None):
+        w_arg = '' if excl_nodes is None else ('-x %s' % ','.join(excl_nodes))
 
         # schedule work on a slurm node
         cmd = ("sbatch -c %d %s "
