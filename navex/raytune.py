@@ -164,7 +164,7 @@ class RayTuneHeadNode:
         k = len(nodes)//n
         for i in range(n):
             if i < n-1:
-                sub_list = random.sample(nodes - selected, k)
+                sub_list = set(random.sample(nodes - selected, k))
                 selected += sub_list
             else:
                 sub_list = nodes - selected
