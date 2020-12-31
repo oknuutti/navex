@@ -155,8 +155,9 @@ class RayTuneHeadNode:
         # gpu1 skl,volta,avx,avx2,avx512
         # ...
         out, err = self.ssh.exec(cmd)
-        nodes = {c[0] for line in out.split('\n')[1:]
-                          for c in line.split(' ') if len(incl.intersection(c[1].split(','))) > 0}
+        nodes = {line.split(' ')[0]
+                    for line in out.split('\n')[1:]
+                    if len(incl.intersection(line.split(' ')[1].split(','))) > 0}
 
         self.node_lists = []
         k = len(nodes)//n
