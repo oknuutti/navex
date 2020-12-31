@@ -13,18 +13,18 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 32
-  batch_mem: 32000
+  batch_size: 16
+  batch_mem: 24000
   gpu: 1
-  epochs: 10
-  print_freq: 1
+  epochs: 60
+  print_freq: 5
   test_freq: 1
   save_freq: 1
   resume: null
   evaluate: 0
   pretrained: ''
   early_stopping: 5
-  reduced_precision: 1
+  reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
 
@@ -42,7 +42,7 @@ model:
 
 loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -2.0      # weight for expected ap loss
+  wap: !h_float -2.5      # weight for expected ap loss
   det_n: !h_int  12       # detector neighbourhood size
   base: !h_float 0.75     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
@@ -58,11 +58,11 @@ loss:
     maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
 
 optimizer:
-  method: 'adabelief'
+  method: 'adam'
   learning_rate: !h_float 3.5e-4
   weight_decay: !h_float 2e-6
   split_params: 0
-  eps: !!float 1e-16
+  eps: !!float 1e-8
 
 data:
   noise_max: 0.20

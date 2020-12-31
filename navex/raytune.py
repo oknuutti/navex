@@ -46,6 +46,7 @@ class RayTuneHeadNode:
         self.ssh = None
         self.healthy = True
         self.exception = None
+        self.node_lists = None
 
     def start(self):
         """
@@ -90,6 +91,9 @@ class RayTuneHeadNode:
                 if lport is not None:
                     rport = self.ssh.reverse_tunnel('127.0.0.1', lport, '127.0.0.1', rport)
                     logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (self.search_conf['host'], rport, lport))
+
+        # create node lists so that workers won't be generated on same nodes
+        self._populate_node_lists(self.search_conf['workers'])
 
         # schedule workers
         logging.info('scheduling %d workers...' % self.search_conf['workers'])
@@ -143,6 +147,27 @@ class RayTuneHeadNode:
         else:
             logging.info('exiting')
 
+    def _populate_node_lists(self, n):
+        cmd = 'sinfo --partition=gpu,gpushort --Node -o "%N %f"'
+        incl = {'kepler', 'pascal'}
+
+        # NODELIST AVAIL_FEATURES
+        # gpu1 skl,volta,avx,avx2,avx512
+        # ...
+        out, err = self.ssh.exec(cmd)
+        nodes = {c[0] for line in out.split('\n')[1:]
+                          for c in line.split(' ') if len(incl.intersection(c[1].split(','))) > 0}
+
+        self.node_lists = []
+        k = len(nodes)//n
+        for i in range(n):
+            if i < n-1:
+                sub_list = random.sample(nodes, k)
+                nodes = nodes - set(sub_list)
+            else:
+                sub_list = list(nodes)
+            self.node_lists.append(sub_list)
+
     def _schedule_worker(self):
         worker = ScheduledWorkerNode(self.local_linux)
 
@@ -150,7 +175,7 @@ class RayTuneHeadNode:
             # create tunnels to/from non-slurm accessing machine
             worker.create_tunnels(self.ssh)
 
-        worker.schedule_slurm_node(self, self.ssh)
+        worker.schedule_slurm_node(self, self.ssh, nodes=self.node_lists[len(self.workers)])
         if worker.slurm_job_id:
             self.workers.append(worker)
 
@@ -233,15 +258,17 @@ class ScheduledWorkerNode:
             logging.info('Forward tunnel 127.0.0.1:%d => %s:%d' % (ps[j], ssh.host, ps[j]))
         self.listen_ports = ps
 
-    def schedule_slurm_node(self, head, ssh):
+    def schedule_slurm_node(self, head, ssh, nodes=None):
+        w_arg = '' if nodes else ('-w %s' % ','.join(nodes))
+
         # schedule work on a slurm node
-        out, err = ssh.exec(
-            ("sbatch -c %d "
+        cmd = ("sbatch -c %d %s "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
              "NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=%s "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
                 head.config['data']['workers'],
+                w_arg,
                 head.config['data']['workers'],
                 head.search_conf['host'],
                 *head.remote_ports,
@@ -252,11 +279,13 @@ class ScheduledWorkerNode:
                 self.worker_ports_start,
                 self.worker_ports_start + self.max_workers + 1,
                 head.config['data']['path'],
-            ))
+            )
+        out, err = ssh.exec(cmd)
         m = re.search(r'\d+$', out)
 
         if err or not m:
             logging.error('Could not schedule a worker, out: %s, err: %s' % (out, err))
+            logging.debug('Command that failed:\n%s' % cmd)
         else:
             self.slurm_job_id = int(m[0])
 

@@ -252,6 +252,7 @@ optimizer:
     help: "use different optimization params for bias, weight and loss function params"
 
   eps:
+    alt: ['--eps']
     type: float
     help: "term added to the denominator to improve numerical stability, default for adam is 1e-8, for adabelief 1e-16"
 
