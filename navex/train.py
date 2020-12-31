@@ -13,7 +13,7 @@ from .experiments.parser import ExperimentConfigParser, to_dict
 from .trials.terrestrial import TerrestrialTrial
 from .lightning.base import TrialWrapperBase, MyLogger
 
-PROFILING_ONLY = False
+PROFILING_ONLY = True
 
 
 def main():

@@ -13,15 +13,27 @@ from pl_bolts.datamodules import AsynchronousLoader
 from ..trials.base import TrialBase
 
 
+def _fn_none(x):
+    return None
+
+
 class TrialWrapperBase(pl.LightningModule):
-    def __init__(self, trial: TrialBase, extra_hparams=None, use_gpu=True):
+    def __init__(self, trial: TrialBase = None, extra_hparams=None, use_gpu=True):
         super(TrialWrapperBase, self).__init__()
-        self.trial = trial
-        self.trial.loss_backward_fn = lambda x: None
-        self.trial.step_optimizer_fn = lambda x: None
-        self.trial.hparams.update(extra_hparams or {})
-        self.save_hyperparameters(self.trial.hparams)
         self.use_gpu = use_gpu
+        self.trial = trial
+        if self.trial is not None:
+            self.trial.loss_backward_fn = _fn_none
+            self.trial.step_optimizer_fn = _fn_none
+            self.trial.hparams.update(extra_hparams or {})
+            self.save_hyperparameters(self.trial.hparams)
+
+    def on_save_checkpoint(self, checkpoint):
+        checkpoint['trial'] = self.trial
+
+    def on_load_checkpoint(self, checkpoint):
+        if self.trial is None and 'trial' in checkpoint:
+            self.trial = checkpoint['trial']
 
     def forward(self, x):
         return self.trial.model(x)
