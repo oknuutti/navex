@@ -177,7 +177,9 @@ class RayTuneHeadNode:
             # create tunnels to/from non-slurm accessing machine
             worker.create_tunnels(self.ssh)
 
-        worker.schedule_slurm_node(self, self.ssh, excl_nodes=self.excl_nodes[len(self.workers)])
+        n = len(self.excl_nodes)
+        excl_nodes = None if n == 0 else self.excl_nodes[len(self.workers) % n]
+        worker.schedule_slurm_node(self, self.ssh, excl_nodes=excl_nodes)
         if worker.slurm_job_id:
             self.workers.append(worker)
 
