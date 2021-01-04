@@ -1,0 +1,75 @@
+search:
+  samples: 243
+  workers: 4
+  grace_period: 1
+  reduction_factor: 3
+  username: ''
+  keyfile: ''
+  proxy: ''
+  host: ''
+  port: 0
+
+training:
+  name: 'v0'
+  cache: 'cache'
+  output: 'output'
+  batch_size: 16
+  batch_mem: 21000
+  gpu: 1
+  epochs: 50
+  print_freq: 5
+  test_freq: 1
+  save_freq: 1
+  resume: null
+  evaluate: 0
+  pretrained: ''
+  early_stopping: 10
+  reduced_precision: 0
+  auto_lr_find: 0
+  deterministic: 1
+
+model:
+  arch: 'own_vgg'
+  head_conv_ch: 128
+  descriptor_dim: 128    # try lower values
+  width_mult: 1.0        # try lower values
+  dropout: 0.0           # !h_tune_choice    '[0, 0.1]'
+  batch_norm: 1
+  excl_bn_affine: 1
+  direct_detection: 0    # not implemented
+  pretrained: 0          # not implemented
+  cache_dir: 'cache'
+
+loss:
+  wdt: -1.0       # weight for peakiness and cosim losses
+  wap: -3.0       # weight for expected ap loss
+  det_n: !h_tune_quniform  '8, 16, 2'     # detector neighbourhood size
+  base: !h_tune_quniform   '0.50, 0.80'   # quality loss target mAP
+  nq: 20          # quantizer bins for ap calc
+  sampler:        # was for descriptor head output size [192, 192]
+    ngh: 4        # was 7       # neighbourhood size in descriptor cells
+    subq: -3      # was -8      # grid step size for positive samples
+    subd: 1       # was 1       # neigbourhood sampling interval
+    pos_d: 1      # was 2       # positive samples generated up to this far from ideal location
+    neg_d: 3      # was 5       # negative samples generated starting from distance from ideal location
+    border: 4     # was 16
+    subd_neg: -6  # was -8      # grid step size for generating additional negative samples
+    max_neg_b: 4                # distractors mined from max this number of images from same batch
+    maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
+
+optimizer:
+  method: 'adam'
+  learning_rate: !h_tune_quniform      '1e-4, 1e-3'
+  weight_decay: !h_tune_qloguniform    '1e-6, 5e-5'
+  split_params: 0
+  eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
+
+data:
+  noise_max: 0.20
+  rnd_gain: 2.0
+  path: 'data/aachen.tar.gz'
+  npy: 'true'
+  trn_ratio: 0.8
+  val_ratio: 0.1
+  tst_ratio: 0.1
+  workers: 4
