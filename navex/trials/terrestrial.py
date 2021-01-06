@@ -23,7 +23,7 @@ class TerrestrialTrial(TrialBase):
             acc_grad_batches=acc_grad_batches)
 
         self.data_conf = data_conf
-        self.workers = os.getenv('CPUS', data_conf['workers'])
+        self.workers = int(os.getenv('CPUS', data_conf['workers']))
         self.batch_size = batch_size
         self.hparams = hparams or {
             'model': model_conf,
