@@ -1,4 +1,5 @@
 import json
+import os
 
 import numpy as np
 
@@ -22,6 +23,7 @@ class TerrestrialTrial(TrialBase):
             acc_grad_batches=acc_grad_batches)
 
         self.data_conf = data_conf
+        self.workers = os.getenv('CPUS', data_conf['workers'])
         self.batch_size = batch_size
         self.hparams = hparams or {
             'model': model_conf,
@@ -98,6 +100,6 @@ class TerrestrialTrial(TrialBase):
             # second batch already differs significantly, not sure how to solve, better just use shuffle=False
             generator = torch.Generator()
             generator.manual_seed(RND_SEED)
-        dl = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.data_conf['workers'],
+        dl = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.workers,
                         shuffle=shuffle, generator=generator, pin_memory=True, worker_init_fn=worker_init_fn)
         return dl

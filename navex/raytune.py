@@ -40,13 +40,14 @@ class RayTuneHeadNode:
         self.redis_pwd = '5241590000000000'
         self.min_wport, self.max_wport = 10000, 10003
         self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543)
+        self.node_cpus = {'kepler': 4, 'pascal': 6, 'volta': 9}
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
         self.workers = []
         self.remote_ports = None
         self.ssh = None
         self.healthy = True
         self.exception = None
-        self.node_lists = None
+        self.node_configs = None
 
     def start(self):
         """
@@ -93,7 +94,7 @@ class RayTuneHeadNode:
                     logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (self.search_conf['host'], rport, lport))
 
         # create node lists so that workers won't be generated on same nodes
-        self._populate_node_lists(self.search_conf['workers'])
+        self._populate_node_configs(self.search_conf['workers'], incl=set(self.node_cpus.keys()))
 
         # schedule workers
         logging.info('scheduling %d workers...' % self.search_conf['workers'])
@@ -147,28 +148,40 @@ class RayTuneHeadNode:
         else:
             logging.info('exiting')
 
-    def _populate_node_lists(self, n):
+    def _populate_node_configs(self, n):
         cmd = 'sinfo --partition=gpu,gpushort --Node -o "%N %f"'
-        incl = {'kepler', 'pascal'}
+        incl = self.node_cpus
 
         # NODELIST AVAIL_FEATURES
         # gpu1 skl,volta,avx,avx2,avx512
         # ...
         out, err = self.ssh.exec(cmd)
-        nodes = {line.split(' ')[0]
+        node_list = [(tuple(incl.intersection(line.split(' ')[1].split(',')))[0], line.split(' ')[0])
                     for line in out.split('\n')[1:]
-                    if len(incl.intersection(line.split(' ')[1].split(','))) > 0}
+                    if len(incl.intersection(line.split(' ')[1].split(','))) > 0]
+
+        all_nodes = set()
+        grouped_nodes = {type: set() for type in self.node_cpus.keys()}
+        for type, node in node_list:
+            grouped_nodes[type].add(node)
+            all_nodes.add(node)
 
         selected = set()
-        self.excl_nodes = []
-        k = len(nodes)//n
-        for i in range(n):
-            if i < n-1:
-                sub_list = set(random.sample(nodes - selected, k))
-                selected.update(sub_list)
-            else:
-                sub_list = nodes - selected
-            self.excl_nodes.append(nodes - sub_list)
+        self.node_configs = []
+        n_handled = 0
+        for type, nodes in grouped_nodes.items():
+            tn = min(n - n_handled, round(n * len(nodes) / len(all_nodes)))
+            k = len(nodes) // tn
+            n_handled += tn
+            for i in range(tn):
+                if i < n-1:
+                    sub_list = set(random.sample(nodes - selected, k))
+                    selected.update(sub_list)
+                else:
+                    sub_list = nodes - selected
+                self.node_configs.append((self.node_cpus[type], sub_list, all_nodes - sub_list))
+
+        logging.debug('parsed node configs: %s' % (self.node_configs,))
 
     def _schedule_worker(self):
         worker = ScheduledWorkerNode(self.local_linux)
@@ -177,9 +190,9 @@ class RayTuneHeadNode:
             # create tunnels to/from non-slurm accessing machine
             worker.create_tunnels(self.ssh)
 
-        n = len(self.excl_nodes)
-        excl_nodes = None if n == 0 else self.excl_nodes[len(self.workers) % n]
-        worker.schedule_slurm_node(self, self.ssh, excl_nodes=excl_nodes)
+        n = len(self.node_configs)
+        cpus, incl, excl = (None, None, None) if n == 0 else self.node_configs[len(self.workers) % n]
+        worker.schedule_slurm_node(self, self.ssh, cpus=cpus, excl_nodes=excl)
         if worker.slurm_job_id:
             self.workers.append(worker)
 
@@ -262,7 +275,7 @@ class ScheduledWorkerNode:
             logging.info('Forward tunnel 127.0.0.1:%d => %s:%d' % (ps[j], ssh.host, ps[j]))
         self.listen_ports = ps
 
-    def schedule_slurm_node(self, head, ssh, excl_nodes=None):
+    def schedule_slurm_node(self, head, ssh, cpus=None, excl_nodes=None):
         w_arg = '' if excl_nodes is None else ('-x %s' % ','.join(excl_nodes))
 
         # schedule work on a slurm node
@@ -271,9 +284,9 @@ class ScheduledWorkerNode:
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
              "NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=%s "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
-                head.config['data']['workers'],
+                cpus or head.config['data']['workers'],
                 w_arg,
-                head.config['data']['workers'],
+                cpus or head.config['data']['workers'],
                 head.search_conf['host'],
                 *head.remote_ports,
                 head.min_wport,
