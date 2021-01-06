@@ -150,15 +150,15 @@ class RayTuneHeadNode:
 
     def _populate_node_configs(self, n):
         cmd = 'sinfo --partition=gpu,gpushort --Node -o "%N %f"'
-        incl = self.node_cpus
+        types = set(self.node_cpus.keys())
 
         # NODELIST AVAIL_FEATURES
         # gpu1 skl,volta,avx,avx2,avx512
         # ...
         out, err = self.ssh.exec(cmd)
-        node_list = [(tuple(incl.intersection(line.split(' ')[1].split(',')))[0], line.split(' ')[0])
+        node_list = [(tuple(types.intersection(line.split(' ')[1].split(',')))[0], line.split(' ')[0])
                     for line in out.split('\n')[1:]
-                    if len(incl.intersection(line.split(' ')[1].split(','))) > 0]
+                    if len(types.intersection(line.split(' ')[1].split(','))) > 0]
 
         all_nodes = set()
         grouped_nodes = {type: set() for type in self.node_cpus.keys()}
