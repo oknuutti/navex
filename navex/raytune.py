@@ -94,7 +94,7 @@ class RayTuneHeadNode:
                     logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (self.search_conf['host'], rport, lport))
 
         # create node lists so that workers won't be generated on same nodes
-        self._populate_node_configs(self.search_conf['workers'], incl=set(self.node_cpus.keys()))
+        self._populate_node_configs(self.search_conf['workers'])
 
         # schedule workers
         logging.info('scheduling %d workers...' % self.search_conf['workers'])
