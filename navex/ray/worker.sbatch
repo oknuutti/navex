@@ -8,8 +8,12 @@
 ## copy image data to local drive
 mkdir "/tmp/$SLURM_JOB_ID"
 trap "rm -r /tmp/$SLURM_JOB_ID; exit" TERM EXIT
-#tar -xf "$WRKDIR/$DATADIR" -C /tmp/$SLURM_JOB_ID
-tar -x --use-compress-program=zstdmt -f "$WRKDIR/$DATADIR" -C "/tmp/$SLURM_JOB_ID"
+if [[ "$DATADIR" == *.gz ]]
+then
+  tar -x --use-compress-program=zstdmt -f "$WRKDIR/$DATADIR" -C "/tmp/$SLURM_JOB_ID"
+else
+  tar -xf "$WRKDIR/$DATADIR" -C "/tmp/$SLURM_JOB_ID"
+fi
 
 ## start to process
 cd "$WRKDIR/navex"
