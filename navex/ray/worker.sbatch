@@ -16,6 +16,11 @@ cd "$WRKDIR/navex"
 module load anaconda
 source activate "$WRKDIR/conda/envs/navex"
 
+H_WPORT_TUNNELS=""
+for ((p=H_WPORT_S;p<=H_WPORT_E;p++)); do
+  H_WPORT_TUNNELS="$H_WPORT_TUNNELS -L $p:127.0.0.1:$p"
+done
+
 WPORT_TUNNELS=""
 for ((p=WPORT_S;p<=WPORT_E;p++)); do
   WPORT_TUNNELS="$WPORT_TUNNELS -R $p:127.0.0.1:$p"
@@ -29,7 +34,7 @@ ssh -f -N -T -L "$HEAD_PORT:127.0.0.1:$HEAD_PORT" \
              -L "$H_OBJ_M_PORT:127.0.0.1:$H_OBJ_M_PORT" \
              -L "$H_NODE_M_PORT:127.0.0.1:$H_NODE_M_PORT" \
              -L "$H_GCS_PORT:127.0.0.1:$H_GCS_PORT" \
-             -L "$H_WPORT_S:127.0.0.1:$H_WPORT_S" \
+             $H_WPORT_TUNNELS \
              -R "$NODE_M_PORT:127.0.0.1:$NODE_M_PORT" \
              -R "$OBJ_M_PORT:127.0.0.1:$OBJ_M_PORT" \
              -R "$MEX_PORT:127.0.0.1:$MEX_PORT" \
