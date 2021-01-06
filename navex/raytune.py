@@ -40,7 +40,7 @@ class RayTuneHeadNode:
         self.redis_pwd = '5241590000000000'
         self.min_wport, self.max_wport = 10000, 10003
         self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543)
-        self.node_cpus = {'kepler': 3, 'pascal': 4, 'volta': 5}
+        self.node_cpus = {'pascal': 4, 'volta': 5}      # 'kepler': 3
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
         self.workers = []
         self.remote_ports = None
