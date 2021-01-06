@@ -102,8 +102,9 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
         trial = TerrestrialTrial(full_conf['model'], full_conf['loss'], full_conf['optimizer'], full_conf['data'],
                                  gpu_batch_size, acc_grad_batches, hparams)
         model = TrialWrapperBase(trial)
-        trn_dl = trial.build_training_data_loader()
-        val_dl = trial.build_validation_data_loader()
+
+    trn_dl = model.trial.build_training_data_loader()
+    val_dl = model.trial.build_validation_data_loader()
 
     trainer.fit(model, trn_dl, val_dl)
 
