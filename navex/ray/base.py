@@ -38,6 +38,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     # set paths
     sj_id = os.getenv('SLURM_JOB_ID')
     assert sj_id, 'not a slurm node!'
+    sj_id = 'navex'     # changed tmp dir because of suspected ray bug (see worker.sbatch)
 
     datadir = full_conf['data']['path'].split('/')[-1].split('.')[0]       # e.g. data/aachen.tar => aachen
     full_conf['data']['path'] = os.path.join('/tmp', sj_id, datadir)
@@ -96,14 +97,16 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
 
     if checkpoint_dir:
         logging.info('restoring checkpoint from %s' % (checkpoint_dir,))
-        if 1:
+        if 0:
             # Currently, this leads to errors (already fixed?):
-            model = TrialWrapperBase.load_from_checkpoint(os.path.join(checkpoint_dir, "checkpoint"))
+            model = TrialWrapperBase.load_from_checkpoint(os.path.join(checkpoint_dir, "checkpoint"),
+                                                          map_location=lambda storage, loc: storage)
         else:
             # Workaround:
             ckpt = pl_load(os.path.join(checkpoint_dir, "checkpoint"), map_location=lambda storage, loc: storage)
             model = TrialWrapperBase._load_model_state(ckpt, config=hparams)
             trainer.current_epoch = ckpt["epoch"]
+
     else:
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
         logging.info('new trial with %s' % (json.dumps(full_conf),))

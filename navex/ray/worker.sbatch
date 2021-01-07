@@ -6,13 +6,16 @@
 #SBATCH --signal=SIGUSR1@90             # wall time auto-resubmit using Lightning
 
 ## copy image data to local drive
-mkdir "/tmp/$SLURM_JOB_ID"
-trap "rm -r /tmp/$SLURM_JOB_ID; exit" TERM EXIT
+# --edit: changed tmp dir from /tmp/$SLURM_JOB_ID to /tmp/navex because of some ray bug (?),
+#         where a worker process on another node tries to access the data of this slurm job
+
+mkdir /tmp/navex
+trap "rm -r /tmp/navex; exit" TERM EXIT
 if [[ "$DATADIR" == *.gz ]]
 then
-  tar -x --use-compress-program=zstdmt -f "$WRKDIR/$DATADIR" -C "/tmp/$SLURM_JOB_ID"
+  tar -x --use-compress-program=zstdmt -f "$WRKDIR/$DATADIR" -C /tmp/navex
 else
-  tar -xf "$WRKDIR/$DATADIR" -C "/tmp/$SLURM_JOB_ID"
+  tar -xf "$WRKDIR/$DATADIR" -C /tmp/navex
 fi
 
 ## start to process

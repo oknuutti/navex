@@ -98,11 +98,46 @@ def main():
         _register_signals()
 
         while True:
-            time.sleep(100000)
+            # test connection to different ports, raise exception if can't connect to a port
+            _test_ports(args)
+            time.sleep(15*60)   # test every 15 min
+
     except Exception as e:
-        msg = 'Exception occurred during ray worker startup: %s' % e
+        msg = 'Exception occurred at ray worker: %s' % e
         logging.error(msg)
-        raise Exception("ray worker startup failed") from e
+        raise Exception("ray worker failed") from e
+
+
+def _test_ports(args):
+    fw_ports = [(name, int(getattr(args, name))) for name in (
+        'redis_shard_ports', 'head_object_manager_port', 'head_node_manager_port',
+        'head_gcs_port', 'head_raylet_port', 'head_object_store_port')]
+    fw_ports.append(('head_port', int(args.address.split(':')[1])))
+    for i, p in enumerate(range(args.min_worker_port, args.max_worker_port + 1)):
+        fw_ports.append(('worker_port_%d' % i, p))
+
+    rw_ports = [(name, int(getattr(args, name))) for name in
+                ('object_manager_port', 'node_manager_port', 'metrics_export_port')]
+    for i, p in enumerate(range(args.head_min_worker_port, args.head_max_worker_port + 1)):
+        rw_ports.append(('head_worker_port_%d' % i, p))
+
+    for name, port in fw_ports:
+        if not _test_fw_port(port):
+            raise Exception("Can't connect to forwarded port %d (%s)" % (port, name))
+
+    for name, port in rw_ports:
+        if not _test_rw_port(port):
+            raise Exception("Can't connect to reverse fw port %d (%s)" % (port, name))
+
+
+def _test_fw_port(port):
+    # TODO: implement this, should be easy
+    return True
+
+
+def _test_rw_port(port):
+    # TODO: implement this (using ssh? need actual head host address, not 127.0.0.1)
+    return True
 
 
 def _register_signals():
