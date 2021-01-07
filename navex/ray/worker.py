@@ -21,8 +21,8 @@ def main():
     parser.add_argument('--head-object-manager-port', type=int, help="head object manager port")
     parser.add_argument('--head-node-manager-port', type=int, help="head node manager port")
     parser.add_argument('--head-gcs-port', type=int, help="head node gcs port")
-    parser.add_argument('--head-raylet-port', type=int, help="head node raylet port")
-    parser.add_argument('--head-object-store-port', type=int, help="head node object store port")
+    # parser.add_argument('--head-raylet-port', type=int, help="head node raylet port")
+    # parser.add_argument('--head-object-store-port', type=int, help="head node object store port")
     parser.add_argument('--head-min-worker-port', type=int, help="head node min worker port")
     parser.add_argument('--head-max-worker-port', type=int, help="head node max worker port")
     parser.add_argument('--ssh-tunnel', action="store_true", help="create tunnels to ray head")
@@ -53,8 +53,8 @@ def main():
             ssh.tunnel(args.head_object_manager_port, args.head_object_manager_port)
             ssh.tunnel(args.head_node_manager_port, args.head_node_manager_port)
             ssh.tunnel(args.head_gcs_port, args.head_gcs_port)
-            ssh.tunnel(args.head_raylet_port, args.head_raylet_port)
-            ssh.tunnel(args.head_object_store_port, args.head_object_store_port)
+            # ssh.tunnel(args.head_raylet_port, args.head_raylet_port)
+            # ssh.tunnel(args.head_object_store_port, args.head_object_store_port)
             for p in range(args.head_min_worker_port, args.head_max_worker_port+1):
                 ssh.tunnel(p, p)
 
@@ -110,8 +110,8 @@ def main():
 
 def _test_ports(args):
     fw_ports = [(name, int(getattr(args, name, 0) or 0)) for name in (
-        'redis_shard_ports', 'head_object_manager_port', 'head_node_manager_port',
-        'head_gcs_port', 'head_raylet_port', 'head_object_store_port')]
+        'redis_shard_ports', 'head_object_manager_port', 'head_node_manager_port', 'head_gcs_port')]
+#        , 'head_raylet_port', 'head_object_store_port')]
     fw_ports.append(('head_port', int(args.address.split(':')[1])))
     for i, p in enumerate(range(args.min_worker_port, args.max_worker_port + 1)):
         fw_ports.append(('worker_port_%d' % i, p))
