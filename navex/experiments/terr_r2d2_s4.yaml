@@ -59,7 +59,7 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_uniform      '1e-4, 1e-3'
+  learning_rate: !h_tune_loguniform      '1e-4, 1e-3'
   weight_decay: !h_tune_loguniform    '1e-6, 5e-5'
   split_params: 0
   eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
@@ -67,9 +67,9 @@ optimizer:
 data:
   noise_max: 0.20
   rnd_gain: 2.0
-  path: 'data/aachen.tar.gz'
-  npy: 'true'
+  path: 'data/aachen-orig.tar'
+  npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
-  workers: 4
+  workers: 5
