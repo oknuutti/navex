@@ -67,7 +67,7 @@ optimizer:
 data:
   noise_max: 0.20
   rnd_gain: 2.0
-  path: 'data/aachen-orig.tar'
+  path: 'data/aachen.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
   npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1

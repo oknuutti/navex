@@ -26,7 +26,7 @@ from ..trials.terrestrial import TerrestrialTrial
 
 
 def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s',
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
     logging.info('inside execute_trial')
 
@@ -95,7 +95,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     trainer.slurm_connector = MySLURMConnector(trainer)
 
     if checkpoint_dir:
-        logging.debug('restoring checkpoint from %s' % (checkpoint_dir,))
+        logging.info('restoring checkpoint from %s' % (checkpoint_dir,))
         if 1:
             # Currently, this leads to errors (already fixed?):
             model = TrialWrapperBase.load_from_checkpoint(os.path.join(checkpoint_dir, "checkpoint"))
@@ -105,8 +105,8 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
             model = TrialWrapperBase._load_model_state(ckpt, config=hparams)
             trainer.current_epoch = ckpt["epoch"]
     else:
-        logging.debug('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
-        logging.debug('new trial with %s' % (json.dumps(full_conf),))
+        logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
+        logging.info('new trial with %s' % (json.dumps(full_conf),))
         trial = TerrestrialTrial(full_conf['model'], full_conf['loss'], full_conf['optimizer'], full_conf['data'],
                                  gpu_batch_size, acc_grad_batches, hparams)
         model = TrialWrapperBase(trial)
@@ -114,7 +114,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     trn_dl = model.trial.build_training_data_loader()
     val_dl = model.trial.build_validation_data_loader()
 
-    logging.debug('start training with trn data len=%d and val data len=%d' % (len(trn_dl), len(val_dl)))
+    logging.info('start training with trn data len=%d and val data len=%d' % (len(trn_dl), len(val_dl)))
     try:
         trainer.fit(model, trn_dl, val_dl)
     except Exception as e:
