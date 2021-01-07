@@ -129,8 +129,8 @@ def tune_asha(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
 
     scheduler = ASHAScheduler(
-        metric="tot_ratio",
-        mode="max",
+        metric="loss",  # or e.g. tot_ratio, then mode="max"
+        mode="min",
         max_t=train_conf['epochs'],
         grace_period=search_conf['grace_period'],
         reduction_factor=search_conf['reduction_factor'])

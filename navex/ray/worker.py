@@ -109,25 +109,31 @@ def main():
 
 
 def _test_ports(args):
-    fw_ports = [(name, int(getattr(args, name))) for name in (
+    fw_ports = [(name, int(getattr(args, name, 0))) for name in (
         'redis_shard_ports', 'head_object_manager_port', 'head_node_manager_port',
         'head_gcs_port', 'head_raylet_port', 'head_object_store_port')]
     fw_ports.append(('head_port', int(args.address.split(':')[1])))
     for i, p in enumerate(range(args.min_worker_port, args.max_worker_port + 1)):
         fw_ports.append(('worker_port_%d' % i, p))
 
-    rw_ports = [(name, int(getattr(args, name))) for name in
+    rw_ports = [(name, int(getattr(args, name, 0))) for name in
                 ('object_manager_port', 'node_manager_port', 'metrics_export_port')]
     for i, p in enumerate(range(args.head_min_worker_port, args.head_max_worker_port + 1)):
         rw_ports.append(('head_worker_port_%d' % i, p))
 
     for name, port in fw_ports:
-        if not _test_fw_port(port):
-            raise Exception("Can't connect to forwarded port %d (%s)" % (port, name))
+        if port:
+            if not _test_fw_port(port):
+                raise Exception("Can't connect to forwarded port %d (%s)" % (port, name))
+        else:
+            logging.warning('port for %s not given' % name)
 
     for name, port in rw_ports:
-        if not _test_rw_port(port):
-            raise Exception("Can't connect to reverse fw port %d (%s)" % (port, name))
+        if port:
+            if not _test_rw_port(port):
+                raise Exception("Can't connect to reverse fw port %d (%s)" % (port, name))
+        else:
+            logging.warning('port for %s not given' % name)
 
 
 def _test_fw_port(port):
