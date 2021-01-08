@@ -45,8 +45,8 @@ class RayTuneHeadNode:
         def_node_cpus = {'kepler': 3, 'pascal': 4, 'volta': 5}
         node_types = list(def_node_cpus.keys()) if not self.search_conf['node_types'] \
                                                 else self.search_conf['node_types'].split(',')
-        node_cpus = def_node_cpus if not self.search_conf['node_cpus'] \
-                                  else dict(zip(node_types, map(int, self.search_conf['node_cpus'].split(','))))
+        node_cpus = def_node_cpus if not self.search_conf['node_type_cpus'] \
+                                  else dict(zip(node_types, map(int, self.search_conf['node_type_cpus'].split(','))))
         self.node_cpus = {nt: node_cpus[nt] for nt in node_types}
 
         self.workers = []
