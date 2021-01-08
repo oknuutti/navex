@@ -23,7 +23,7 @@ search:
     help: ""
 
   nodes:
-    alt: ['-n']
+    alt: ['--nodes', '-n']
     type: int
     help: ""
 
