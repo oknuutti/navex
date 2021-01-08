@@ -103,17 +103,10 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
                                                           map_location="cuda:0" if int(train_conf['gpu']) else "cpu")
         else:
             # Workaround:
-            #ckpt = pl_load(os.path.join(checkpoint_dir, "checkpoint"), map_location=lambda storage, loc: storage)
             ckpt = pl_load(os.path.join(checkpoint_dir, "checkpoint"),
                            map_location="cuda:0" if int(train_conf['gpu']) else "cpu")
             model = TrialWrapperBase._load_model_state(ckpt, config=hparams)
             trainer.current_epoch = ckpt["epoch"]
-        
-        # for some reason, still got
-        #   "Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!"
-        # without the following
-        # for m in (model, model.trial, model.trial.optimizer, model.trial.model, model.trial.loss_fn):
-        #     m.to(torch.device("cuda:0" if int(train_conf['gpu']) else "cpu"))
 
     else:
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))

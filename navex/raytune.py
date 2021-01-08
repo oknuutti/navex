@@ -40,8 +40,15 @@ class RayTuneHeadNode:
         self.redis_pwd = '5241590000000000'
         self.min_wport, self.max_wport = 10000, 10003
         self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543)
-        self.node_cpus = {'pascal': 4, 'volta': 5}      # 'kepler': 3
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
+
+        def_node_cpus = {'kepler': 3, 'pascal': 4, 'volta': 5}
+        node_types = list(def_node_cpus.keys()) if not self.search_conf['node_types'] \
+                                                else self.search_conf['node_types'].split(',')
+        node_cpus = def_node_cpus if not self.search_conf['node_cpus'] \
+                                  else dict(zip(node_types, map(int, self.search_conf['node_cpus'].split(','))))
+        self.node_cpus = {nt: node_cpus[nt] for nt in node_types}
+
         self.workers = []
         self.remote_ports = None
         self.ssh = None
@@ -179,7 +186,7 @@ class RayTuneHeadNode:
                     selected.update(sub_list)
                 else:
                     sub_list = nodes - selected
-                self.node_configs.append((self.node_cpus[type], sub_list, all_nodes - sub_list))
+                self.node_configs.append((type, self.node_cpus[type], sub_list, all_nodes - sub_list))
 
         logging.debug('parsed node configs: %s' % (self.node_configs,))
 
@@ -191,8 +198,10 @@ class RayTuneHeadNode:
             worker.create_tunnels(self.ssh)
 
         n = len(self.node_configs)
-        cpus, incl, excl = (None, None, None) if n == 0 else self.node_configs[len(self.workers) % n]
-        worker.schedule_slurm_node(self, self.ssh, cpus=cpus, excl_nodes=excl)
+        type, cpus, incl, excl = (None, None, None, None) if n == 0 else self.node_configs[len(self.workers) % n]
+        if type is None:
+            type = ','.join(self.node_cpus.keys())
+        worker.schedule_slurm_node(self, self.ssh, type=type, cpus=cpus, excl_nodes=excl)
         if worker.slurm_job_id:
             self.workers.append(worker)
 
@@ -275,15 +284,16 @@ class ScheduledWorkerNode:
             logging.info('Forward tunnel 127.0.0.1:%d => %s:%d' % (ps[j], ssh.host, ps[j]))
         self.listen_ports = ps
 
-    def schedule_slurm_node(self, head, ssh, cpus=None, excl_nodes=None):
+    def schedule_slurm_node(self, head, ssh, type=None, cpus=None, excl_nodes=None):
         w_arg = '' if excl_nodes is None else ('-x %s' % ','.join(excl_nodes))
 
         # schedule work on a slurm node
-        cmd = ("sbatch -c %d %s "
+        cmd = ("sbatch %s -c %d %s "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
              "NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=%s "
              "$WRKDIR/navex/navex/ray/worker.sbatch") % (
+                '' if type is None else ('-C %s' % type),
                 cpus or head.config['data']['workers'],
                 w_arg,
                 cpus or head.config['data']['workers'],

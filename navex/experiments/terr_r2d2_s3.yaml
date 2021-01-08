@@ -1,6 +1,8 @@
 search:
   samples: 243
-  workers: 1
+  nodes: 1
+  node_types: 'pascal,volta'
+  node_type_cpus: '4,5'
   grace_period: 1
   reduction_factor: 3
   username: ''

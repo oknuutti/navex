@@ -22,10 +22,20 @@ search:
     type: int
     help: ""
 
-  workers:
-    alt: ['-n', '--nodes']
+  nodes:
+    alt: ['-n']
     type: int
     help: ""
+
+  node_types:
+    alt: ['--nt']
+    type: str
+    help: "Include only those SLURM nodes which have any of the given comma-separated features"
+
+  node_type_cpus:
+    alt: ['--ntc']
+    type: str
+    help: "Comma-separated list of CPUs to use for each type of node given with --search--node-types"
 
   grace_period:
     alt: []

@@ -1,6 +1,6 @@
 search:
   samples: 1
-  workers: 1
+  nodes: 1
   grace_period: 0
   reduction_factor: 0
   username: ''
