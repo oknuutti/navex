@@ -107,6 +107,11 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
             model = TrialWrapperBase._load_model_state(ckpt, config=hparams)
             trainer.current_epoch = ckpt["epoch"]
 
+        # for some reason, still got
+        #   "Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!"
+        # without the following
+        model.to(torch.device("cuda:0" if int(train_conf['gpu']) else "cpu"))
+
     else:
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
         logging.info('new trial with %s' % (json.dumps(full_conf),))
