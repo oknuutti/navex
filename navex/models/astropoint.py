@@ -6,12 +6,13 @@ from .base import BasePoint, initialize_weights
 
 
 class AstroPoint(BasePoint):
-    def __init__(self, arch, head_conv_ch=128, direct_detection=False, batch_norm=True, descriptor_dim=128,
+    def __init__(self, arch, in_channels=1, head_conv_ch=128, direct_detection=False, batch_norm=True, descriptor_dim=128,
                  width_mult=1.0, dropout=0.0, pretrained=False, excl_bn_affine=True, cache_dir=None):
         super(AstroPoint, self).__init__()
 
         self.conf = {
             'arch': arch,
+            'in_channels': in_channels,
             'head_conv_ch': head_conv_ch,
             'direct_detection': direct_detection,
             'batch_norm': batch_norm,
@@ -23,9 +24,10 @@ class AstroPoint(BasePoint):
         }
 
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
-                                                     width_mult=width_mult, batch_norm=batch_norm)
+                                                     width_mult=width_mult, batch_norm=batch_norm, type='sp',
+                                                     in_channels=in_channels, depth=3)
 
-        self.des_head = self.create_descriptor_head(out_ch, descriptor_dim, head_conv_ch > 0, batch_norm, dropout)
+        self.des_head = self.create_descriptor_head(out_ch, head_conv_ch, descriptor_dim, batch_norm, dropout)
         self.det_head = self.create_detector_head(out_ch, head_conv_ch, direct_detection, batch_norm, dropout)
         self.qlt_head = self.create_quality_head(out_ch, head_conv_ch, batch_norm, dropout)
 
@@ -44,14 +46,14 @@ class AstroPoint(BasePoint):
                     nn.init.constant_(m.weight.data, 1)
 
     @staticmethod
-    def create_descriptor_head(in_channels, out_channels, pre_conv=True, batch_norm=False, dropout=0.0):
+    def create_descriptor_head(in_channels, mid_channels, out_channels, batch_norm=False, dropout=0.0):
         seq = []
-        if pre_conv:
-            seq.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1))
+        if mid_channels > 0:
+            seq.append(nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1))
             if batch_norm:
-                seq.append(nn.BatchNorm2d(out_channels))
+                seq.append(nn.BatchNorm2d(mid_channels))
             seq.append(nn.ReLU())
-            in_channels = out_channels
+            in_channels = mid_channels
 
         if dropout > 0:
             seq.append(nn.Dropout(dropout))
@@ -60,14 +62,14 @@ class AstroPoint(BasePoint):
         return nn.Sequential(*seq)
 
     @staticmethod
-    def create_detector_head(in_channels, pre_conv_channels, direct=False, batch_norm=False, dropout=0.0):
+    def create_detector_head(in_channels, mid_channels, direct=False, batch_norm=False, dropout=0.0):
         seq = []
-        if pre_conv_channels:
-            seq.append(nn.Conv2d(in_channels, pre_conv_channels, kernel_size=3, padding=1))
+        if mid_channels > 0:
+            seq.append(nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1))
             if batch_norm:
-                seq.append(nn.BatchNorm2d(pre_conv_channels))
+                seq.append(nn.BatchNorm2d(mid_channels))
             seq.append(nn.ReLU())
-            in_channels = pre_conv_channels
+            in_channels = mid_channels
 
         if dropout > 0:
             seq.append(nn.Dropout(dropout))
@@ -76,14 +78,14 @@ class AstroPoint(BasePoint):
         return nn.Sequential(*seq)
 
     @staticmethod
-    def create_quality_head(in_channels, pre_conv_channels, batch_norm=False, dropout=0.0):
+    def create_quality_head(in_channels, mid_channels, batch_norm=False, dropout=0.0):
         seq = []
-        if pre_conv_channels:
-            seq.append(nn.Conv2d(in_channels, pre_conv_channels, kernel_size=3, padding=1))
+        if mid_channels:
+            seq.append(nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1))
             if batch_norm:
-                seq.append(nn.BatchNorm2d(pre_conv_channels))
+                seq.append(nn.BatchNorm2d(mid_channels))
             seq.append(nn.ReLU())
-            in_channels = pre_conv_channels
+            in_channels = mid_channels
 
         if dropout > 0:
             seq.append(nn.Dropout(dropout))

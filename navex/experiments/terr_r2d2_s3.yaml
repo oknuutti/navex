@@ -32,6 +32,7 @@ training:
 
 model:
   arch: 'own_vgg'
+  in_channels: 1
   head_conv_ch: 128
   descriptor_dim: 128    # try lower values
   width_mult: 1.0        # try lower values

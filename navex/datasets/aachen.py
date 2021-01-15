@@ -38,7 +38,7 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
             ])
 
         if rgb:
-            transforms.transforms[2] = IdentityTransform()
+            transforms.transforms[0] = IdentityTransform()
 
         ImagePairDataset.__init__(self, root, None, transforms=transforms)
 
@@ -67,7 +67,7 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
             eval_ds = copy(self)    # shallow copy should be enough
             eval_ds.transforms = self.TRFM_EVAL
             if rgb:
-                eval_ds.transforms.transforms[2] = IdentityTransform()
+                eval_ds.transforms.transforms[0] = IdentityTransform()
 
         total = len(self)
         lengths = []

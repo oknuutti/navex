@@ -4,7 +4,11 @@ from typing import Tuple
 import torch
 from torch import Tensor
 from torch.optim import Optimizer
+from torch.functional import F
+from torch.utils.data.dataloader import DataLoader
 
+from .. import RND_SEED
+from ..datasets.base import worker_init_fn
 from ..models import tools
 
 
@@ -26,6 +30,12 @@ class TrialBase(abc.ABC, torch.nn.Module):
         self.step_optimizer_fn = TrialBase._def_step_optimizer_fn
         self.optimizer = self.get_optimizer(**optimizer_conf) if isinstance(optimizer_conf, dict) else optimizer_conf
         self.hparams = {}
+
+        try:
+            from thop.profile import profile as ops_prof
+            self.count_ops = ops_prof
+        except:
+            self.count_ops = False
 
     @abc.abstractmethod
     def get_optimizer(self, **kwargs):
@@ -63,6 +73,12 @@ class TrialBase(abc.ABC, torch.nn.Module):
     def evaluate_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, **acc_conf):
         self.model.eval()
         with torch.no_grad():
+            if self.count_ops:
+                d = data[0][:1, :, :, :]
+                macs, params = self.count_ops(self.model, inputs=(d,), verbose=False)
+                print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s)' % (params * 1e-6, macs * 1e-9, d.shape))
+                self.count_ops = False
+
             output1 = self.model(data[0])
             output2 = self.model(data[1])
             if self.model.aux_qty and self.model.training:
@@ -109,3 +125,12 @@ class TrialBase(abc.ABC, torch.nn.Module):
     def build_test_data_loader(self, rgb=False):
         raise NotImplemented()
 
+    def wrap_ds(self, dataset, shuffle=False):
+        generator = None
+        if shuffle:
+            # second batch already differs significantly, not sure how to solve, better just use shuffle=False
+            generator = torch.Generator()
+            generator.manual_seed(RND_SEED)
+        dl = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.workers,
+                        shuffle=shuffle, generator=generator, pin_memory=True, worker_init_fn=worker_init_fn)
+        return dl

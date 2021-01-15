@@ -32,6 +32,7 @@ training:
 
 model:
   arch: 'own_vgg'
+  in_channels: 1
   head_conv_ch: !h_tune_choice    '[128, 256, 512]'
   descriptor_dim: 256    # try lower values
   width_mult: 1.0        # try lower values

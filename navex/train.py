@@ -45,8 +45,8 @@ def main():
         convert_data_to_npy(model)
         return
 
-    trn_dl = model.build_training_data_loader()
-    val_dl = model.build_validation_data_loader()
+    trn_dl = model.build_training_data_loader(rgb=config.model.in_channels == 3)
+    val_dl = model.build_validation_data_loader(rgb=config.model.in_channels == 3)
 
     version = None
     if args.resume:
@@ -91,7 +91,7 @@ def main():
     if PROFILING_ONLY:
         return
 
-    tst_dl = model.build_test_data_loader()
+    tst_dl = model.build_test_data_loader(rgb=config.model.in_channels == 3)
     trainer.test(model, test_dataloaders=tst_dl)
 
 

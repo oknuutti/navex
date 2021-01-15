@@ -56,23 +56,24 @@ def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=-10):
 def match(des1, des2, norm=2, mutual=True, ratio=False):
     B, D, K1 = des1.shape
     _, _, K2 = des2.shape
+    dev = des1.device
 
     if K1 == 0 or K2 == 0:
-        return torch.zeros((B, 2, 0), dtype=torch.long), \
-               torch.zeros((B, 0), dtype=torch.float), \
-               torch.zeros((B, 0), dtype=torch.bool), \
-               torch.zeros((B, 0, 0), dtype=torch.float),
+        return torch.zeros((B, 2, 0), dtype=torch.long, device=dev), \
+               torch.zeros((B, 0), dtype=torch.float, device=dev), \
+               torch.zeros((B, 0), dtype=torch.bool, device=dev), \
+               torch.zeros((B, 0, 0), dtype=torch.float, device=dev)
 
     dist = torch.linalg.norm(des1.view((B, D, K1, 1)).expand((B, D, K1, K2))
                              - des2.view((B, D, 1, K2)).expand((B, D, K1, K2)), ord=norm, dim=1)     # [b, k1, k2]
     min1, idx1 = torch.min(dist, dim=2)
-    mask = torch.ones((B, K1), dtype=torch.bool, device=des1.device)
+    mask = torch.ones((B, K1), dtype=torch.bool, device=dev)
 
     if mutual:
         # check that matches are mutually closest
         min2, idx2 = torch.min(dist, dim=1)
         for b in range(B):
-            mask[b, :] *= (idx2[b, idx1[b, :]] == torch.arange(0, K1, device=idx2.device))
+            mask[b, :] *= (idx2[b, idx1[b, :]] == torch.arange(0, K1, device=dev))
 
     if ratio > 0:
         # do ratio test, need second closest match

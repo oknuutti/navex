@@ -50,6 +50,9 @@ class TrialWrapperBase(pl.LightningModule):
     def build_test_data_loader(self, rgb=False):
         return self._wrap_dl(self.trial.build_test_data_loader(rgb=rgb))
 
+    def wrap_ds(self, ds, shuffle=False):
+        return self._wrap_dl(self.trial.wrap_ds(ds, shuffle=shuffle))
+
     def _wrap_dl(self, dl):
         return AsynchronousLoader(dl) if self.use_gpu else dl
 

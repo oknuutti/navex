@@ -3,6 +3,14 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$/..">
       <sourceFolder url="file://$MODULE_DIR$/.." isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/../.tmp.drivedownload" />
+      <excludeFolder url="file://$MODULE_DIR$/../d2net" />
+      <excludeFolder url="file://$MODULE_DIR$/../data" />
+      <excludeFolder url="file://$MODULE_DIR$/../hfnet" />
+      <excludeFolder url="file://$MODULE_DIR$/../hloctb" />
+      <excludeFolder url="file://$MODULE_DIR$/../output" />
+      <excludeFolder url="file://$MODULE_DIR$/../r2d2" />
+      <excludeFolder url="file://$MODULE_DIR$/../trnsp" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.8 (navex)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
