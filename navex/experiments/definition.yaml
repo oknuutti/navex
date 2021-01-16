@@ -139,7 +139,8 @@ model:
     help: "`'model architecture: ' + (' | '.join(MODELS.keys()))`"
 
   in_channels:
-    alt: ['--in_channels']
+    alt: ['--in-channels']
+    type: int
     help: "1 for grayscale images, 3 for rgb images"
 
   head_conv_ch:
