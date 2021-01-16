@@ -115,6 +115,36 @@ class BasePoint(nn.Module):
 
         return backbone, out_channels
 
+    def params_to_optimize(self, split=False):
+        np = list(self.named_parameters(recurse=False))
+        names, params = zip(*np) if len(np) > 0 else ([], [])
+        bnclss = nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d
+
+        for mn, m in self.named_modules():
+            # maybe exclude all params from BatchNorm layers
+            if isinstance(m, bnclss) and m.affine or not isinstance(m, bnclss):
+                np = list(m.named_parameters(recurse=False))
+                n, p = zip(*np) if len(np) > 0 else ([], [])
+                names.extend([mn+'.'+k for k in n])
+                params.extend(p)
+
+        new_biases, new_weights, biases, weights, others = [], [], [], [], []
+        for name, param in zip(names, params):
+            is_new = ('des_head' in name or 'det_head' in name or 'qlt_head' in name or 'aux' in name)
+            if is_new and 'bias' in name:
+                new_biases.append(param)
+            elif is_new and 'weight' in name:
+                new_weights.append(param)
+            elif 'bias' in name:
+                biases.append(param)
+            elif 'weight' in name:
+                weights.append(param)
+            else:
+                others.append(param)
+
+        return (new_biases, new_weights, biases, weights, others) if split \
+                else (new_biases + new_weights + biases + weights + others)
+
     @staticmethod
     def dig_layer(model, path):
         np = model

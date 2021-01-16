@@ -8,7 +8,7 @@ from r2d2.datasets.aachen import AachenPairs_OpticalFlow
 from torch.utils.data.dataset import random_split
 
 from .base import RandomDarkNoise, RandomExposure, ImagePairDataset, PhotometricTransform, ComposedTransforms, \
-    GeneralTransform, PairedCenterCrop, PairedRandomCrop, DataLoadingException, IdentityTransform
+    GeneralTransform, PairedCenterCrop, PairedRandomCrop, DataLoadingException, PairedIdentityTransform
 
 
 class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
@@ -18,6 +18,7 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
         GeneralTransform(tr.ToTensor()),
         PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226])),
     ])
+    TR_NORM_RGB = tr.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def __init__(self, root, noise_max=0.25, rnd_gain=(0.5, 3), eval=False, rgb=False, npy=False):
         AachenPairs_OpticalFlow.__init__(self, root, rgb=rgb, npy=npy)
@@ -29,16 +30,13 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
                 rnd_gain = (1/rnd_gain, rnd_gain)
 
             transforms = ComposedTransforms([
-                PhotometricTransform(tr.Grayscale(num_output_channels=1)),
+                PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not rgb else PairedIdentityTransform(),
                 PairedRandomCrop(512, max_sc_diff=2**(1/4)),
                 GeneralTransform(tr.ToTensor()),
                 PhotometricTransform(RandomDarkNoise(0, noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
                 PhotometricTransform(RandomExposure(*rnd_gain)),  # apply a random gain on the image
-                PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226])),
+                PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226])) if not rgb else self.TR_NORM_RGB,
             ])
-
-        if rgb:
-            transforms.transforms[0] = IdentityTransform()
 
         ImagePairDataset.__init__(self, root, None, transforms=transforms)
 
@@ -67,7 +65,8 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
             eval_ds = copy(self)    # shallow copy should be enough
             eval_ds.transforms = self.TRFM_EVAL
             if rgb:
-                eval_ds.transforms.transforms[0] = IdentityTransform()
+                eval_ds.transforms.transforms[0] = PairedIdentityTransform()
+                eval_ds.transforms.transforms[-1] = self.TR_NORM_RGB
 
         total = len(self)
         lengths = []

@@ -74,7 +74,7 @@ class AstroPoint(BasePoint):
         if dropout > 0:
             seq.append(nn.Dropout(dropout))
 
-        seq.append(nn.Conv2d(in_channels, 1 if direct else 65, kernel_size=1, padding=0))
+        seq.append(nn.Conv2d(in_channels, 1 if direct else 65, kernel_size=1, padding=0))   # as in superpoint & hf-net
         return nn.Sequential(*seq)
 
     @staticmethod
@@ -90,7 +90,7 @@ class AstroPoint(BasePoint):
         if dropout > 0:
             seq.append(nn.Dropout(dropout))
 
-        seq.append(nn.Conv2d(in_channels, 1, kernel_size=1, padding=0))
+        seq.append(nn.Conv2d(in_channels, 2, kernel_size=1, padding=0))     # double out channel as in R2D2
         return nn.Sequential(*seq)
 
     def params_to_optimize(self, split=False):
@@ -130,7 +130,6 @@ class AstroPoint(BasePoint):
 
     def forward(self, input):
         # input is a pair of images
-        # TODO: check how it actually works with batches
         x_features, *auxs = self.extract_features(input)
         x_des = self.des_head(x_features)
         x_det = self.det_head(x_features)
@@ -153,14 +152,13 @@ class AstroPoint(BasePoint):
         if not self.conf['direct_detection']:
             detection = F.pixel_shuffle(F.softmax(detection, dim=1)[:, 1:, :, :], 8)
 
-        if 1:
-            # like in R2D2
-            def activation(x):
+        # like in R2D2
+        def activation(x):
+            if x.shape[1] == 1:
                 x = F.softplus(x)
                 return x / (1 + x)
-        else:
-            # why not?
-            activation = F.sigmoid
+            else:
+                return F.softmax(x, dim=1)[:, :1, :, :]
 
         det = activation(detection)
         qlt = activation(quality)

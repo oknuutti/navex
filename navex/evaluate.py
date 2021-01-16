@@ -4,7 +4,7 @@ import torch
 
 from .experiments.parser import ExperimentConfigParser, to_dict
 from .train_o import validate
-from .models.r2d2 import R2D2
+from .models.r2d2orig import R2D2
 from .trials.terrestrial import TerrestrialTrial
 
 

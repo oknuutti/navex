@@ -115,6 +115,14 @@ class IdentityTransform:
     def __init__(self):
         pass
 
+    def __call__(self, data):
+        return data
+
+
+class PairedIdentityTransform:
+    def __init__(self):
+        pass
+
     def __call__(self, images, aflow):
         return images, aflow
 

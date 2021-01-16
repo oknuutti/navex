@@ -34,11 +34,12 @@ def main():
     args = parser.parse_args()
 
     model = TrialWrapperBase.load_from_checkpoint(args.model, map_location="cuda:0" if args.gpu else "cpu")
+    rgb = next(model.trial.model.backbone.children())[0].in_channels == 3
     model.trial.workers = 0
     model.trial.batch_size = 1
     model.use_gpu = args.gpu
     model.eval()
-    dataset = SingleImageDataset(args.images)
+    dataset = SingleImageDataset(args.images, rgb=rgb)
 
     for i, data in enumerate(tqdm(model.wrap_ds(dataset))):
         # extract keypoints/descriptors for a single image
@@ -75,7 +76,7 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25,
     # extract keypoints at multiple scales
     b, c, h0, w0 = img0.shape
     assert b == 1, "should be a batch with a single image"  # because can't fit different size images in same batch
-    assert c == 1, "should be a monochrome image"
+    assert c in (1, 3), "should be an rgb or monochrome image"
 
     assert max_scale <= 1
     sc, img = 1.0, img0  # current scale factor, current image

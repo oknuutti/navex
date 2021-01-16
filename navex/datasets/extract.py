@@ -11,15 +11,13 @@ class SingleImageDataset(Dataset):
     def __init__(self, path, eval=True, rgb=False):
         if eval:
             self.transforms = tr.Compose([
-                tr.Grayscale(num_output_channels=1),
+                IdentityTransform() if rgb else tr.Grayscale(num_output_channels=1),
                 tr.ToTensor(),
+                tr.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) if rgb else
                 tr.Normalize(mean=[0.449], std=[0.226]),
             ])
         else:
             assert False, 'not implemented'
-
-        if rgb:
-            self.transforms.transforms[0] = IdentityTransform()
 
         # load samples
         if os.path.isdir(path):
