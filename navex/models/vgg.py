@@ -33,13 +33,13 @@ def make_layers(cfg, batch_norm=False, width_mult=1, in_channels=1, depth=3):
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             k += 1
         else:
-            if isinstance(c, tuple):
-                v, d = c
-            else:
-                v, d = c, 1
+            specs = [None, 1, 3]
+            for i, v in enumerate(c if isinstance(c, (tuple, list)) else (c,)):
+                specs[i] = v
+            v, d, s = specs
 
             out_channels = int(v*width_mult)
-            conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, dilation=d)
+            conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=s, padding=1, dilation=d)
             if batch_norm:
                 layers += [conv2d, nn.BatchNorm2d(out_channels), nn.ReLU(inplace=True)]
             else:

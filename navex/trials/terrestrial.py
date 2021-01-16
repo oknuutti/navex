@@ -7,12 +7,33 @@ from ..datasets.aachen import AachenFlowDataset
 from ..losses.r2d2 import R2D2Loss
 from ..models.astropoint import AstroPoint
 from .base import TrialBase
+from ..models.r2d2 import R2D2
 
 
 class TerrestrialTrial(TrialBase):
     def __init__(self, model_conf, loss_conf, optimizer_conf, data_conf, batch_size, acc_grad_batches=1, hparams=None):
+        if isinstance(model_conf, dict):
+            arch = model_conf['arch'].split('-')
+            if len(arch) == 1:
+                arch = 'ap'
+            else:
+                model_conf['arch'] = arch[1]
+                arch = arch[0]
+
+            if arch == 'ap':
+                model = AstroPoint(**model_conf)
+            elif arch == 'r2d2':
+                for k in ('head_conv_ch', 'direct_detection', 'dropout'):
+                    model_conf.pop(k)
+                model_conf['descriptor_dim'] = 128
+                model = R2D2(**model_conf)
+            else:
+                assert False, 'unknown main arch type "%s", valid ones are "ap" and "r2d2"' % arch
+        else:
+            model = model_conf
+
         super(TerrestrialTrial, self).__init__(
-            model=AstroPoint(**model_conf) if isinstance(model_conf, dict) else model_conf,
+            model=model,
             loss_fn=R2D2Loss(**loss_conf) if isinstance(loss_conf, dict) else loss_conf,
             optimizer_conf=optimizer_conf,
             acc_grad_batches=acc_grad_batches)

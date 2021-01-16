@@ -33,10 +33,10 @@ training:
   deterministic: 1
 
 model:
-  arch: 'own_vgg'
-  in_channels: 3
-  head_conv_ch: 256
-  descriptor_dim: 256
+  arch: 'ap-own_vgg'
+  in_channels: 1
+  head_conv_ch: 128
+  descriptor_dim: 128
   width_mult: 1.0
   dropout: !h_float 0.0
   excl_bn_affine: 1

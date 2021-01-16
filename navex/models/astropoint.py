@@ -24,7 +24,7 @@ class AstroPoint(BasePoint):
         }
 
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
-                                                     width_mult=width_mult, batch_norm=batch_norm, type='sp',
+                                                     width_mult=width_mult, batch_norm=batch_norm, subtype='sp',
                                                      in_channels=in_channels, depth=3)
 
         self.des_head = self.create_descriptor_head(out_ch, head_conv_ch, descriptor_dim, batch_norm, dropout)

@@ -35,7 +35,7 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
                 GeneralTransform(tr.ToTensor()),
                 PhotometricTransform(RandomDarkNoise(0, noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
                 PhotometricTransform(RandomExposure(*rnd_gain)),  # apply a random gain on the image
-                PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226])) if not rgb else self.TR_NORM_RGB,
+                PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226]) if not rgb else self.TR_NORM_RGB),
             ])
 
         ImagePairDataset.__init__(self, root, None, transforms=transforms)
@@ -66,7 +66,7 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
             eval_ds.transforms = self.TRFM_EVAL
             if rgb:
                 eval_ds.transforms.transforms[0] = PairedIdentityTransform()
-                eval_ds.transforms.transforms[-1] = self.TR_NORM_RGB
+                eval_ds.transforms.transforms[-1] = PhotometricTransform(self.TR_NORM_RGB)
 
         total = len(self)
         lengths = []

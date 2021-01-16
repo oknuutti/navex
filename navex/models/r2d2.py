@@ -20,8 +20,9 @@ class R2D2(BasePoint):
             'excl_bn_affine': excl_bn_affine,
         }
 
+        # TODO: make so that descriptor_dim affects backbone as last layer of backbone is directly the descriptor
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
-                                                     width_mult=width_mult, batch_norm=batch_norm, type='r2d2',
+                                                     width_mult=width_mult, batch_norm=batch_norm, subtype='r2d2',
                                                      in_channels=in_channels, depth=3)
 
         # det_head single=True in r2d2 github code, in article was single=False though
@@ -44,11 +45,11 @@ class R2D2(BasePoint):
 
     @staticmethod
     def create_detector_head(in_channels, single=False):
-        return nn.Conv2d(in_channels, 2, kernel_size=1, padding=0)
+        return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
 
     @staticmethod
     def create_quality_head(in_channels, single=False):
-        return nn.Conv2d(in_channels, 2, kernel_size=1, padding=0)
+        return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
 
     def extract_features(self, x):
         x_features = self.backbone(x)
@@ -82,7 +83,7 @@ class R2D2(BasePoint):
             x = F.softplus(ux)
             return x / (1 + x)
         elif ux.shape[1] == 2:
-            return F.softmax(ux, dim=1)[:, 1:2]
+            return F.softmax(ux, dim=1)[:, :1, :, :]
 
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
