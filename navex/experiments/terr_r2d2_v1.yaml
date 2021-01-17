@@ -17,10 +17,10 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 16
+  batch_size: 8
   batch_mem: 32000
   gpu: 1
-  epochs: 40
+  epochs: 30
   print_freq: 5
   test_freq: 1
   save_freq: 1
@@ -33,12 +33,12 @@ training:
   deterministic: 1
 
 model:
-  arch: 'ap-own_vgg'
+  arch: 'r2d2-own_vgg'
   in_channels: 1
   head_conv_ch: 128
   descriptor_dim: 128
   width_mult: 1.0
-  dropout: !h_float 0.0
+  dropout: 0.0
   batch_norm: 1
   direct_detection: 0
   pretrained: 0
@@ -51,13 +51,13 @@ loss:
   base: !h_float 0.75     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for descriptor head output size [192, 192]
-    ngh: 4        # was 7       # neighbourhood size in descriptor cells
-    subq: -3      # was -8      # grid step size for positive samples
+    ngh: 7        # was 7       # neighbourhood size in descriptor cells
+    subq: -8      # was -8      # grid step size for positive samples
     subd: 1       # was 1       # neigbourhood sampling interval
-    pos_d: 1      # was 2       # positive samples generated up to this far from ideal location
-    neg_d: 3      # was 5       # negative samples generated starting from distance from ideal location
-    border: 4     # was 16
-    subd_neg: -6  # was -8      # grid step size for generating additional negative samples
+    pos_d: 2      # was 2       # positive samples generated up to this far from ideal location
+    neg_d: 5      # was 5       # negative samples generated starting from distance from ideal location
+    border: 16    # was 16
+    subd_neg: -8  # was -8      # grid step size for generating additional negative samples
     max_neg_b: 4                # distractors mined from max this number of images from same batch
     maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
 
@@ -66,14 +66,15 @@ optimizer:
   learning_rate: !h_float 3.5e-4
   weight_decay: !h_float 2e-6
   split_params: 0
-  eps: !!float 1e-8
+  eps: !h_float 1e-8
 
 data:
-  noise_max: 0.20
-  rnd_gain: 2.0
+  noise_max: !h_float 0.10
+  rnd_gain: !h_float 1.5
+  image_size: 192
   path: 'data/aachen'
   npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
-  workers: 6
+  workers: 5

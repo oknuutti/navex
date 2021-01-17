@@ -1,5 +1,5 @@
 search:
-  samples: 81
+  samples: 243
   nodes: 1
   node_types: 'pascal,volta'
   node_type_cpus: '4,5'
@@ -15,38 +15,38 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 32
-  batch_mem: 32000
+  batch_size: 16
+  batch_mem: 24000
   gpu: 1
-  epochs: 30
+  epochs: 50
   print_freq: 1
   test_freq: 1
   save_freq: 1
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 3
-  reduced_precision: 1
+  early_stopping: 5
+  reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
 
 model:
   arch: 'own_vgg'
   in_channels: 1
-  head_conv_ch: !h_tune_choice    '[0, 128]'
+  head_conv_ch: 128
   descriptor_dim: 128    # try lower values
   width_mult: 1.0        # try lower values
-  dropout: !h_tune_quniform       '0.00, 0.15, 0.05'
+  dropout: 0.0           # !h_tune_choice    '[0, 0.1]'
   batch_norm: 1
   direct_detection: 0    # not implemented
   pretrained: 0          # not implemented
   cache_dir: 'cache'
 
 loss:
-  wdt: 1.0        # weight for peakiness and cosim losses
-  wap: 1.0        # weight for expected ap loss
-  det_n: !h_tune_choice    '[12, 14, 16]'        # detector neighbourhood size
-  base: !h_tune_quniform   '0.60, 0.70, 0.05'    # quality loss target mAP
+  wdt: -1.0        # weight for peakiness and cosim losses
+  wap: !h_tune_choice    '[-2, -3]'     # weight for expected ap loss
+  det_n: !h_tune_quniform  '8, 16, 4'         # detector neighbourhood size
+  base: !h_tune_quniform   '0.65, 0.85, 0.05'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for descriptor head output size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -61,15 +61,18 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_quniform   '2e-4, 6e-4, 1e-5'
-  weight_decay: !h_tune_qloguniform '1e-5, 3e-5, 1e-6'
+  learning_rate: !h_tune_quniform      '1e-4, 1e-3, 1e-4'
+  weight_decay: !h_tune_qloguniform    '1e-6, 5e-5, 1e-6'
   split_params: 0
-  eps: !!float 1e-8
+  eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
 
 data:
-  path: 'data/aachen.tar'
-  npy: 'false'
+  noise_max: 0.20
+  rnd_gain: 2.0
+  image_size: 512
+  path: 'data/aachen.tar.gz'
+  npy: 'true'
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
-  workers: 6
+  workers: 4

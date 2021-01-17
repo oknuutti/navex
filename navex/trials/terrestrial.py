@@ -101,8 +101,8 @@ class TerrestrialTrial(TrialBase):
     def _get_datasets(self, rgb):
         if self._tr_data is None:
             npy = json.loads(self.data_conf['npy'])
-            fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy,
-                                        noise_max=self.data_conf['noise_max'], rnd_gain=self.data_conf['rnd_gain'])
+            dconf = {k: v for k, v in self.data_conf.items() if k in ('noise_max', 'rnd_gain', 'image_size')}
+            fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
             datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),
                                      self.data_conf.get('val_ratio', 0.1),
                                      self.data_conf.get('tst_ratio', 0.1), eval=(2,), rgb=rgb)

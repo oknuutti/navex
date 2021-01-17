@@ -1,8 +1,10 @@
 search:
   samples: 243
-  nodes: 1
+  nodes: 4
   node_types: 'pascal,volta'
-  node_type_cpus: '4,5'
+
+  # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
+  node_type_cpus: '5,5'
   grace_period: 1
   reduction_factor: 3
   username: ''
@@ -16,16 +18,16 @@ training:
   cache: 'cache'
   output: 'output'
   batch_size: 16
-  batch_mem: 24000
+  batch_mem: 21000
   gpu: 1
   epochs: 50
-  print_freq: 1
+  print_freq: 5
   test_freq: 1
   save_freq: 1
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 5
+  early_stopping: 10
   reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
@@ -43,10 +45,10 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wdt: -1.0        # weight for peakiness and cosim losses
-  wap: !h_tune_choice    '[-2, -3]'     # weight for expected ap loss
-  det_n: !h_tune_quniform  '8, 16, 4'         # detector neighbourhood size
-  base: !h_tune_quniform   '0.65, 0.85, 0.05'   # quality loss target mAP
+  wdt: -1.0       # weight for peakiness and cosim losses
+  wap: -3.0       # weight for expected ap loss
+  det_n: !h_tune_quniform  '8, 16, 2'     # detector neighbourhood size
+  base: !h_tune_uniform   '0.50, 0.80'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for descriptor head output size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -61,17 +63,18 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_quniform      '1e-4, 1e-3, 1e-4'
-  weight_decay: !h_tune_qloguniform    '1e-6, 5e-5, 1e-6'
+  learning_rate: !h_tune_loguniform      '1e-4, 1e-3'
+  weight_decay: !h_tune_loguniform    '1e-6, 5e-5'
   split_params: 0
   eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
 
 data:
   noise_max: 0.20
   rnd_gain: 2.0
-  path: 'data/aachen.tar.gz'
-  npy: 'true'
+  image_size: 512
+  path: 'data/aachen.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
+  npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
-  workers: 4
+  workers: 5

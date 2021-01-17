@@ -1,12 +1,12 @@
 search:
-  samples: 243
-  nodes: 4
+  samples: 1
+  nodes: 1
   node_types: 'pascal,volta'
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
   node_type_cpus: '5,5'
-  grace_period: 1
-  reduction_factor: 3
+  grace_period: 0
+  reduction_factor: 0
   username: ''
   keyfile: ''
   proxy: ''
@@ -18,9 +18,9 @@ training:
   cache: 'cache'
   output: 'output'
   batch_size: 16
-  batch_mem: 21000
+  batch_mem: 32000
   gpu: 1
-  epochs: 50
+  epochs: 40
   print_freq: 5
   test_freq: 1
   save_freq: 1
@@ -33,22 +33,22 @@ training:
   deterministic: 1
 
 model:
-  arch: 'own_vgg'
+  arch: 'ap-own_vgg'
   in_channels: 1
   head_conv_ch: 128
-  descriptor_dim: 128    # try lower values
-  width_mult: 1.0        # try lower values
-  dropout: 0.0           # !h_tune_choice    '[0, 0.1]'
+  descriptor_dim: 128
+  width_mult: 1.0
+  dropout: !h_float 0.0
   batch_norm: 1
-  direct_detection: 0    # not implemented
-  pretrained: 0          # not implemented
+  direct_detection: 0
+  pretrained: 0
   cache_dir: 'cache'
 
 loss:
-  wdt: -1.0       # weight for peakiness and cosim losses
-  wap: -3.0       # weight for expected ap loss
-  det_n: !h_tune_quniform  '8, 16, 2'     # detector neighbourhood size
-  base: !h_tune_uniform   '0.50, 0.80'   # quality loss target mAP
+  wdt: !h_float -1.0      # weight for peakiness and cosim losses
+  wap: !h_float -2.5      # weight for expected ap loss
+  det_n: !h_int  12       # detector neighbourhood size
+  base: !h_float 0.75     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for descriptor head output size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -63,17 +63,18 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_loguniform      '1e-4, 1e-3'
-  weight_decay: !h_tune_loguniform    '1e-6, 5e-5'
+  learning_rate: !h_float 3.5e-4
+  weight_decay: !h_float 2e-6
   split_params: 0
-  eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
+  eps: !!float 1e-8
 
 data:
   noise_max: 0.20
   rnd_gain: 2.0
-  path: 'data/aachen.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
+  image_size: 512
+  path: 'data/aachen'
   npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1
   tst_ratio: 0.1
-  workers: 5
+  workers: 6

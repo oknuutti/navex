@@ -67,6 +67,9 @@ optimizer:
   eps: !!float 1e-8
 
 data:
+  noise_max: 0.20
+  rnd_gain: 2.0
+  image_size: 512
   path: 'data/aachen.tar'
   npy: 'false'
   trn_ratio: 0.8

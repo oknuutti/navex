@@ -281,6 +281,11 @@ data:
     type: float
     help: "random gain is sampled uniformly between [1/G, G] and applied to training images after adding noise"
 
+  image_size:
+    alt: ['--img-size']
+    type: int
+    help: "images cropped to W x H, where size is W and H"
+
   path:
     alt: ['-d', '--data']
     help: "path to dataset"
