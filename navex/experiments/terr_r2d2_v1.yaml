@@ -39,7 +39,6 @@ model:
   descriptor_dim: 128
   width_mult: 1.0
   dropout: !h_float 0.0
-  excl_bn_affine: 1
   batch_norm: 1
   direct_detection: 0
   pretrained: 0

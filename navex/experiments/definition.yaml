@@ -161,10 +161,6 @@ model:
     type: float
     help: "dropout ratio"
 
-  excl_bn_affine:
-    type: int
-    help: "do not use affine transformation after batch normalization"
-
   batch_norm:
     type: int
     help: "use batch normalization"

@@ -7,7 +7,7 @@ from .base import BasePoint, initialize_weights
 
 class AstroPoint(BasePoint):
     def __init__(self, arch, in_channels=1, head_conv_ch=128, direct_detection=False, batch_norm=True, descriptor_dim=128,
-                 width_mult=1.0, dropout=0.0, pretrained=False, excl_bn_affine=True, cache_dir=None):
+                 width_mult=1.0, dropout=0.0, pretrained=False, cache_dir=None):
         super(AstroPoint, self).__init__()
 
         self.conf = {
@@ -20,7 +20,6 @@ class AstroPoint(BasePoint):
             'width_mult': width_mult,
             'dropout': dropout,
             'pretrained': pretrained,
-            'excl_bn_affine': excl_bn_affine,
         }
 
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
@@ -38,12 +37,12 @@ class AstroPoint(BasePoint):
             init_modules = [self.des_head, self.det_head, self.qlt_head]
             initialize_weights(init_modules)
 
-        if excl_bn_affine:
-            for m in self.modules():
-                if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
-                    m.affine = False
-                    nn.init.constant_(m.bias.data, 0)
-                    nn.init.constant_(m.weight.data, 1)
+        # don't use affine transform for batch norm
+        for m in self.modules():
+            if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)) and m.affine:
+                m.affine = False
+                nn.init.constant_(m.bias.data, 0)
+                nn.init.constant_(m.weight.data, 1)
 
     @staticmethod
     def create_descriptor_head(in_channels, mid_channels, out_channels, batch_norm=False, dropout=0.0):

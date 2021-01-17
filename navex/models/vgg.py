@@ -41,7 +41,7 @@ def make_layers(cfg, batch_norm=False, width_mult=1, in_channels=1, depth=3):
             out_channels = int(v*width_mult)
             conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=s, padding=1, dilation=d)
             if batch_norm:
-                layers += [conv2d, nn.BatchNorm2d(out_channels), nn.ReLU(inplace=True)]
+                layers += [conv2d, nn.BatchNorm2d(out_channels, affine=False), nn.ReLU(inplace=True)]
             else:
                 layers += [conv2d, nn.ReLU(inplace=True)]
             in_channels = out_channels
@@ -54,5 +54,4 @@ cfgs = {
     'vgg16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
     'vgg19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
     'sp': [64, 64, 'M', 64, 64, 'M', 128, 128, 'M', 128, 128],
-    'r2d2': [32, (32, 2), 64, (64, 2), 128, (128, 1, 2), (128, 1, 2), (128, 1, 2)],
 }

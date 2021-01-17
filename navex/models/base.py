@@ -11,7 +11,7 @@ class BasePoint(nn.Module):
         super(BasePoint, self).__init__()
         self.aux_qty = None
 
-    def create_backbone(self, arch, cache_dir, pretrained, width_mult, **kwargs):
+    def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1, **kwargs):
         if cache_dir is not None:
             os.environ['TORCH_HOME'] = cache_dir
 

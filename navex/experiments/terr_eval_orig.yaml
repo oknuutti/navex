@@ -17,11 +17,10 @@ training:
 
 model:
   arch: 'R2D2'
-  head_conv_ch: 256
+  head_conv_ch: 128
   descriptor_dim: 128
   width_mult: 1.0
-  dropout: 0.2
-  excl_bn_affine: true
+  dropout: 0.0
   batch_norm: true
   direct_detection: false
   pretrained: false

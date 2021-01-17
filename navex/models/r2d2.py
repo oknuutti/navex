@@ -7,7 +7,7 @@ from .base import BasePoint, initialize_weights
 
 class R2D2(BasePoint):
     def __init__(self, arch, in_channels=1, batch_norm=True, descriptor_dim=128,
-                 width_mult=1.0, pretrained=False, excl_bn_affine=True, cache_dir=None):
+                 width_mult=1.0, pretrained=False, cache_dir=None):
         super(R2D2, self).__init__()
 
         self.conf = {
@@ -17,13 +17,12 @@ class R2D2(BasePoint):
             'descriptor_dim': descriptor_dim,
             'width_mult': width_mult,
             'pretrained': pretrained,
-            'excl_bn_affine': excl_bn_affine,
         }
 
-        # TODO: make so that descriptor_dim affects backbone as last layer of backbone is directly the descriptor
+        assert width_mult * 128 == descriptor_dim, 'descriptor dimensions dont correspond with backbone width'
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
-                                                     width_mult=width_mult, batch_norm=batch_norm, subtype='r2d2',
-                                                     in_channels=in_channels, depth=3)
+                                                     width_mult=width_mult, in_channels=in_channels)
+        assert out_ch == descriptor_dim, 'channel depths dont match'
 
         # det_head single=True in r2d2 github code, in article was single=False though
         self.det_head = self.create_detector_head(descriptor_dim, single=True)
@@ -36,12 +35,29 @@ class R2D2(BasePoint):
             init_modules = [self.det_head, self.qlt_head]
             initialize_weights(init_modules)
 
-        if excl_bn_affine:
-            for m in self.modules():
-                if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
-                    m.affine = False
-                    nn.init.constant_(m.bias.data, 0)
-                    nn.init.constant_(m.weight.data, 1)
+    def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1, **kwargs):
+        def add_layer(l, in_ch, out_ch, k=3, p=1, d=1, bn=True, relu=True):
+            out_ch = int(out_ch)
+            l.append(nn.Conv2d(in_ch, out_ch, kernel_size=k, padding=p, dilation=d))
+            if bn:
+                l.append(nn.BatchNorm2d(out_ch, affine=False))
+            if relu:
+                l.append(nn.ReLU(inplace=True))
+            return out_ch
+
+        layers = []
+        wm, in_ch = int(4*width_mult), in_channels
+        in_ch = add_layer(layers, in_ch, 8 * wm)
+        in_ch = add_layer(layers, in_ch, 8 * wm)
+        in_ch = add_layer(layers, in_ch, 16 * wm)
+        in_ch = add_layer(layers, in_ch, 16 * wm, p=2, d=2)
+        in_ch = add_layer(layers, in_ch, 32 * wm, p=2, d=2)
+        in_ch = add_layer(layers, in_ch, 32 * wm, p=4, d=4)
+        in_ch = add_layer(layers, in_ch, 32 * wm, p=2, d=4, k=2, relu=False)
+        in_ch = add_layer(layers, in_ch, 32 * wm, p=4, d=8, k=2, relu=False)
+        in_ch = add_layer(layers, in_ch, 32 * wm, p=8, d=16, k=2, relu=False, bn=False)
+
+        return nn.Sequential(*layers), in_ch
 
     @staticmethod
     def create_detector_head(in_channels, single=False):
