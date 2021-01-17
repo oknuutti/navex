@@ -50,7 +50,7 @@ loss:
   det_n: !h_tune_quniform  '8, 16, 2'     # detector neighbourhood size
   base: !h_tune_uniform   '0.50, 0.80'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
-  sampler:        # was for descriptor head output size [192, 192]
+  sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
     subq: -3      # was -8      # grid step size for positive samples
     subd: 1       # was 1       # neigbourhood sampling interval
