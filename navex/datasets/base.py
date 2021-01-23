@@ -1,3 +1,4 @@
+import bisect
 import os
 from copy import copy
 import math
@@ -5,6 +6,7 @@ import random
 
 import numpy as np
 import torch
+from torch.utils.data import ConcatDataset
 from torch.utils.data.dataset import random_split
 from torchvision.datasets import VisionDataset
 from torchvision.datasets.folder import default_loader
@@ -173,33 +175,48 @@ class AugmentedDatasetMixin:
         self.eval = eval
         self.rgb = rgb
 
-        if self.eval:
-            self.transforms = self._eval_transf()
-        else:
-            self.transforms = ComposedTransforms([
-                PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-                PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=blind_crop),
-                GeneralTransform(tr.ToTensor()),
-                PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
-                PhotometricTransform(RandomExposure(*self.rnd_gain)),  # apply a random gain on the image
-                PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
-            ])
-
-    def _eval_transf(self):
-        return ComposedTransforms([
+        self._train_transf = ComposedTransforms([
+            PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
+            PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop),
+            GeneralTransform(tr.ToTensor()),
+            PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
+            PhotometricTransform(RandomExposure(*self.rnd_gain)),  # apply a random gain on the image
+            PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
+        ])
+        self._eval_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
             PairedCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
+        self.transforms = self._eval_transf if self.eval else self._train_transf
+
+    def set_eval(self, eval):
+        self.eval = eval
+        self.transforms = self._eval_transf if self.eval else self._train_transf
+
+
+class AugmentedConcatDataset(ConcatDataset):
+    def __init__(self, *args, **kwargs):
+        super(AugmentedConcatDataset, self).__init__(*args, **kwargs)
+        self.eval_indices = set()
+
+    def __getitem__(self, idx):
+        if idx < 0:
+            if -idx > len(self):
+                raise ValueError("absolute value of index should not exceed dataset length")
+            idx = len(self) + idx
+        dataset_idx = bisect.bisect_right(self.cumulative_sizes, idx)
+        if dataset_idx == 0:
+            sample_idx = idx
+        else:
+            sample_idx = idx - self.cumulative_sizes[dataset_idx - 1]
+
+        self.datasets[dataset_idx].set_eval(idx in self.eval_indices)
+        return self.datasets[dataset_idx][sample_idx]
 
     def split(self, *ratios, eval=tuple()):
         assert np.isclose(np.sum(ratios), 1.0), 'the ratios do not sum to one'
-
-        eval_ds = self
-        if eval:
-            eval_ds = copy(self)    # shallow copy should be enough
-            eval_ds.transforms = self._eval_transf()
 
         total = len(self)
         lengths = []
@@ -209,6 +226,6 @@ class AugmentedDatasetMixin:
 
         datasets = random_split(self, lengths)
         for i in eval:
-            datasets[i].dataset = eval_ds
+            self.eval_indices.update(datasets[i].indices)
 
         return datasets

@@ -2,8 +2,10 @@ import json
 import os
 
 import torch
+from torch.utils.data import ConcatDataset
 
 from ..datasets.aachen import AachenFlowDataset, AachenSynthPairDataset, AachenStyleTransferDataset
+from ..datasets.base import AugmentedConcatDataset
 from ..datasets.revisitop1m import WebImageSynthPairDataset
 from ..losses.r2d2 import R2D2Loss
 from ..models.astropoint import AstroPoint
@@ -104,20 +106,21 @@ class TerrestrialTrial(TrialBase):
             npy = json.loads(self.data_conf['npy'])
             dconf = {k: v for k, v in self.data_conf.items() if k in ('noise_max', 'rnd_gain', 'image_size')}
 
-            # TODO: add web images dataset
-            # TODO: unite the datasets
+            ds = []
+            if 1:
+                ds.append(AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf))
+            if 1:
+                ds.append(WebImageSynthPairDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf))
+            if 1:
+                ds.append(AachenStyleTransferDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf))
+            if 1:
+                ds.append(AachenSynthPairDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf))
 
-            if 0:
-                fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
-            elif 1:
-                fullset = WebImageSynthPairDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
-            elif 0:
-                fullset = AachenStyleTransferDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
-            else:
-                fullset = AachenSynthPairDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
+            fullset = AugmentedConcatDataset(ds)
             datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),
                                      self.data_conf.get('val_ratio', 0.1),
                                      self.data_conf.get('tst_ratio', 0.1), eval=(2,))
+
             self._tr_data, self._val_data, self._test_data = \
-                self.wrap_ds(datasets[0], shuffle=False), self.wrap_ds(datasets[1]), self.wrap_ds(datasets[2])
+                self.wrap_ds(datasets[0]), self.wrap_ds(datasets[1]), self.wrap_ds(datasets[2])
         return self._tr_data, self._val_data, self._test_data
