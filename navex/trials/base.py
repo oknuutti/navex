@@ -92,14 +92,14 @@ class TrialBase(abc.ABC, torch.nn.Module):
         return self.loss_fn(output1, output2, labels)
 
     def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor,
-                 top_k=300, mutual=True, ratio=False, success_px_limit=12):
+                 top_k=300, mutual=True, ratio=False, success_px_limit=12, det_lim=0.02, qlt_lim=0.02):
 
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
         _, _, H2, W2 = det2.shape
 
-        yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k)
-        yx2, conf2, descr2 = tools.detect_from_dense(des2, det2, qlt2, top_k=top_k)
+        yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, det_lim=det_lim, qlt_lim=qlt_lim)
+        yx2, conf2, descr2 = tools.detect_from_dense(des2, det2, qlt2, top_k=top_k, det_lim=det_lim, qlt_lim=qlt_lim)
 
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
         matches, norm, mask, dist = tools.match(descr1, descr2, mutual=mutual, ratio=ratio)

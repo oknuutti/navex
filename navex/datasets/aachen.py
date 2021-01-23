@@ -1,48 +1,22 @@
-from copy import copy
 import os
+import math
 
 import numpy as np
-import torchvision.transforms as tr
 
 from r2d2.datasets.aachen import AachenPairs_OpticalFlow
-from torch.utils.data.dataset import random_split
 
-from .base import RandomDarkNoise, RandomExposure, ImagePairDataset, PhotometricTransform, ComposedTransforms, \
-    GeneralTransform, PairedCenterCrop, PairedRandomCrop, DataLoadingException, PairedIdentityTransform
+from .base import ImagePairDataset, DataLoadingException, AugmentedDatasetMixin, SynthesizedPairDataset, unit_aflow
 
 
-class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
-    TR_NORM_RGB = tr.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedDatasetMixin):
+    def __init__(self, root='data', folder='aachen', noise_max=0.25, rnd_gain=(0.5, 3), image_size=512, max_sc=2 ** (1 / 4),
+                 eval=False, rgb=False, npy=False):
 
-    def __init__(self, root, noise_max=0.25, rnd_gain=(0.5, 3), image_size=512, max_sc=2**(1/4), eval=False, rgb=False, npy=False):
+        root = os.path.join(root, folder)
         AachenPairs_OpticalFlow.__init__(self, root, rgb=rgb, npy=npy)
-        self.rgb = rgb
-        self.image_size = image_size
-        self.max_sc = max_sc
-        self.noise_max = noise_max
-        self.rnd_gain = rnd_gain if isinstance(rnd_gain, (tuple, list)) else (1 / rnd_gain, rnd_gain)
-
-        if eval:
-            transforms = self._eval_transf()
-        else:
-            transforms = ComposedTransforms([
-                PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-                PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc),
-                GeneralTransform(tr.ToTensor()),
-                PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
-                PhotometricTransform(RandomExposure(*self.rnd_gain)),  # apply a random gain on the image
-                PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226]) if not self.rgb else self.TR_NORM_RGB),
-            ])
-
-        ImagePairDataset.__init__(self, root, None, transforms=transforms)
-
-    def _eval_transf(self):
-        return ComposedTransforms([
-            PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-            PairedCenterCrop(self.image_size, max_sc_diff=self.max_sc),
-            GeneralTransform(tr.ToTensor()),
-            PhotometricTransform(tr.Normalize(mean=[0.449], std=[0.226]) if not self.rgb else self.TR_NORM_RGB),
-        ])
+        AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                       max_sc=max_sc, eval=eval, rgb=rgb)
+        ImagePairDataset.__init__(self, root, None, transforms=self.transforms)
 
     def _load_samples(self):
         s = list(range(self.npairs))
@@ -54,29 +28,63 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset):
         aflow[np.logical_not(meta['mask'])] = np.nan
 
         try:
-            if self.transforms is not None:
-                (img1, img2), aflow = self.transforms((img1, img2), aflow)
+            (img1, img2), aflow = self.transforms((img1, img2), aflow)
         except DataLoadingException as e:
             raise DataLoadingException("Problem with idx %s:\n%s" % (idx, self.image_pairs[idx],)) from e
 
         return (img1, img2), aflow
 
-    def split(self, *ratios, eval=tuple(), rgb=False):
-        assert np.isclose(np.sum(ratios), 1.0), 'the ratios do not sum to one'
 
-        eval_ds = self
-        if eval:
-            eval_ds = copy(self)    # shallow copy should be enough
-            eval_ds.transforms = self._eval_transf()
+class AachenStyleTransferDataset(ImagePairDataset, AugmentedDatasetMixin):
+    def __init__(self, root='data', folder='aachen', noise_max=0.20, rnd_gain=(0.5, 2), image_size=512,
+                 eval=False, rgb=False, npy=False):
+        assert not npy, '.npy format not supported'
 
-        total = len(self)
-        lengths = []
-        for i, r in enumerate(ratios):
-            n = round(total * r)
-            lengths.append((total-np.sum(lengths)) if len(ratios)-1 == i else n)
+        AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                       max_sc=1.0, eval=eval, rgb=rgb, blind_crop=True)
 
-        datasets = random_split(self, lengths)
-        for i in eval:
-            datasets[i].dataset = eval_ds
+        ImagePairDataset.__init__(self, os.path.join(root, folder), self.identity_aflow, transforms=self.transforms)
+        self.npy = npy
 
-        return datasets
+    @staticmethod
+    def identity_aflow(path, img1_size, img2_size):
+        sc = 0.5 * (img2_size[0]/img1_size[0] + img2_size[1]/img1_size[1])
+        return unit_aflow(*img1_size) * sc
+
+    def _load_samples(self):
+        path_db = os.path.join(self.root, 'images_upright', 'db')
+        path_st = os.path.join(self.root, 'style_transfer')
+
+        samples = []
+        for file_st in os.listdir(path_st):
+            if file_st[-4:] == '.jpg':
+                file_db = file_st.split('.jpg.st_')[0]
+                samples.append(((os.path.join(path_db, file_db + '.jpg'), os.path.join(path_st, file_st)), None))
+
+        samples = sorted(samples, key=lambda x: x[0][1])
+        return samples
+
+
+class AachenSynthPairDataset(SynthesizedPairDataset, AugmentedDatasetMixin):
+    def __init__(self, root='data', folder='aachen', max_tr=0, max_rot=math.radians(15), max_shear=0.2, max_proj=0.8,
+                 noise_max=0.20, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4),
+                 eval=False, rgb=False, npy=False):
+        assert not npy, '.npy format not supported'
+        self.npy = npy
+
+        AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                       max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)
+
+        SynthesizedPairDataset.__init__(self, os.path.join(root, folder), max_tr=max_tr, max_rot=max_rot,
+                                        max_shear=max_shear, max_proj=max_proj, transforms=self.transforms)
+
+    def _load_samples(self):
+        path_db = os.path.join(self.root, 'images_upright', 'db')
+
+        samples = []
+        for file_db in os.listdir(path_db):
+            if file_db[-4:] == ('.npy' if self.npy else '.jpg'):
+                samples.append(os.path.join(path_db, file_db))
+
+        samples = sorted(samples)
+        return samples

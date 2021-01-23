@@ -3,7 +3,8 @@ import os
 
 import torch
 
-from ..datasets.aachen import AachenFlowDataset
+from ..datasets.aachen import AachenFlowDataset, AachenSynthPairDataset, AachenStyleTransferDataset
+from ..datasets.revisitop1m import WebImageSynthPairDataset
 from ..losses.r2d2 import R2D2Loss
 from ..models.astropoint import AstroPoint
 from .base import TrialBase
@@ -102,10 +103,21 @@ class TerrestrialTrial(TrialBase):
         if self._tr_data is None:
             npy = json.loads(self.data_conf['npy'])
             dconf = {k: v for k, v in self.data_conf.items() if k in ('noise_max', 'rnd_gain', 'image_size')}
-            fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
+
+            # TODO: add web images dataset
+            # TODO: unite the datasets
+
+            if 0:
+                fullset = AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
+            elif 1:
+                fullset = WebImageSynthPairDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
+            elif 0:
+                fullset = AachenStyleTransferDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
+            else:
+                fullset = AachenSynthPairDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf)
             datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),
                                      self.data_conf.get('val_ratio', 0.1),
-                                     self.data_conf.get('tst_ratio', 0.1), eval=(2,), rgb=rgb)
+                                     self.data_conf.get('tst_ratio', 0.1), eval=(2,))
             self._tr_data, self._val_data, self._test_data = \
                 self.wrap_ds(datasets[0], shuffle=False), self.wrap_ds(datasets[1]), self.wrap_ds(datasets[2])
         return self._tr_data, self._val_data, self._test_data

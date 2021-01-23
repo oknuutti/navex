@@ -7,17 +7,16 @@ from torch.functional import F
 from r2d2.nets.ap_loss import APLoss
 
 
-def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=-10):
-    ""
+def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, interp='bicubic'):
     B, D, Hs, Ws = des.shape
     _, _, Ht, Wt = det.shape
     _, _, Hq, Wq = qlt.shape
 
     # interpolate if different scale heads
     if (Hs, Ws) != (Ht, Wt):
-        des = F.interpolate(des, (Ht, Wt), mode='bilinear', align_corners=False)
+        des = F.interpolate(des, (Ht, Wt), mode=interp, align_corners=False)
     if (Hq, Wq) != (Ht, Wt):
-        qlt = F.interpolate(qlt, (Ht, Wt), mode='bilinear', align_corners=False)
+        qlt = F.interpolate(qlt, (Ht, Wt), mode=interp, align_corners=False)
 
     # local maxima
     max_filter = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
@@ -59,10 +58,10 @@ def match(des1, des2, norm=2, mutual=True, ratio=False):
     dev = des1.device
 
     if K1 == 0 or K2 == 0:
-        return torch.zeros((B, 2, 0), dtype=torch.long, device=dev), \
-               torch.zeros((B, 0), dtype=torch.float, device=dev), \
-               torch.zeros((B, 0), dtype=torch.bool, device=dev), \
-               torch.zeros((B, 0, 0), dtype=torch.float, device=dev)
+        return torch.zeros((B, 2, K1), dtype=torch.long, device=dev), \
+               torch.zeros((B, K1), dtype=torch.float, device=dev), \
+               torch.zeros((B, K1), dtype=torch.bool, device=dev), \
+               torch.zeros((B, K1, K2), dtype=torch.float, device=dev)
 
     dist = torch.linalg.norm(des1.view((B, D, K1, 1)).expand((B, D, K1, K2))
                              - des2.view((B, D, 1, K2)).expand((B, D, K1, K2)), ord=norm, dim=1)     # [b, k1, k2]

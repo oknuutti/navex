@@ -98,7 +98,7 @@ training:
     help: "save frequency"
 
   resume:
-    alt: ['--resume']
+    alt: ['--resume', '--ckpt']
     help: "path to latest checkpoint"
 
   evaluate:

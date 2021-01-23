@@ -34,7 +34,7 @@ training:
 
 model:
   arch: 'r2d2-own_vgg'
-  in_channels: 1
+  in_channels: !h_int 1
   head_conv_ch: 128
   descriptor_dim: 128
   width_mult: 1.0
@@ -45,10 +45,10 @@ model:
   cache_dir: 'cache'
 
 loss:
-  wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -2.5      # weight for expected ap loss
-  det_n: !h_int  12       # detector neighbourhood size
-  base: !h_float 0.75     # quality loss target mAP
+  wdt: !h_float 1.0      # weight for peakiness and cosim losses
+  wap: !h_float 1.0      # weight for expected ap loss
+  det_n: !h_int  16       # detector neighbourhood size
+  base: !h_float 0.50     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 7        # was 7       # neighbourhood size in descriptor cells
@@ -63,16 +63,16 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 3.5e-4
-  weight_decay: !h_float 2e-6
+  learning_rate: !h_float 1e-4
+  weight_decay: !h_float 5e-4
   split_params: 0
   eps: !h_float 1e-8
 
 data:
   noise_max: !h_float 0.10
   rnd_gain: !h_float 1.5
-  image_size: 340
-  path: 'data/aachen'
+  image_size: !h_int 192
+  path: 'data'
   npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1

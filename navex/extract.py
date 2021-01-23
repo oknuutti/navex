@@ -34,7 +34,15 @@ def main():
     args = parser.parse_args()
 
     model = TrialWrapperBase.load_from_checkpoint(args.model, map_location="cuda:0" if args.gpu else "cpu")
-    rgb = next(model.trial.model.backbone.children())[0].in_channels == 3
+
+    fst, rgb = model.trial.model, None
+    while True:
+        try:
+            fst = next(fst.children())
+        except:
+            rgb = fst.in_channels == 3
+            break
+
     model.trial.workers = 0
     model.trial.batch_size = 1
     model.use_gpu = args.gpu
