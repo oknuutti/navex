@@ -152,10 +152,13 @@ class PairedRandomCrop:
 
         # crop and resize image 2
         i2s, j2s, i2e, j2e = (np.array((i2, j2, i2+m, j2+n))*curr_sc/trg_sc + 0.5).astype('uint16')
+        assert i2s >= 0 and j2s >= 0 and i2e < img2.size[0] and j2e < img2.size[1], \
+               'crop area for image #2 exceeds image bounds (%s): x=%d:%d, y=%d:%d' % (img2.size, i2s, i2e, j2s, j2e)
+
         try:
             c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
         except Exception as e:
-            print('weird problem')
+            raise e
 
         if 0:
             import matplotlib.pyplot as plt
