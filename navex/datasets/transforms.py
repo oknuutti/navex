@@ -246,7 +246,7 @@ class RandomHomography:
         grid = (grid[:, :2] / grid[:, 2:]).reshape(aflow_shape)
 
         ifun = interp.RegularGridInterpolator((np.arange(h), np.arange(w)), np.array(img),
-                                              fill_value=self.fill_value*255, bounds_error=False)
+                                              fill_value=np.array(self.fill_value)*255, bounds_error=False)
         w_img = PIL.Image.fromarray(ifun(np.flip(grid, axis=2)).astype(np.uint8))
 
         if 0:

@@ -34,7 +34,7 @@ training:
 
 model:
   arch: 'r2d2-own_vgg'
-  in_channels: !h_int 1
+  in_channels: !h_int 3
   head_conv_ch: 128
   descriptor_dim: 128
   width_mult: 1.0
