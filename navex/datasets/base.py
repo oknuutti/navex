@@ -86,7 +86,7 @@ class SynthesizedPairDataset(VisionDataset):
             if self.transforms is not None:
                 (img1, img2), aflow = self.transforms((img1, img2), aflow)
 
-        except DataLoadingException as e:
+        except Exception as e:
             raise DataLoadingException("Problem with idx %s:\n%s" % (idx, self.samples[idx],)) from e
 
         return (img1, img2), aflow
