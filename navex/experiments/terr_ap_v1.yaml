@@ -71,7 +71,7 @@ optimizer:
 data:
   noise_max: 0.20
   rnd_gain: 2.0
-  image_size: !h_int 512
+  image_size: !h_int 480
   path: 'data'
   npy: 'false'
   trn_ratio: 0.8

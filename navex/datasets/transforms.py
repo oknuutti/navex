@@ -89,6 +89,8 @@ class PairedRandomCrop:
             rnd_idxs = int(random.uniform(0, img1.size[1] - n)), int(random.uniform(0, img1.size[0] - m))
         else:
             bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
+        assert np.all(np.array((*bst_idxs, *rnd_idxs)) >= 0), \
+               'image size is smaller than the crop area: %s vs %s' % (img1.size, (m, n))
 
         for t in range(2):
             if t == 1 or not self.random:
@@ -244,8 +246,8 @@ class RandomHomography:
         grid = (grid[:, :2] / grid[:, 2:]).reshape(aflow_shape)
 
         ifun = interp.RegularGridInterpolator((np.arange(h), np.arange(w)), np.array(img),
-                                              fill_value=self.fill_value, bounds_error=False)
-        w_img = PIL.Image.fromarray(ifun(np.flip(grid, axis=2)))
+                                              fill_value=self.fill_value*255, bounds_error=False)
+        w_img = PIL.Image.fromarray(ifun(np.flip(grid, axis=2)).astype(np.uint8))
 
         if 0:
             import matplotlib.pyplot as plt
