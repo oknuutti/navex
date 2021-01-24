@@ -87,13 +87,12 @@ class PairedRandomCrop:
         if m > img1.size[0] or n > img1.size[1]:
             # need to pad as otherwise image too small
             img1, aflow = self._pad((m, n), img1, aflow, first=True)
-            debug = True
 
         mask = np.logical_not(np.isnan(aflow[:, :, 0]))
 
         if self.blind_crop:
-            bst_idxs = (img1.size[1] - n) // 2, (img1.size[0] - m) // 2   # center crop
-            rnd_idxs = int(random.uniform(0, img1.size[1] - n) + 0.5), int(random.uniform(0, img1.size[0] - m) + 0.5)
+            bst_idxs = round((img1.size[1] - n) / 2), round((img1.size[0] - m) / 2)   # center crop
+            rnd_idxs = round(random.uniform(0, img1.size[1] - n)), round(random.uniform(0, img1.size[0] - m))
         else:
             bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
 
@@ -138,15 +137,14 @@ class PairedRandomCrop:
             min_sc, max_sc = 10 ** (-lsc), 10 ** lsc
             trg_sc = np.clip(curr_sc, min_sc, max_sc)
 
-        cm, cn = int(m * curr_sc / trg_sc + 0.5), int(n * curr_sc / trg_sc + 0.5)
+        cm, cn = math.ceil(m * curr_sc / trg_sc), math.ceil(n * curr_sc / trg_sc)
         if cm > img2.size[0] or cn > img2.size[1]:
             # padding is necessary
             img2, c_aflow = self._pad((cm, cn), img2, c_aflow, first=False)
-            debug = True
 
         # scale aflow
         c_aflow = c_aflow * trg_sc/curr_sc
-        trg_full_shape = int(img2.size[1] * trg_sc / curr_sc + 0.5), int(img2.size[0] * trg_sc / curr_sc + 0.5)
+        trg_full_shape = math.ceil(img2.size[1] * trg_sc / curr_sc), math.ceil(img2.size[0] * trg_sc / curr_sc)
 
         if self.blind_crop:
             i2, j2 = (np.nanmean(c_aflow, axis=(0, 1)) - np.array([m/2, n/2]) + 0.5).astype(np.int)
@@ -166,7 +164,7 @@ class PairedRandomCrop:
         c_aflow = c_aflow.reshape((n, m, 2))
 
         # crop and resize image 2
-        i2s, j2s, i2e, j2e = (np.array((i2, j2, i2+m, j2+n))*curr_sc/trg_sc + 0.5).astype(np.int)
+        i2s, j2s, i2e, j2e = (np.array((i2, j2, i2+m, j2+n))*curr_sc/trg_sc).astype(np.int)
 
         assert i2s >= 0 and j2s >= 0 and i2e <= img2.size[0] and j2e <= img2.size[1], \
                'crop area for image #2 exceeds image bounds (%s): x=%d:%d, y=%d:%d' % (img2.size, i2s, i2e, j2s, j2e)
