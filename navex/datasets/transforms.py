@@ -164,7 +164,7 @@ class PairedRandomCrop:
             img2arr = np.array(img2)
             p_img2 = np.ones((nh, nw, n_ch), dtype=img2arr.dtype) * self.fill_value
             p_img2[psj:psj+h, psi:psi+w, :] = np.atleast_3d(img2arr)
-            img2 = PIL.Image.fromarray(p_img2)
+            img2 = PIL.Image.fromarray(p_img2.squeeze())
 
         assert i2s >= 0 and j2s >= 0 and i2e < img2.size[0] and j2e < img2.size[1], \
                'crop area for image #2 exceeds image bounds (%s): x=%d:%d, y=%d:%d' % (img2.size, i2s, i2e, j2s, j2e)
