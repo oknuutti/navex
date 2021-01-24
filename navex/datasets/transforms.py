@@ -132,13 +132,13 @@ class PairedRandomCrop:
 
         # scale aflow
         c_aflow = c_aflow * trg_sc/curr_sc
+        trg_full_shape = int(img2.size[1] * trg_sc / curr_sc), int(img2.size[0] * trg_sc / curr_sc)
 
         if self.blind_crop:
             i2, j2 = (np.nanmean(c_aflow, axis=(0, 1)) - np.array([m/2, n/2])).astype('uint16')
-            i2, j2 = np.clip(i2, 0, img2.size[0] - m), np.clip(j2, 0, img2.size[1] - n)
+            i2, j2 = np.clip(i2, 0, trg_full_shape[1] - m), np.clip(j2, 0, trg_full_shape[0] - n)
         else:
             # use cv2.filter2D and argmax for img2 also
-            trg_full_shape = int(img2.size[1] * trg_sc / curr_sc), int(img2.size[0] * trg_sc / curr_sc)
             idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype('uint16')
             idxs = idxs[np.logical_and(idxs[:, 0] < trg_full_shape[1], idxs[:, 1] < trg_full_shape[0]), :]
             c_ok = np.zeros(trg_full_shape, dtype='float32')
