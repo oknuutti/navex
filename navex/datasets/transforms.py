@@ -80,17 +80,23 @@ class PairedRandomCrop:
         bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc
         return bst_idxs, rnd_idxs
 
-    def __call__(self, imgs, aflow):
+    def __call__(self, imgs, aflow, debug=False):
         img1, img2 = imgs
-        n_ch = len(img1.getbands())
         n, m = self.shape
+
+        if m > img1.size[0] or n > img1.size[1]:
+            # need to pad as otherwise image too small
+            img1, aflow = self._pad((m, n), img1, aflow, first=True)
+            debug = True
+
         mask = np.logical_not(np.isnan(aflow[:, :, 0]))
 
         if self.blind_crop:
             bst_idxs = (img1.size[1] - n) // 2, (img1.size[0] - m) // 2   # center crop
-            rnd_idxs = int(random.uniform(0, img1.size[1] - n)), int(random.uniform(0, img1.size[0] - m))
+            rnd_idxs = int(random.uniform(0, img1.size[1] - n) + 0.5), int(random.uniform(0, img1.size[0] - m) + 0.5)
         else:
             bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
+
         assert np.all(np.array((*bst_idxs, *rnd_idxs)) >= 0), \
                'image size is smaller than the crop area: %s vs %s' % (img1.size, (m, n))
 
@@ -132,16 +138,22 @@ class PairedRandomCrop:
             min_sc, max_sc = 10 ** (-lsc), 10 ** lsc
             trg_sc = np.clip(curr_sc, min_sc, max_sc)
 
+        cm, cn = int(m * curr_sc / trg_sc + 0.5), int(n * curr_sc / trg_sc + 0.5)
+        if cm > img2.size[0] or cn > img2.size[1]:
+            # padding is necessary
+            img2, c_aflow = self._pad((cm, cn), img2, c_aflow, first=False)
+            debug = True
+
         # scale aflow
         c_aflow = c_aflow * trg_sc/curr_sc
-        trg_full_shape = int(img2.size[1] * trg_sc / curr_sc), int(img2.size[0] * trg_sc / curr_sc)
+        trg_full_shape = int(img2.size[1] * trg_sc / curr_sc + 0.5), int(img2.size[0] * trg_sc / curr_sc + 0.5)
 
         if self.blind_crop:
-            i2, j2 = (np.nanmean(c_aflow, axis=(0, 1)) - np.array([m/2, n/2])).astype('uint16')
-            i2, j2 = np.clip(i2, 0, trg_full_shape[1] - m - 1), np.clip(j2, 0, trg_full_shape[0] - n - 1)
+            i2, j2 = (np.nanmean(c_aflow, axis=(0, 1)) - np.array([m/2, n/2]) + 0.5).astype(np.int)
+            i2, j2 = np.clip(i2, 0, trg_full_shape[1] - m), np.clip(j2, 0, trg_full_shape[0] - n)
         else:
             # use cv2.filter2D and argmax for img2 also
-            idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype('uint16')
+            idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype(np.int)
             idxs = idxs[np.logical_and(idxs[:, 0] < trg_full_shape[1], idxs[:, 1] < trg_full_shape[0]), :]
             c_ok = np.zeros(trg_full_shape, dtype='float32')
             c_ok[idxs[:, 1], idxs[:, 0]] = 1
@@ -154,23 +166,17 @@ class PairedRandomCrop:
         c_aflow = c_aflow.reshape((n, m, 2))
 
         # crop and resize image 2
-        i2s, j2s, i2e, j2e = (np.array((i2, j2, i2+m, j2+n))*curr_sc/trg_sc + 0.5).astype('uint16')
+        i2s, j2s, i2e, j2e = (np.array((i2, j2, i2+m, j2+n))*curr_sc/trg_sc + 0.5).astype(np.int)
 
-        if i2e >= img2.size[0] or j2e >= img2.size[1]:
-            # padding is necessary
-            w, h = img2.size
-            nw, nh = max(i2e+1, w), max(j2e+1, h)
-            psi, psj = (nw - w) // 2, (nh - h) // 2
-            img2arr = np.array(img2)
-            p_img2 = np.ones((nh, nw, n_ch), dtype=img2arr.dtype) * self.fill_value
-            p_img2[psj:psj+h, psi:psi+w, :] = np.atleast_3d(img2arr)
-            img2 = PIL.Image.fromarray(p_img2.squeeze())
-
-        assert i2s >= 0 and j2s >= 0 and i2e < img2.size[0] and j2e < img2.size[1], \
+        assert i2s >= 0 and j2s >= 0 and i2e <= img2.size[0] and j2e <= img2.size[1], \
                'crop area for image #2 exceeds image bounds (%s): x=%d:%d, y=%d:%d' % (img2.size, i2s, i2e, j2s, j2e)
-        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
 
-        if 0:
+        try:
+            c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
+        except Exception as e:
+            raise e     # DecompressionBombError sometimes
+
+        if debug:
             import matplotlib.pyplot as plt
             plt.figure(1), plt.imshow(np.array(c_img1))
             plt.figure(2), plt.imshow(np.array(c_img2))
@@ -194,6 +200,24 @@ class PairedRandomCrop:
         assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
 
         return (c_img1, c_img2), c_aflow
+
+    def _pad(self, min_size, img, aflow, first):
+        n_ch = len(img.getbands())
+        w, h = img.size
+        nw, nh = max(min_size[0], w), max(min_size[1], h)
+        psi, psj = (nw - w) // 2, (nh - h) // 2
+        img_arr = np.array(img)
+        p_img = np.ones((nh, nw, n_ch), dtype=img_arr.dtype) * self.fill_value
+        p_img[psj:psj + h, psi:psi + w, :] = np.atleast_3d(img_arr)
+        p_img = PIL.Image.fromarray(p_img.squeeze())
+
+        if first:
+            p_aflow = np.ones((nh, nw, 2), dtype=np.float32) * np.nan
+            p_aflow[psj:psj + h, psi:psi + w, :] = aflow
+        else:
+            p_aflow = aflow + np.array([psi, psj], dtype=np.float32)
+
+        return p_img, p_aflow
 
 
 class PairedCenterCrop(PairedRandomCrop):
@@ -253,7 +277,11 @@ class RandomHomography:
         aflow_shape = (h, w, 2)
         uh_aflow = np.concatenate((unit_aflow(w, h), np.ones((*aflow_shape[:2], 1), dtype=np.float32)), axis=2)
         w_aflow = uh_aflow.reshape((-1, 3)).dot(H.T)
-        w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:]).reshape(aflow_shape)
+        w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:])
+
+        w_aflow[np.any(w_aflow < 0, axis=1), :] = np.nan
+        w_aflow[np.logical_or(w_aflow[:, 0] > w - 1, w_aflow[:, 1] > h - 1), :] = np.nan
+        w_aflow = w_aflow.reshape(aflow_shape)
 
         grid = uh_aflow.reshape((-1, 3)).dot(np.linalg.inv(H.T))
         grid = (grid[:, :2] / grid[:, 2:]).reshape(aflow_shape)
