@@ -52,11 +52,12 @@ class ComposedTransforms:
 
 
 class PairedRandomCrop:
-    def __init__(self, shape, random=True, max_sc_diff=None, random_sc=True, blind_crop=False):
+    def __init__(self, shape, random=True, max_sc_diff=None, random_sc=True, fill_value=None, blind_crop=False):
         self.shape = (shape, shape) if isinstance(shape, int) else shape       # yx i.e. similar to aflow.shape
         self.random = random
         self.max_sc_diff = max_sc_diff
         self.random_sc = random_sc
+        self.fill_value = fill_value
         self.blind_crop = blind_crop  # don't try to validate cropping location, good for certain datasets
 
     def most_ok_in_window(self, mask, sc=4):
@@ -81,6 +82,7 @@ class PairedRandomCrop:
 
     def __call__(self, imgs, aflow):
         img1, img2 = imgs
+        n_ch = len(img1.getbands())
         n, m = self.shape
         mask = np.logical_not(np.isnan(aflow[:, :, 0]))
 
@@ -153,13 +155,21 @@ class PairedRandomCrop:
 
         # crop and resize image 2
         i2s, j2s, i2e, j2e = (np.array((i2, j2, i2+m, j2+n))*curr_sc/trg_sc + 0.5).astype('uint16')
+
+        if i2e >= img2.size[0] or j2e >= img2.size[1]:
+            # padding is necessary
+            w, h = img2.size
+            nw, nh = max(i2e+1, w), max(j2e+1, h)
+            psi, psj = (nw - w) // 2, (nh - h) // 2
+            img2arr = np.array(img2)
+            fval = 0 if self.fill_value is None else (self.fill_value * 255).reshape((1, 1, -1)).astype(img2arr.dtype)
+            p_img2 = np.ones((nh, nw, n_ch), dtype=img2arr.dtype) * fval
+            p_img2[psj:psj+h, psi:psi+w, :] = np.atleast_3d(img2arr)
+            img2 = PIL.Image.fromarray(p_img2)
+
         assert i2s >= 0 and j2s >= 0 and i2e < img2.size[0] and j2e < img2.size[1], \
                'crop area for image #2 exceeds image bounds (%s): x=%d:%d, y=%d:%d' % (img2.size, i2s, i2e, j2s, j2e)
-
-        try:
-            c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
-        except Exception as e:
-            raise e
+        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
 
         if 0:
             import matplotlib.pyplot as plt
@@ -188,9 +198,9 @@ class PairedRandomCrop:
 
 
 class PairedCenterCrop(PairedRandomCrop):
-    def __init__(self, shape, max_sc_diff=None, blind_crop=False):
+    def __init__(self, shape, max_sc_diff=None, fill_value=None, blind_crop=False):
         super(PairedCenterCrop, self).__init__(shape, random=0, max_sc_diff=max_sc_diff,
-                                               random_sc=False, blind_crop=blind_crop)
+                                               random_sc=False, blind_crop=blind_crop, fill_value=fill_value)
 
     def __call__(self, imgs, aflow):
         return super(PairedCenterCrop, self).__call__(imgs, aflow)

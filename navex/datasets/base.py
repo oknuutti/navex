@@ -176,9 +176,10 @@ class AugmentedDatasetMixin:
         self.eval = eval
         self.rgb = rgb
 
+        fill_value = AugmentedDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedDatasetMixin.TR_NORM_MONO.mean
         self._train_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-            PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop),
+            PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=fill_value),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
             PhotometricTransform(RandomExposure(*self.rnd_gain)),  # apply a random gain on the image
@@ -186,7 +187,7 @@ class AugmentedDatasetMixin:
         ])
         self._eval_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-            PairedCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop),
+            PairedCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=fill_value),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
