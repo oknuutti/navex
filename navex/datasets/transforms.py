@@ -57,7 +57,7 @@ class PairedRandomCrop:
         self.random = random
         self.max_sc_diff = max_sc_diff
         self.random_sc = random_sc
-        self.fill_value = fill_value
+        self.fill_value = 0 if fill_value is None else (np.array(fill_value) * 255).reshape((1, 1, -1)).astype('uint8')
         self.blind_crop = blind_crop  # don't try to validate cropping location, good for certain datasets
 
     def most_ok_in_window(self, mask, sc=4):
@@ -162,8 +162,7 @@ class PairedRandomCrop:
             nw, nh = max(i2e+1, w), max(j2e+1, h)
             psi, psj = (nw - w) // 2, (nh - h) // 2
             img2arr = np.array(img2)
-            fval = 0 if self.fill_value is None else (self.fill_value * 255).reshape((1, 1, -1)).astype(img2arr.dtype)
-            p_img2 = np.ones((nh, nw, n_ch), dtype=img2arr.dtype) * fval
+            p_img2 = np.ones((nh, nw, n_ch), dtype=img2arr.dtype) * self.fill_value
             p_img2[psj:psj+h, psi:psi+w, :] = np.atleast_3d(img2arr)
             img2 = PIL.Image.fromarray(p_img2)
 
