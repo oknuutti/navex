@@ -29,8 +29,9 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedData
 
         try:
             (img1, img2), aflow = self.transforms((img1, img2), aflow)
-        except DataLoadingException as e:
-            raise DataLoadingException("Problem with idx %s:\n%s" % (idx, self.image_pairs[idx],)) from e
+        except Exception as e:
+            raise DataLoadingException("Problem with dataset %s, index %s: %s" %
+                                       (self.__class__, idx, self.samples[idx],)) from e
 
         return (img1, img2), aflow
 

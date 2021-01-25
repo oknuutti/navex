@@ -1,4 +1,5 @@
 import json
+import math
 import os
 
 import torch
@@ -104,17 +105,19 @@ class TerrestrialTrial(TrialBase):
     def _get_datasets(self, rgb):
         if self._tr_data is None:
             npy = json.loads(self.data_conf['npy'])
+            common = dict(eval=False, rgb=rgb, npy=npy)
             dconf = {k: v for k, v in self.data_conf.items() if k in ('noise_max', 'rnd_gain', 'image_size')}
+            sconf = dict(max_tr=0, max_rot=math.radians(12), max_shear=0.2, max_proj=0.7)
 
             ds = []
             if 1:
-                ds.append(AachenFlowDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf))
+                ds.append(AachenFlowDataset(self.data_conf['path'], **common, **dconf))
             if 1:
-                ds.append(WebImageSynthPairDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf))
+                ds.append(WebImageSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
             if 1:
-                ds.append(AachenStyleTransferDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf))
+                ds.append(AachenStyleTransferDataset(self.data_conf['path'], **common, **dconf))
             if 1:
-                ds.append(AachenSynthPairDataset(self.data_conf['path'], eval=False, rgb=rgb, npy=npy, **dconf))
+                ds.append(AachenSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
 
             fullset = AugmentedConcatDataset(ds)
             datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),

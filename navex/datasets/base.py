@@ -1,12 +1,10 @@
 import bisect
 import os
-from copy import copy
-import math
 import random
 
 import numpy as np
 import torch
-from r2d2.tools.transforms import RandomTilting
+
 from torch.utils.data import ConcatDataset
 from torch.utils.data.dataset import random_split
 from torchvision.datasets import VisionDataset
@@ -51,8 +49,9 @@ class ImagePairDataset(VisionDataset):
             if self.transforms is not None:
                 (img1, img2), aflow = self.transforms((img1, img2), aflow)
 
-        except DataLoadingException as e:
-            raise DataLoadingException("Problem with idx %s:\n%s" % (idx, self.samples[idx],)) from e
+        except Exception as e:
+            raise DataLoadingException("Problem with dataset %s, index %s: %s" %
+                                       (self.__class__, idx, self.samples[idx],)) from e
 
         return (img1, img2), aflow
 
@@ -89,7 +88,7 @@ class SynthesizedPairDataset(VisionDataset):
                 (img1, img2), aflow = self.transforms((img1, img2), aflow)
 
         except Exception as e:
-            raise DataLoadingException("Problem with dataset %s, index %s:\n%s" %
+            raise DataLoadingException("Problem with dataset %s, index %s: %s" %
                                        (self.__class__, idx, self.samples[idx],)) from e
 
         return (img1, img2), aflow

@@ -171,7 +171,6 @@ class PairedRandomCrop:
         i2e, j2e = min(img2.size[0], i2e), min(img2.size[1], j2e)
         c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
 
-        debug = 1
         if debug:
             import matplotlib.pyplot as plt
             plt.figure(1), plt.imshow(np.array(c_img1))
