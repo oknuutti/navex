@@ -17,10 +17,10 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 16
+  batch_size: 32
   batch_mem: 32000
   gpu: 1
-  epochs: 40
+  epochs: 25
   print_freq: 5
   test_freq: 1
   save_freq: 1
@@ -35,8 +35,8 @@ training:
 model:
   arch: 'ap-own_vgg'
   in_channels: !h_int 1
-  head_conv_ch: 128
-  descriptor_dim: 128
+  head_conv_ch: 256
+  descriptor_dim: 256
   width_mult: 1.0
   dropout: !h_float 0.0
   batch_norm: 1
@@ -46,9 +46,9 @@ model:
 
 loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -2.5      # weight for expected ap loss
-  det_n: !h_int  12       # detector neighbourhood size
-  base: !h_float 0.75     # quality loss target mAP
+  wap: !h_float -2.0      # weight for expected ap loss
+  det_n: !h_int  16       # detector neighbourhood size
+  base: !h_float 0.65     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -64,14 +64,14 @@ loss:
 optimizer:
   method: 'adam'
   learning_rate: !h_float 3.5e-4
-  weight_decay: !h_float 2e-6
+  weight_decay: !h_float 1e-5
   split_params: 0
   eps: !!float 1e-8
 
 data:
-  noise_max: 0.20
-  rnd_gain: 2.0
-  image_size: !h_int 512
+  noise_max: 0.10
+  rnd_gain: 1.5
+  image_size: !h_int 420
   path: 'data'
   npy: 'false'
   trn_ratio: 0.8

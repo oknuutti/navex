@@ -23,6 +23,7 @@ def main():
 
     config = parser.parse_args()
     args = config.training
+    args.output = os.path.join(args.output, args.name)
 
     if PROFILING_ONLY:
        config.data.workers = 0
@@ -52,13 +53,13 @@ def main():
     if args.resume:
         m = re.findall(r'-r(\d+)-', args.resume)
         version = int(m[-1]) if m else None
-    logger = MyLogger(args.output, name=args.name, version=version)
+    logger = MyLogger(args.output, version=version)
 
     callbacks = [ModelCheckpoint(monitor='val_loss_epoch',
                                  mode='min',
                                  verbose=True,
                                  period=args.save_freq,
-                                 # dirpath=args.output,  # by default: default_root_dir/name/version
+                                 dirpath=os.path.join(args.output, str(logger.version)),
                                  filename='%s-%s-r%d-{epoch}-{val_loss_epoch:.3f}'
                                           % (config.model.arch, args.name, logger.version))]
 
