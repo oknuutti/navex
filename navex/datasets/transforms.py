@@ -6,6 +6,8 @@ import scipy.interpolate as interp
 import PIL
 import cv2
 import torch
+from r2d2.tools.transforms import RandomTilt
+from r2d2.tools.transforms_tools import persp_apply
 from torchvision.transforms import Lambda
 
 
@@ -166,13 +168,10 @@ class PairedRandomCrop:
         # crop and resize image 2
         i2s, i2e, j2s, j2e = (np.array((i2, i2+m, j2, j2+n))*curr_sc/trg_sc + 0.5).astype(np.int)
         i2s, j2s = max(0, i2s), max(0, j2s)
-        i2e, j2e = min(img2.size[0], i2s), min(img2.size[1], j2s)
+        i2e, j2e = min(img2.size[0], i2e), min(img2.size[1], j2e)
+        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
 
-        try:
-            c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
-        except Exception as e:
-            raise e     # DecompressionBombError sometimes
-
+        debug = 1
         if debug:
             import matplotlib.pyplot as plt
             plt.figure(1), plt.imshow(np.array(c_img1))
@@ -293,6 +292,25 @@ class RandomHomography:
             plt.show()
 
         return w_img, w_aflow
+
+
+class RandomTiltWrapper(RandomTilt):
+    def __call__(self, img):
+        scaled_and_distorted_image = \
+            super(RandomTiltWrapper, self).__call__(dict(img=img, persp=(1, 0, 0, 0, 1, 0, 0, 0)))
+
+        W, H = img.size
+        trf = scaled_and_distorted_image['persp']
+
+        # compute optical flow
+        xy = np.mgrid[0:H, 0:W][::-1].reshape((2, -1)).T
+        aflow = persp_apply(trf, xy).astype(np.float32)
+
+        aflow[np.any(aflow < 0, axis=1), :] = np.nan
+        aflow[np.logical_or(aflow[:, 0] > W - 1, aflow[:, 1] > H - 1), :] = np.nan
+        aflow = aflow.reshape((H, W, 2))
+
+        return scaled_and_distorted_image['img'], aflow
 
 
 class RandomExposure:

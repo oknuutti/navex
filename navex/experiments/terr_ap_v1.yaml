@@ -48,7 +48,7 @@ loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
   wap: !h_float -2.0      # weight for expected ap loss
   det_n: !h_int  16       # detector neighbourhood size
-  base: !h_float 0.65     # quality loss target mAP
+  base: !h_float 0.50     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -64,7 +64,7 @@ loss:
 optimizer:
   method: 'adam'
   learning_rate: !h_float 3.5e-4
-  weight_decay: !h_float 1e-5
+  weight_decay: !h_float 2e-6
   split_params: 0
   eps: !!float 1e-8
 

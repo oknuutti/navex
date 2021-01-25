@@ -6,6 +6,7 @@ import random
 
 import numpy as np
 import torch
+from r2d2.tools.transforms import RandomTilting
 from torch.utils.data import ConcatDataset
 from torch.utils.data.dataset import random_split
 from torchvision.datasets import VisionDataset
@@ -71,6 +72,7 @@ class SynthesizedPairDataset(VisionDataset):
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
             RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
                              fill_value=fill_value),
+#            RandomTiltWrapper(magnitude=0.5)
         ])
 
         self.image_loader = image_loader
