@@ -53,13 +53,13 @@ def main():
     if args.resume:
         m = re.findall(r'-r(\d+)-', args.resume)
         version = int(m[-1]) if m else None
-    logger = MyLogger(args.output, version=version)
+    logger = MyLogger(args.output, name='', version=version)
 
     callbacks = [ModelCheckpoint(monitor='val_loss_epoch',
                                  mode='min',
                                  verbose=True,
                                  period=args.save_freq,
-                                 dirpath=os.path.join(args.output, str(logger.version)),
+                                 dirpath=os.path.join(args.output, 'version_%d' % logger.version),
                                  filename='%s-%s-r%d-{epoch}-{val_loss_epoch:.3f}'
                                           % (config.model.arch, args.name, logger.version))]
 

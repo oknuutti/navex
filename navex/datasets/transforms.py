@@ -53,12 +53,33 @@ class ComposedTransforms:
         return images, aflow
 
 
+class RandomScale:
+    def __init__(self, min_size, max_size):
+        self.min_size = min_size
+        self.max_size = max_size
+
+    def __call__(self, imgs, aflow):
+        img1, img2 = imgs
+        w, h = img1.size
+        min_side = min(w, h)
+        min_sc = self.min_size / min_side
+        max_sc = self.max_size / min_side
+        trg_sc = math.exp(random.uniform(math.log(min_sc), math.log(max_sc)))
+#        trg_sc = random.uniform(min_sc, max_sc)
+
+        nw, nh = round(w * trg_sc), round(h * trg_sc)
+        img1 = img1.resize((nw, nh), PIL.Image.BILINEAR)
+        aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_LINEAR)
+
+        return (img1, img2), aflow
+
+
 class PairedRandomCrop:
-    def __init__(self, shape, random=True, max_sc_diff=None, random_sc=True, fill_value=None, blind_crop=False):
+    def __init__(self, shape, random=True, max_sc_diff=None, random_sc_diff=True, fill_value=None, blind_crop=False):
         self.shape = (shape, shape) if isinstance(shape, int) else shape       # yx i.e. similar to aflow.shape
         self.random = random
         self.max_sc_diff = max_sc_diff
-        self.random_sc = random_sc
+        self.random_sc_diff = random_sc_diff
         self.fill_value = 0 if fill_value is None else (np.array(fill_value) * 255).reshape((1, 1, -1)).astype('uint8')
         self.blind_crop = blind_crop  # don't try to validate cropping location, good for certain datasets
 
@@ -131,9 +152,9 @@ class PairedRandomCrop:
         sc2 = np.sqrt(np.nanmean(np.sum((c_aflow - np.array((ic2, jc2)))**2, axis=2)))
         curr_sc = sc2 / sc1
 
-        # determine target scale based on current scale, self.max_sc_diff, and self.random_sc
+        # determine target scale based on current scale, self.max_sc_diff, and self.random_sc_diff
         lsc = abs(np.log10(self.max_sc_diff))
-        if self.random_sc and is_random:                       # if first try fails, don't scale for second try
+        if self.random_sc_diff and is_random:                       # if first try fails, don't scale for second try
             trg_sc = 10**np.random.uniform(-lsc, lsc)
         else:
             min_sc, max_sc = 10 ** (-lsc), 10 ** lsc
@@ -169,7 +190,7 @@ class PairedRandomCrop:
         i2s, i2e, j2s, j2e = (np.array((i2, i2+m, j2, j2+n))*curr_sc/trg_sc + 0.5).astype(np.int)
         i2s, j2s = max(0, i2s), max(0, j2s)
         i2e, j2e = min(img2.size[0], i2e), min(img2.size[1], j2e)
-        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n))
+        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n), PIL.Image.BILINEAR)
 
         if debug:
             import matplotlib.pyplot as plt
@@ -218,7 +239,7 @@ class PairedRandomCrop:
 class PairedCenterCrop(PairedRandomCrop):
     def __init__(self, shape, max_sc_diff=None, fill_value=None, blind_crop=False):
         super(PairedCenterCrop, self).__init__(shape, random=0, max_sc_diff=max_sc_diff,
-                                               random_sc=False, blind_crop=blind_crop, fill_value=fill_value)
+                                               random_sc_diff=False, blind_crop=blind_crop, fill_value=fill_value)
 
     def __call__(self, imgs, aflow):
         return super(PairedCenterCrop, self).__call__(imgs, aflow)

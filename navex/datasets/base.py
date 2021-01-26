@@ -12,7 +12,8 @@ from torchvision.datasets.folder import default_loader
 import torchvision.transforms as tr
 
 from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, ComposedTransforms, \
-    GeneralTransform, PairedCenterCrop, PairedRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform
+    GeneralTransform, PairedCenterCrop, PairedRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform, \
+    RandomTiltWrapper, RandomScale
 
 from .. import RND_SEED
 
@@ -69,9 +70,9 @@ class SynthesizedPairDataset(VisionDataset):
         fill_value = AugmentedDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedDatasetMixin.TR_NORM_MONO.mean
         self.warping_transforms = tr.Compose([
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
-            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
-                             fill_value=fill_value),
-#            RandomTiltWrapper(magnitude=0.5)
+#            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
+#                             fill_value=fill_value),
+            RandomTiltWrapper(magnitude=0.5)
         ])
 
         self.image_loader = image_loader
@@ -180,6 +181,7 @@ class AugmentedDatasetMixin:
         fill_value = AugmentedDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedDatasetMixin.TR_NORM_MONO.mean
         self._train_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
+            RandomScale(min_size=max(self.image_size, 256), max_size=1024),
             PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=fill_value),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
