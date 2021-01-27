@@ -13,7 +13,7 @@ import torchvision.transforms as tr
 
 from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, ComposedTransforms, \
     GeneralTransform, PairedCenterCrop, PairedRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform, \
-    RandomTiltWrapper, RandomScale
+    RandomTiltWrapper, RandomScale, ScaleToRange
 
 from .. import RND_SEED
 
@@ -46,44 +46,6 @@ class ImagePairDataset(VisionDataset):
             img1 = self.image_loader(img1_pth)
             img2 = self.image_loader(img2_pth)
             aflow = self.aflow_loader(aflow_pth, img1.size, img2.size)
-
-            if self.transforms is not None:
-                (img1, img2), aflow = self.transforms((img1, img2), aflow)
-
-        except Exception as e:
-            raise DataLoadingException("Problem with dataset %s, index %s: %s" %
-                                       (self.__class__, idx, self.samples[idx],)) from e
-
-        return (img1, img2), aflow
-
-    def __len__(self):
-        return len(self.samples)
-
-    def _load_samples(self):
-        raise NotImplemented()
-
-
-class SynthesizedPairDataset(VisionDataset):
-    def __init__(self, root, max_tr, max_rot, max_shear, max_proj, transforms=None, image_loader=default_loader):
-        super(SynthesizedPairDataset, self).__init__(root, transforms=transforms)
-
-        fill_value = AugmentedDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedDatasetMixin.TR_NORM_MONO.mean
-        self.warping_transforms = tr.Compose([
-            IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
-#            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
-#                             fill_value=fill_value),
-            RandomTiltWrapper(magnitude=0.5)
-        ])
-
-        self.image_loader = image_loader
-        self.samples = self._load_samples()
-
-    def __getitem__(self, idx):
-        img_pth = self.samples[idx]
-
-        try:
-            img1 = self.image_loader(img_pth)
-            img2, aflow = self.warping_transforms(img1)
 
             if self.transforms is not None:
                 (img1, img2), aflow = self.transforms((img1, img2), aflow)
@@ -163,6 +125,62 @@ class IndexedImagePairDataset(ImagePairDataset):
         return self.index_file_loader(self.index_file)
 
 
+class RandomSeed:
+    def __init__(self, seed):
+        self.seed = seed
+        self.state = None
+
+    def __enter__(self):
+        self.state = random.getstate()
+        random.seed(self.seed)
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        random.setstate(self.state)
+        return True
+
+
+class SynthesizedPairDataset(VisionDataset):
+    def __init__(self, root, max_tr, max_rot, max_shear, max_proj, transforms=None, image_loader=default_loader):
+        super(SynthesizedPairDataset, self).__init__(root, transforms=transforms)
+
+        self.warping_transforms = tr.Compose([
+            IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
+#            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj),
+            RandomTiltWrapper(magnitude=0.5)
+        ])
+
+        self.image_loader = image_loader
+        self.samples = self._load_samples()
+
+    def __getitem__(self, idx):
+        img_pth = self.samples[idx]
+
+        try:
+            img1 = self.image_loader(img_pth)
+
+            eval = getattr(self, 'eval', False)
+            if eval:
+                with RandomSeed(idx):
+                    img2, aflow = self.warping_transforms(img1)
+            else:
+                img2, aflow = self.warping_transforms(img1)
+
+            if self.transforms is not None:
+                (img1, img2), aflow = self.transforms((img1, img2), aflow)
+
+        except Exception as e:
+            raise DataLoadingException("Problem with dataset %s, index %s: %s" %
+                                       (self.__class__, idx, self.samples[idx],)) from e
+
+        return (img1, img2), aflow
+
+    def __len__(self):
+        return len(self.samples)
+
+    def _load_samples(self):
+        raise NotImplemented()
+
+
 class AugmentedDatasetMixin:
     TR_NORM_RGB = tr.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     TR_NORM_MONO = tr.Normalize(mean=[0.449], std=[0.226])
@@ -190,6 +208,7 @@ class AugmentedDatasetMixin:
         ])
         self._eval_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
+            ScaleToRange(min_size=max(self.image_size, 256), max_size=1024),
             PairedCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=fill_value),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),

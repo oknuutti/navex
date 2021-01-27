@@ -54,9 +54,10 @@ class ComposedTransforms:
 
 
 class RandomScale:
-    def __init__(self, min_size, max_size):
+    def __init__(self, min_size, max_size, random=True):
         self.min_size = min_size
         self.max_size = max_size
+        self.random = random
 
     def __call__(self, imgs, aflow):
         img1, img2 = imgs
@@ -64,14 +65,24 @@ class RandomScale:
         min_side = min(w, h)
         min_sc = self.min_size / min_side
         max_sc = self.max_size / min_side
-        trg_sc = math.exp(random.uniform(math.log(min_sc), math.log(max_sc)))
-#        trg_sc = random.uniform(min_sc, max_sc)
 
-        nw, nh = round(w * trg_sc), round(h * trg_sc)
-        img1 = img1.resize((nw, nh), PIL.Image.BILINEAR)
-        aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_LINEAR)
+        if self.random:
+            trg_sc = math.exp(random.uniform(math.log(min_sc), math.log(max_sc)))
+#            trg_sc = random.uniform(min_sc, max_sc)
+        else:
+            trg_sc = np.clip(1.0, min_sc, max_sc)
+
+        if not np.isclose(trg_sc, 1.0):
+            nw, nh = round(w * trg_sc), round(h * trg_sc)
+            img1 = img1.resize((nw, nh), PIL.Image.BILINEAR)
+            aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_LINEAR)
 
         return (img1, img2), aflow
+
+
+class ScaleToRange(RandomScale):
+    def __init__(self, min_size, max_size):
+        super(ScaleToRange, self).__init__(min_size, max_size, random=False)
 
 
 class PairedRandomCrop:
@@ -246,12 +257,13 @@ class PairedCenterCrop(PairedRandomCrop):
 
 
 class RandomHomography:
-    def __init__(self, max_tr, max_rot, max_shear, max_proj, fill_value=0):
+    def __init__(self, max_tr, max_rot, max_shear, max_proj, fill_value=0, eval=False):
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
         self.max_proj = max_proj
         self.fill_value = fill_value
+        self.eval = eval
 
     def random_H(self, w, h):
         tr_x = random.uniform(-self.max_tr, self.max_tr) * w
@@ -302,14 +314,12 @@ class RandomHomography:
         grid = uh_aflow.reshape((-1, 3)).dot(np.linalg.inv(H.T))
         grid = (grid[:, :2] / grid[:, 2:]).reshape(aflow_shape)
 
-        ifun = interp.RegularGridInterpolator((np.arange(h), np.arange(w)), np.array(img),
-                                              fill_value=np.array(self.fill_value)*255, bounds_error=False)
-        w_img = PIL.Image.fromarray(ifun(np.flip(grid, axis=2)).astype(np.uint8))
+        ifun = interp.RegularGridInterpolator((np.arange(h), np.arange(w)), np.array(img), bounds_error=False,
+                                              fill_value=np.nan)  # np.array(self.fill_value)*255)
+        img_arr = ifun(np.flip(grid, axis=2))
+        w_img = PIL.Image.fromarray(img_arr.astype(np.uint8))
 
-        if 0:
-            import matplotlib.pyplot as plt
-            plt.imshow(np.array(w_img))
-            plt.show()
+        # rect = max_convex_bounded_rect(np.logical_not(np.isnan(img_arr)))
 
         return w_img, w_aflow
 

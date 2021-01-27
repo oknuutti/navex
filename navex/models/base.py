@@ -16,7 +16,8 @@ class BasePoint(nn.Module):
             os.environ['TORCH_HOME'] = cache_dir
 
         if arch in own_models:
-            backbone = own_models[arch]()(pretrained=pretrained, width_mult=width_mult, **kwargs)
+            backbone = own_models[arch]()(pretrained=pretrained, width_mult=width_mult,
+                                          in_channels=in_channels, **kwargs)
             return backbone, backbone.out_channels
 
         assert arch in models.__dict__, 'invalid model name: %s' % arch

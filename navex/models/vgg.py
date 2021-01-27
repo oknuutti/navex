@@ -6,12 +6,11 @@ from .base import initialize_weights
 
 class VGG(nn.Module):
 
-    def __init__(self, pretrained, in_channels=1, batch_norm=True, subtype='sp', width_mult=1, depth=3, **kwargs):
+    def __init__(self, pretrained, batch_norm=True, subtype='sp', width_mult=1, in_channels=1, depth=3, **kwargs):
         super(VGG, self).__init__()
 
-        self.model, self.out_channels = \
-                make_layers(cfgs[subtype], in_channels=in_channels, batch_norm=batch_norm,
-                            width_mult=width_mult, depth=depth)
+        self.model, self.out_channels = make_layers(cfgs[subtype], batch_norm=batch_norm, width_mult=width_mult,
+                                                    in_channels=in_channels, depth=depth)
 
         if pretrained:
             raise NotImplemented()
