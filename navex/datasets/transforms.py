@@ -257,13 +257,12 @@ class PairedCenterCrop(PairedRandomCrop):
 
 
 class RandomHomography:
-    def __init__(self, max_tr, max_rot, max_shear, max_proj, fill_value=0, eval=False):
+    def __init__(self, max_tr, max_rot, max_shear, max_proj, fill_value=np.nan):
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
         self.max_proj = max_proj
         self.fill_value = fill_value
-        self.eval = eval
 
     def random_H(self, w, h):
         tr_x = random.uniform(-self.max_tr, self.max_tr) * w
@@ -305,21 +304,31 @@ class RandomHomography:
         aflow_shape = (h, w, 2)
         uh_aflow = np.concatenate((unit_aflow(w, h), np.ones((*aflow_shape[:2], 1), dtype=np.float32)), axis=2)
         w_aflow = uh_aflow.reshape((-1, 3)).dot(H.T)
-        w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:])
+        w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:]).reshape(aflow_shape)
+        corners = w_aflow[[0, 0, -1, -1], [0, -1, 0, -1], :]
 
-        w_aflow[np.any(w_aflow < 0, axis=1), :] = np.nan
-        w_aflow[np.logical_or(w_aflow[:, 0] > w - 1, w_aflow[:, 1] > h - 1), :] = np.nan
-        w_aflow = w_aflow.reshape(aflow_shape)
+        if np.isnan(self.fill_value):
+            # define resulting image so that not need to fill any values
+            x0 = max(corners[0, 0], corners[2, 0])
+            x1 = min(corners[1, 0], corners[3, 0])
+            y0 = max(corners[0, 1], corners[1, 1])
+            y1 = min(corners[2, 1], corners[3, 1])
+        else:
+            # define resulting image so that whole transformed image included
+            (x0, y0), (x1, y1) = np.min(corners, axis=0), np.max(corners, axis=0)
 
-        grid = uh_aflow.reshape((-1, 3)).dot(np.linalg.inv(H.T))
-        grid = (grid[:, :2] / grid[:, 2:]).reshape(aflow_shape)
+        w_aflow -= np.array([x0, y0]).reshape((1, 1, 2))
+
+        nw, nh = math.ceil(x1 - x0), math.ceil(y1 - y0)
+        uh_grid = np.concatenate((unit_aflow(nw, nh) + np.array([[[x0, y0]]]),
+                                  np.ones((nh, nw, 1), dtype=np.float32)), axis=2)
+        grid = uh_grid.reshape((-1, 3)).dot(np.linalg.inv(H.T))
+        grid = (grid[:, :2] / grid[:, 2:]).reshape((nh, nw, 2))
 
         ifun = interp.RegularGridInterpolator((np.arange(h), np.arange(w)), np.array(img), bounds_error=False,
-                                              fill_value=np.nan)  # np.array(self.fill_value)*255)
+                                              fill_value=np.array(self.fill_value)*255)
         img_arr = ifun(np.flip(grid, axis=2))
         w_img = PIL.Image.fromarray(img_arr.astype(np.uint8))
-
-        # rect = max_convex_bounded_rect(np.logical_not(np.isnan(img_arr)))
 
         return w_img, w_aflow
 
@@ -359,8 +368,6 @@ class RandomExposure:
         gain = math.exp(random.uniform(math.log(self.min_gain), math.log(self.max_gain)))
         transform = Lambda(lambda img: torch.clamp(img * gain, 0, 1))
         img_t = transform(img)
-        # plt.imshow(img_t.detach().cpu().numpy().squeeze())
-        # plt.show()
         return img_t
 
     def __repr__(self):
