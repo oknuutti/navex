@@ -27,7 +27,7 @@ training:
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 10
+  early_stopping: 5
   reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
@@ -69,9 +69,12 @@ optimizer:
   eps: !h_float 1e-8
 
 data:
+  max_rot: !h_float 10.0     # in degrees, synth pair warp related
+  max_shear: !h_float 0.2    # synth pair warp related
+  max_proj: !h_float 0.7     # synth pair warp related
   noise_max: !h_float 0.10
   rnd_gain: !h_float 1.5
-  image_size: !h_int 192
+  image_size: !h_int 256
   path: 'data'
   npy: 'false'
   trn_ratio: 0.8

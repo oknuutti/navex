@@ -107,7 +107,8 @@ class TerrestrialTrial(TrialBase):
             npy = json.loads(self.data_conf['npy'])
             common = dict(eval=False, rgb=rgb, npy=npy)
             dconf = {k: v for k, v in self.data_conf.items() if k in ('noise_max', 'rnd_gain', 'image_size')}
-            sconf = dict(max_tr=0, max_rot=math.radians(12), max_shear=0.2, max_proj=0.7)
+            sconf = {k: v for k, v in self.data_conf.items() if k in ('max_rot', 'max_shear', 'max_proj')}
+            sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})
 
             ds = []
             if 1:

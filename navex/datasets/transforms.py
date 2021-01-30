@@ -125,16 +125,21 @@ class PairedRandomCrop:
         mask = np.logical_not(np.isnan(aflow[:, :, 0]))
 
         if self.blind_crop:
+            # simplified, fast window selection
             bst_idxs = round((img1.size[1] - n) / 2), round((img1.size[0] - m) / 2)   # center crop
             rnd_idxs = round(random.uniform(0, img1.size[1] - n)), round(random.uniform(0, img1.size[0] - m))
         else:
+            # secure window selection
             bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
 
         assert np.all(np.array((*bst_idxs, *rnd_idxs)) >= 0), \
                'image size is smaller than the crop area: %s vs %s' % (img1.size, (m, n))
 
         for t in range(2):
-            if t == 1 or not self.random:
+            if t == 1 and self.blind_crop:
+                # revert to secure window selection instead of the simplified one
+                bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
+            elif t == 1 or not self.random:
                 j1, i1 = bst_idxs
                 is_random = False
             else:
@@ -205,14 +210,15 @@ class PairedRandomCrop:
 
         if debug:
             import matplotlib.pyplot as plt
-            plt.figure(1), plt.imshow(np.array(c_img1))
-            plt.figure(2), plt.imshow(np.array(c_img2))
+            fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+            axs[0].imshow(np.array(c_img1))
+            axs[1].imshow(np.array(c_img2))
             for i in range(8):
                 idx = np.argmax((1-np.isnan(c_aflow[:, :, 0].flatten()).astype(np.float32))
                                 * np.random.lognormal(0, 1, (n*m,)))
                 y0, x0 = np.unravel_index(idx, c_aflow.shape[:2])
-                plt.figure(1), plt.plot(x0, y0, 'x')
-                plt.figure(2), plt.plot(c_aflow[y0, x0, 0], c_aflow[y0, x0, 1], 'x')
+                axs[0].plot(x0, y0, 'x')
+                axs[1].plot(c_aflow[y0, x0, 0], c_aflow[y0, x0, 1], 'x')
 
             # plt.figure(3), plt.imshow(img1), plt.figure(4), plt.imshow(img2)
             # plt.figure(3), plt.imshow(c_mask), plt.figure(4), plt.imshow(c_ok.T[j2:j2+n, i2:i2+m])

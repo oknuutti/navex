@@ -4,8 +4,6 @@ import torch
 from torch import nn
 from torch.functional import F
 
-from r2d2.nets.ap_loss import APLoss
-
 
 def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, interp='bicubic'):
     B, D, Hs, Ws = des.shape
@@ -136,6 +134,7 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
                                          ).float(), 2), dim=0)
         labels = gt_dist_b < success_px_limit ** 2
 
+        from r2d2.nets.ap_loss import APLoss
         ap_loss = APLoss()
         ap_loss.to(x.device)
         t = ap_loss(x, labels)  # AP for each feature from img1
@@ -144,3 +143,148 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
 
     return acc
 
+
+def ap_to_latex():
+    # need that https://github.com/HarisIqbal88/PlotNeuralNet is installed
+    #  - have to do manually by cloning repo and placing to site-packages/plot_nn
+    #  - need to copy the layers-folder to target latex repository
+    from plot_nn.pycore import tikzeng as tz
+    from plot_nn.pycore import blocks as bk
+
+    arch = [
+        tz.to_head(''),
+        tz.to_cor(),
+        tz.to_begin(),
+
+        # INPUT
+        tz.to_input('media/example-input.png'),
+
+        # BACKBONE
+        tz.to_ConvConvRelu(name='b1', s_filer=512, n_filer=(64, 64), offset="(0,0,0)", to="(0,0,0)",
+                           height=40, depth=40, width=(2, 2)),
+        tz.to_Pool(name="b1_pool", offset="(0,0,0)", to="(b1-east)",
+                   height=32, depth=32, width=1, opacity=0.5),
+
+        *bk.block_2ConvPool(name='b2', botton='b1_pool', top='b2_pool', s_filer=256, n_filer=64, offset="(1,0,0)",
+                            size=(32, 32, 2), opacity=0.5),
+
+        *bk.block_2ConvPool(name='b3', botton='b2_pool', top='b3_pool', s_filer=128, n_filer=128, offset="(1,0,0)",
+                            size=(24, 24, 3.5), opacity=0.5),
+
+        tz.to_ConvConvRelu(name='b4', s_filer=64, n_filer=(128, 128), offset="(1,0,0)", to='(b3_pool-east)',
+                           height=18, depth=18, width=(3.5, 3.5)),
+        tz.to_connection("b3_pool", "b4"),
+
+        # DESCRIPTOR HEAD
+        tz.to_ConvRelu(name='ba1', s_filer='', n_filer=256, offset="(2,7,0)", to='(b4-east)',
+                       height=18, depth=18, width=5.5),
+        tz.to_connection("b4", "ba1"),
+        tz.to_Conv(name='ba2', s_filer=64, n_filer=256, offset="(0,0,0)", to='(ba1-east)',
+                   height=18, depth=18, width=5.5),
+
+        tz.to_SoftMax(name='ba3', s_filer=64, n_filer=256, offset="(1,0,0)", to='(ba2-east)',
+                      height=18, depth=18, width=5.5, caption='descriptors'),
+        tz.to_connection("ba2", "ba3"),
+
+        # QUALITY HEAD
+        tz.to_ConvRelu(name='bb1', s_filer='', n_filer=256, offset="(2,0,0)", to='(b4-east)',
+                       height=18, depth=18, width=5.5),
+        tz.to_connection("b4", "bb1"),
+        tz.to_Conv(name='bb2', s_filer=64, n_filer=2, offset="(0,0,0)", to='(bb1-east)',
+                   height=18, depth=18, width=1.5),
+
+        tz.to_SoftMax(name='bb3', s_filer=64, n_filer=1, offset="(1,0,0)", to='(bb2-east)',
+                      height=18, depth=18, width=1, caption='reliability'),
+        tz.to_connection("bb2", "bb3"),
+
+        # DETECTION HEAD
+        tz.to_ConvRelu(name='bc1', s_filer='', n_filer=256, offset="(2,-8,0)", to='(b4-east)',
+                       height=18, depth=18, width=5.5),
+        tz.to_connection("b4", "bc1"),
+        tz.to_Conv(name='bc2', s_filer=64, n_filer=65, offset="(0,0,0)", to='(bc1-east)',
+                   height=18, depth=18, width=2),
+
+        tz.to_SoftMax(name='bc3', s_filer=512, n_filer=1, offset="(2,0,0)", to='(bc2-east)',
+                      height=40, depth=40, width=1, caption='repeatability'),
+        tz.to_connection("bc2", "bc3"),
+
+        tz.to_end()
+    ]
+
+    for c in arch:
+        print(c)
+
+
+def mob_to_latex():
+    # need that https://github.com/HarisIqbal88/PlotNeuralNet is installed
+    #  - have to do manually by cloning repo and placing to site-packages/plot_nn
+    #  - need to copy the layers-folder to target latex repository
+    from plot_nn.pycore import tikzeng as tz
+    from plot_nn.pycore import blocks as bk
+
+    arch = [
+        tz.to_head(''),
+        tz.to_cor(),
+        tz.to_begin(),
+
+        # INPUT
+        tz.to_input('media/example-input.png'),
+
+        # BACKBONE
+        tz.to_ConvConvRelu(name='b1', s_filer=512, n_filer=(64, 64), offset="(0,0,0)", to="(0,0,0)",
+                           height=40, depth=40, width=(2, 2)),
+        tz.to_Pool(name="b1_pool", offset="(0,0,0)", to="(b1-east)",
+                   height=32, depth=32, width=1, opacity=0.5),
+
+        *bk.block_2ConvPool(name='b2', botton='b1_pool', top='b2_pool', s_filer=256, n_filer=64, offset="(1,0,0)",
+                            size=(32, 32, 2), opacity=0.5),
+
+        *bk.block_2ConvPool(name='b3', botton='b2_pool', top='b3_pool', s_filer=128, n_filer=128, offset="(1,0,0)",
+                            size=(24, 24, 3.5), opacity=0.5),
+
+        tz.to_ConvConvRelu(name='b4', s_filer=64, n_filer=(128, 128), offset="(1,0,0)", to='(b3_pool-east)',
+                           height=18, depth=18, width=(3.5, 3.5)),
+        tz.to_connection("b3_pool", "b4"),
+
+        # DESCRIPTOR HEAD
+        tz.to_ConvRelu(name='ba1', s_filer='', n_filer=256, offset="(2,7,0)", to='(b4-east)',
+                       height=18, depth=18, width=5.5),
+        tz.to_connection("b4", "ba1"),
+        tz.to_Conv(name='ba2', s_filer=64, n_filer=256, offset="(0,0,0)", to='(ba1-east)',
+                   height=18, depth=18, width=5.5),
+
+        tz.to_SoftMax(name='ba3', s_filer=64, n_filer=256, offset="(1,0,0)", to='(ba2-east)',
+                      height=18, depth=18, width=5.5, caption='descriptors'),
+        tz.to_connection("ba2", "ba3"),
+
+        # QUALITY HEAD
+        tz.to_ConvRelu(name='bb1', s_filer='', n_filer=128, offset="(2,0,0)", to='(b4-east)',
+                       height=18, depth=18, width=5.5),
+        tz.to_connection("b4", "bb1"),
+        tz.to_Conv(name='bb2', s_filer=64, n_filer=1, offset="(0,0,0)", to='(bb1-east)',
+                   height=18, depth=18, width=1.5),
+
+        tz.to_SoftMax(name='bb3', s_filer=64, n_filer=1, offset="(1,0,0)", to='(bb2-east)',
+                      height=18, depth=18, width=1, caption='reliability'),
+        tz.to_connection("bb2", "bb3"),
+
+        # DETECTION HEAD
+        tz.to_ConvRelu(name='bc1', s_filer='', n_filer=128, offset="(2,-8,0)", to='(b4-east)',
+                       height=18, depth=18, width=5.5),
+        tz.to_connection("b4", "bc1"),
+        tz.to_Conv(name='bc2', s_filer=64, n_filer=65, offset="(0,0,0)", to='(bc1-east)',
+                   height=18, depth=18, width=2),
+
+        tz.to_SoftMax(name='bc3', s_filer=512, n_filer=1, offset="(2,0,0)", to='(bc2-east)',
+                      height=40, depth=40, width=1, caption='repeatability'),
+        tz.to_connection("bc2", "bc3"),
+
+        tz.to_end()
+    ]
+
+    for c in arch:
+        print(c)
+
+
+if __name__ == '__main__':
+    mob_to_latex()

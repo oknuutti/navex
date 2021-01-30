@@ -271,6 +271,21 @@ optimizer:
 data:
   __group__: 1
 
+  max_rot:
+    alt: ['--max-rot']
+    type: float
+    help: "maximum rotation in degrees for synthetic pair dataset homographic warping"
+
+  max_shear:
+    alt: ['--max-shear']
+    type: float
+    help: "maximum shear for synthetic pair dataset homographic warping"
+
+  max_proj:
+    alt: ['--max-proj']
+    type: float
+    help: "maximum projection for synthetic pair dataset homographic warping"
+
   noise_max:
     alt: ['--noise-max']
     type: float

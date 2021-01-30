@@ -19,8 +19,7 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedData
         ImagePairDataset.__init__(self, root, None, transforms=self.transforms)
 
     def _load_samples(self):
-        s = list(range(self.npairs))
-        return zip(s, s)
+        return [tuple(map(self.get_filename, pair)) for pair in self.image_pairs]
 
     def __getitem__(self, idx):
         img1, img2, meta = self.get_pair(idx, output=('aflow', 'mask'))
