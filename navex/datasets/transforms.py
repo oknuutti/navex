@@ -315,6 +315,7 @@ class RandomHomography:
 
         if np.isnan(self.fill_value):
             # define resulting image so that not need to fill any values
+            # TODO: FIX THIS: sometimes results in negative width or height
             x0 = max(corners[0, 0], corners[2, 0])
             x1 = min(corners[1, 0], corners[3, 0])
             y0 = max(corners[0, 1], corners[1, 1])

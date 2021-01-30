@@ -143,9 +143,10 @@ class SynthesizedPairDataset(VisionDataset):
     def __init__(self, root, max_tr, max_rot, max_shear, max_proj, transforms=None, image_loader=default_loader):
         super(SynthesizedPairDataset, self).__init__(root, transforms=transforms)
 
+        fv = AugmentedDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedDatasetMixin.TR_NORM_MONO.mean
         self.warping_transforms = tr.Compose([
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
-            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj),
+            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj, fill_value=fv),
 #            RandomTiltWrapper(magnitude=0.5)
         ])
 
