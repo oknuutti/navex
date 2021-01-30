@@ -313,7 +313,7 @@ class RandomHomography:
         w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:]).reshape(aflow_shape)
         corners = w_aflow[[0, 0, -1, -1], [0, -1, 0, -1], :]
 
-        if np.isnan(self.fill_value):
+        if np.any(np.isnan(self.fill_value)):
             # define resulting image so that not need to fill any values
             # TODO: FIX THIS: sometimes results in negative width or height
             x0 = max(corners[0, 0], corners[2, 0])
