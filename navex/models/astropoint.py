@@ -6,14 +6,17 @@ from .base import BasePoint, initialize_weights
 
 
 class AstroPoint(BasePoint):
-    def __init__(self, arch, in_channels=1, head_conv_ch=128, direct_detection=False, batch_norm=True, descriptor_dim=128,
+    def __init__(self, arch, in_channels=1, det_hidden_ch=128, qlt_hidden_ch=128, des_hidden_ch=128,
+                 direct_detection=False, batch_norm=True, descriptor_dim=128,
                  width_mult=1.0, dropout=0.0, pretrained=False, cache_dir=None):
         super(AstroPoint, self).__init__()
 
         self.conf = {
             'arch': arch,
             'in_channels': in_channels,
-            'head_conv_ch': head_conv_ch,
+            'det_hidden_ch': det_hidden_ch,
+            'qlt_hidden_ch': qlt_hidden_ch,
+            'des_hidden_ch': des_hidden_ch,
             'direct_detection': direct_detection,
             'batch_norm': batch_norm,
             'descriptor_dim': descriptor_dim,
@@ -26,9 +29,9 @@ class AstroPoint(BasePoint):
                                                      width_mult=width_mult, batch_norm=batch_norm, subtype='sp',
                                                      in_channels=in_channels, depth=3)
 
-        self.des_head = self.create_descriptor_head(out_ch, head_conv_ch, descriptor_dim, batch_norm, dropout)
-        self.det_head = self.create_detector_head(out_ch, head_conv_ch, direct_detection, batch_norm, dropout)
-        self.qlt_head = self.create_quality_head(out_ch, head_conv_ch, batch_norm, dropout)
+        self.des_head = self.create_descriptor_head(out_ch, des_hidden_ch, descriptor_dim, batch_norm, dropout)
+        self.det_head = self.create_detector_head(out_ch, det_hidden_ch, direct_detection, batch_norm, dropout)
+        self.qlt_head = self.create_quality_head(out_ch, qlt_hidden_ch, batch_norm, dropout)
 
         if pretrained:
             raise NotImplemented()

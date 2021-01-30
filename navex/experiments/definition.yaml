@@ -143,9 +143,17 @@ model:
     type: int
     help: "1 for grayscale images, 3 for rgb images"
 
-  head_conv_ch:
+  det_hidden_ch:
     type: int
-    help: "channels in extra feature layer before heads"
+    help: "detection head hidden layer channels"
+
+  qlt_hidden_ch:
+    type: int
+    help: "quality head hidden layer channels"
+
+  des_hidden_ch:
+    type: int
+    help: "description head hidden layer channels"
 
   descriptor_dim:
     type: int

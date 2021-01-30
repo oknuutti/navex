@@ -35,8 +35,10 @@ training:
 model:
   arch: 'r2d2-own_vgg'
   in_channels: !h_int 3
-  head_conv_ch: 128
-  descriptor_dim: 128
+  det_hidden_ch: 0  # not in use for r2d2 model
+  qlt_hidden_ch: 0  # not in use for r2d2 model
+  des_hidden_ch: 0  # not in use for r2d2 model
+  descriptor_dim: !h_int 128
   width_mult: 1.0
   dropout: 0.0
   batch_norm: 1

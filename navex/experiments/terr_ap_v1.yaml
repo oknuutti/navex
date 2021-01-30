@@ -35,7 +35,9 @@ training:
 model:
   arch: 'ap-own_vgg'
   in_channels: !h_int 1
-  head_conv_ch: !h_int 256
+  det_hidden_ch: !h_int 128
+  qlt_hidden_ch: !h_int 128
+  des_hidden_ch: !h_int 256
   descriptor_dim: !h_int 256
   width_mult: !h_float 1.0
   dropout: !h_float 0.0

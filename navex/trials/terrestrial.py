@@ -27,7 +27,7 @@ class TerrestrialTrial(TrialBase):
             if arch == 'ap':
                 model = AstroPoint(**model_conf)
             elif arch == 'r2d2':
-                for k in ('head_conv_ch', 'direct_detection', 'dropout'):
+                for k in ('det_hidden_ch', 'qlt_hidden_ch', 'des_hidden_ch', 'direct_detection', 'dropout'):
                     model_conf.pop(k)
                 model_conf['descriptor_dim'] = 128
                 model = R2D2(**model_conf)
