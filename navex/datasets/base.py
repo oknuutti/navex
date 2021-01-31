@@ -147,9 +147,9 @@ class SynthesizedPairDataset(VisionDataset):
         fv = np.nan
         self.warping_transforms = tr.Compose([
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
-            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
-                             min_size=min_size, fill_value=fv),
-#            RandomTiltWrapper(magnitude=0.5)
+#            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
+#                             min_size=min_size, fill_value=fv),
+            RandomTiltWrapper(magnitude=0.5)
         ])
 
         self.image_loader = image_loader

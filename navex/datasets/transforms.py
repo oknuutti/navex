@@ -147,7 +147,7 @@ class PairedRandomCrop:
             else:
                 j1, i1 = rnd_idxs
                 is_random = True
-            c_aflow = aflow[j1:j1+m, i1:i1+n]
+            c_aflow = aflow[j1:j1+m, i1:i1+n, :]
 
             # if too few valid correspondences, pick the central crop instead
             ratio_valid = 1 - np.mean(np.isnan(c_aflow[:, :, 0]))
