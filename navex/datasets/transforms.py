@@ -303,9 +303,14 @@ class RandomHomography:
         uh_aflow = np.concatenate((unit_aflow(w, h), np.ones((*aflow_shape[:2], 1), dtype=np.float32)), axis=2)
 
         ok = False
+        bad_h = 0
         for i in range(5):
             H = self.random_H(w, h)
             w_aflow = uh_aflow.reshape((-1, 3)).dot(H.T)
+            if np.any(np.isclose(w_aflow[:, 2:], 0)):
+                bad_h += 1
+                continue
+
             w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:]).reshape(aflow_shape)
             corners = w_aflow[[0, 0, -1, -1], [0, -1, 0, -1], :]
 
@@ -326,8 +331,8 @@ class RandomHomography:
                 break
 
         assert ok, ('Failed to generate valid homography, '
-                    'resulting new size %s is less than the required %d, source size was %s') % (
-                        (nw, nh), self.min_size, (w, h))
+                    'resulting new size %s is less than the required %d, source size was %s (or bad H? %d/5)') % (
+                        (nw, nh), self.min_size, (w, h), bad_h)
 
         w_aflow -= np.array([x0, y0]).reshape((1, 1, 2))
         uh_grid = np.concatenate((unit_aflow(nw, nh) + np.array([[[x0, y0]]]),
