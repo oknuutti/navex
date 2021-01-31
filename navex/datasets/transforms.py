@@ -139,6 +139,8 @@ class PairedRandomCrop:
             if t == 1 and self.blind_crop:
                 # revert to secure window selection instead of the simplified one
                 bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
+                j1, i1 = bst_idxs
+                is_random = False
             elif t == 1 or not self.random:
                 j1, i1 = bst_idxs
                 is_random = False

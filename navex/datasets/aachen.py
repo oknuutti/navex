@@ -15,7 +15,7 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedData
         root = os.path.join(root, folder)
         AachenPairs_OpticalFlow.__init__(self, root, rgb=rgb, npy=npy)
         AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                       max_sc=max_sc, eval=eval, rgb=rgb)
+                                       max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=False)
         ImagePairDataset.__init__(self, root, None, transforms=self.transforms)
 
     def _load_samples(self):
