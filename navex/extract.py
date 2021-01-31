@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--max-scale", type=float, default=1)
     parser.add_argument("--det-lim", type=float, default=0.02)
     parser.add_argument("--qlt-lim", type=float, default=-10)
+    parser.add_argument("--border", type=int, default=16, help="dont detect features if this close to image border")
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
 
@@ -60,6 +61,7 @@ def main():
                                                top_k=args.top_k,
                                                det_lim=args.det_lim,
                                                qlt_lim=args.qlt_lim,
+                                               border=args.border,
                                                verbose=True)
 
         xys = xys.cpu().numpy()
@@ -77,7 +79,7 @@ def main():
 
 def extract_multiscale(model, img0, scale_f=2 ** 0.25,
                        min_scale=0.0, max_scale=1, min_size=256, max_size=1024,
-                       top_k=None, det_lim=None, qlt_lim=None, verbose=False):
+                       top_k=None, det_lim=None, qlt_lim=None, border=16, verbose=False):
     old_bm = torch.backends.cudnn.benchmark
     torch.backends.cudnn.benchmark = False  # speedup
 
@@ -100,7 +102,8 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25,
                 des, det, qlt = model(img)
 
             _, _, H1, W1 = det.shape
-            yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, det_lim=det_lim, qlt_lim=qlt_lim)
+            yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, det_lim=det_lim,
+                                                      qlt_lim=qlt_lim, border=border)
 
             # accumulate multiple scales
             XY.append(yx[0].t().flip(dims=(1,)).float() / sc)

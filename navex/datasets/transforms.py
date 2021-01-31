@@ -263,11 +263,12 @@ class PairedCenterCrop(PairedRandomCrop):
 
 
 class RandomHomography:
-    def __init__(self, max_tr, max_rot, max_shear, max_proj, fill_value=np.nan):
+    def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, fill_value=np.nan):
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
         self.max_proj = max_proj
+        self.min_size = min_size
         self.fill_value = fill_value
 
     def random_H(self, w, h):
@@ -290,13 +291,7 @@ class RandomHomography:
                        [0,  1,  0],
                        [p1, p2, 1]], dtype=np.float32)
 
-        H = np.array([[1, 0, w/2],
-                      [0, 1, h/2],
-                      [0, 0,    1]], dtype=np.float32) \
-            .dot(He).dot(Ha).dot(Hp) \
-            .dot(np.array([[1,  0,  -w/2],
-                           [0,  1,  -h/2],
-                           [0,  0,  1]], dtype=np.float32))
+        H = He.dot(Ha).dot(Hp)
         return H
 
     def __call__(self, img):
@@ -304,29 +299,37 @@ class RandomHomography:
         #  - NOTE: not certain if actually correct
         from .base import unit_aflow
         w, h = img.size
-
-        H = self.random_H(w, h)
-
         aflow_shape = (h, w, 2)
         uh_aflow = np.concatenate((unit_aflow(w, h), np.ones((*aflow_shape[:2], 1), dtype=np.float32)), axis=2)
-        w_aflow = uh_aflow.reshape((-1, 3)).dot(H.T)
-        w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:]).reshape(aflow_shape)
-        corners = w_aflow[[0, 0, -1, -1], [0, -1, 0, -1], :]
 
-        if np.any(np.isnan(self.fill_value)):
-            # define resulting image so that not need to fill any values
-            # TODO: FIX THIS: sometimes results in negative width or height
-            x0 = max(corners[0, 0], corners[2, 0])
-            x1 = min(corners[1, 0], corners[3, 0])
-            y0 = max(corners[0, 1], corners[1, 1])
-            y1 = min(corners[2, 1], corners[3, 1])
-        else:
-            # define resulting image so that whole transformed image included
-            (x0, y0), (x1, y1) = np.min(corners, axis=0), np.max(corners, axis=0)
+        ok = False
+        for i in range(5):
+            H = self.random_H(w, h)
+            w_aflow = uh_aflow.reshape((-1, 3)).dot(H.T)
+            w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:]).reshape(aflow_shape)
+            corners = w_aflow[[0, 0, -1, -1], [0, -1, 0, -1], :]
+
+            if np.any(np.isnan(self.fill_value)):
+                # define resulting image so that not need to fill any values
+                # TODO: FIX THIS: sometimes results in negative width or height
+                x0 = max(corners[0, 0], corners[2, 0])
+                x1 = min(corners[1, 0], corners[3, 0])
+                y0 = max(corners[0, 1], corners[1, 1])
+                y1 = min(corners[2, 1], corners[3, 1])
+            else:
+                # define resulting image so that whole transformed image included
+                (x0, y0), (x1, y1) = np.min(corners, axis=0), np.max(corners, axis=0)
+
+            nw, nh = math.ceil(x1 - x0), math.ceil(y1 - y0)
+            if nw >= self.min_size and nh >= self.min_size:
+                ok = True
+                break
+
+        assert ok, ('Failed to generate valid homography, '
+                    'resulting new size %s is less than the required %d, source size was %s') % (
+                        (nw, nh), self.min_size, (w, h))
 
         w_aflow -= np.array([x0, y0]).reshape((1, 1, 2))
-
-        nw, nh = math.ceil(x1 - x0), math.ceil(y1 - y0)
         uh_grid = np.concatenate((unit_aflow(nw, nh) + np.array([[[x0, y0]]]),
                                   np.ones((nh, nw, 1), dtype=np.float32)), axis=2)
         grid = uh_grid.reshape((-1, 3)).dot(np.linalg.inv(H.T))

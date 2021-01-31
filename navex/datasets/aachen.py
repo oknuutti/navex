@@ -76,7 +76,8 @@ class AachenSynthPairDataset(SynthesizedPairDataset, AugmentedDatasetMixin):
                                        max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)
 
         SynthesizedPairDataset.__init__(self, os.path.join(root, folder), max_tr=max_tr, max_rot=max_rot,
-                                        max_shear=max_shear, max_proj=max_proj, transforms=self.transforms)
+                                        max_shear=max_shear, max_proj=max_proj, min_size=image_size//2,
+                                        transforms=self.transforms)
 
     def _load_samples(self):
         path_db = os.path.join(self.root, 'images_upright', 'db')

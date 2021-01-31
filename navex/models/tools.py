@@ -5,7 +5,7 @@ from torch import nn
 from torch.functional import F
 
 
-def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, interp='bicubic'):
+def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, border=16, interp='bicubic'):
     B, D, Hs, Ws = des.shape
     _, _, Ht, Wt = det.shape
     _, _, Hq, Wq = qlt.shape
@@ -23,6 +23,12 @@ def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, int
     # remove low confidence detections
     maxima *= (det >= det_lim)
     maxima *= (qlt >= qlt_lim)
+
+    # remove detections at the border
+    maxima[:border, :] = False
+    maxima[-border:, :] = False
+    maxima[:, :border] = False
+    maxima[:, -border:] = False
 
     K = maxima.sum(dim=(2, 3)).max().item()
     if top_k is not None:
