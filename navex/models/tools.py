@@ -25,10 +25,10 @@ def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, bor
     maxima *= (qlt >= qlt_lim)
 
     # remove detections at the border
-    maxima[:border, :] = False
-    maxima[-border:, :] = False
-    maxima[:, :border] = False
-    maxima[:, -border:] = False
+    maxima[:, 0, border, :] = False
+    maxima[:, 0, -border:, :] = False
+    maxima[:, 0, :, :border] = False
+    maxima[:, 0, :, -border:] = False
 
     K = maxima.sum(dim=(2, 3)).max().item()
     if top_k is not None:
