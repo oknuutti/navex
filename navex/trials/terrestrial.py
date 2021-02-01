@@ -3,7 +3,6 @@ import math
 import os
 
 import torch
-from torch.utils.data import ConcatDataset
 
 from ..datasets.aachen import AachenFlowDataset, AachenSynthPairDataset, AachenStyleTransferDataset
 from ..datasets.base import AugmentedConcatDataset
@@ -123,7 +122,7 @@ class TerrestrialTrial(TrialBase):
             fullset = AugmentedConcatDataset(ds)
             datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),
                                      self.data_conf.get('val_ratio', 0.1),
-                                     self.data_conf.get('tst_ratio', 0.1), eval=(2,))
+                                     self.data_conf.get('tst_ratio', 0.1), eval=(1, 2))
 
             self._tr_data, self._val_data, self._test_data = \
                 self.wrap_ds(datasets[0]), self.wrap_ds(datasets[1]), self.wrap_ds(datasets[2])

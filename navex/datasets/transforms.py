@@ -74,8 +74,8 @@ class RandomScale:
 
         if not np.isclose(trg_sc, 1.0):
             nw, nh = round(w * trg_sc), round(h * trg_sc)
-            img1 = img1.resize((nw, nh), PIL.Image.BILINEAR)
-            aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_LINEAR)
+            img1 = img1.resize((nw, nh), PIL.Image.ANTIALIAS)
+            aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_NEAREST)
 
         return (img1, img2), aflow
 
