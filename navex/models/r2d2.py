@@ -31,8 +31,8 @@ class R2D2(BasePoint):
         if pretrained:
             raise NotImplemented()
         else:
-            # Initialization (backbone already initialized in its __init__ method)
-            init_modules = [self.det_head, self.qlt_head]
+            # Initialization
+            init_modules = [self.backbone, self.det_head, self.qlt_head]
             initialize_weights(init_modules)
 
     def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1, **kwargs):

@@ -199,7 +199,7 @@ class AugmentedDatasetMixin:
         self.eval = eval
         self.rgb = rgb
         upsample_max_size = 1024
-        upsample_max_sc = 1.0
+        upsample_max_sc = 2.0
 
         fill_value = AugmentedDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedDatasetMixin.TR_NORM_MONO.mean
         self._train_transf = ComposedTransforms([
