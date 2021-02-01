@@ -54,9 +54,10 @@ class ComposedTransforms:
 
 
 class RandomScale:
-    def __init__(self, min_size, max_size, random=True):
+    def __init__(self, min_size, max_size, max_sc, random=True):
         self.min_size = min_size
         self.max_size = max_size
+        self.max_sc = max_sc
         self.random = random
 
     def __call__(self, imgs, aflow):
@@ -64,7 +65,7 @@ class RandomScale:
         w, h = img1.size
         min_side = min(w, h)
         min_sc = self.min_size / min_side
-        max_sc = self.max_size / min_side
+        max_sc = min(self.max_sc, self.max_size / min_side)
 
         if self.random:
             trg_sc = math.exp(random.uniform(math.log(min_sc), math.log(max_sc)))
@@ -74,15 +75,15 @@ class RandomScale:
 
         if not np.isclose(trg_sc, 1.0):
             nw, nh = round(w * trg_sc), round(h * trg_sc)
-            img1 = img1.resize((nw, nh), PIL.Image.ANTIALIAS)
+            img1 = img1.resize((nw, nh), PIL.Image.ANTIALIAS)   # or should just use BILINEAR?
             aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_NEAREST)
 
         return (img1, img2), aflow
 
 
 class ScaleToRange(RandomScale):
-    def __init__(self, min_size, max_size):
-        super(ScaleToRange, self).__init__(min_size, max_size, random=False)
+    def __init__(self, min_size, max_size, max_sc):
+        super(ScaleToRange, self).__init__(min_size, max_size, max_sc, random=False)
 
 
 class PairedRandomCrop:
