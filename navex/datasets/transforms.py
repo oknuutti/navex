@@ -54,11 +54,12 @@ class ComposedTransforms:
 
 
 class RandomScale:
-    def __init__(self, min_size, max_size, max_sc, random=True):
+    def __init__(self, min_size, max_size, max_sc, random=True, interp_method=PIL.Image.BILINEAR):
         self.min_size = min_size
         self.max_size = max_size
         self.max_sc = max_sc
         self.random = random
+        self.interp_method = interp_method    # or should use LANCZOS for better quality?
 
     def __call__(self, imgs, aflow):
         img1, img2 = imgs
@@ -75,7 +76,7 @@ class RandomScale:
 
         if not np.isclose(trg_sc, 1.0):
             nw, nh = round(w * trg_sc), round(h * trg_sc)
-            img1 = img1.resize((nw, nh), PIL.Image.ANTIALIAS)   # or should just use BILINEAR?
+            img1 = img1.resize((nw, nh), self.interp_method)
             aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_NEAREST)
 
         return (img1, img2), aflow
@@ -87,13 +88,15 @@ class ScaleToRange(RandomScale):
 
 
 class PairedRandomCrop:
-    def __init__(self, shape, random=True, max_sc_diff=None, random_sc_diff=True, fill_value=None, blind_crop=False):
+    def __init__(self, shape, random=True, max_sc_diff=None, random_sc_diff=True, fill_value=None,
+                 blind_crop=False, interp_method=PIL.Image.BILINEAR):
         self.shape = (shape, shape) if isinstance(shape, int) else shape       # yx i.e. similar to aflow.shape
         self.random = random
         self.max_sc_diff = max_sc_diff
         self.random_sc_diff = random_sc_diff
         self.fill_value = 0 if fill_value is None else (np.array(fill_value) * 255).reshape((1, 1, -1)).astype('uint8')
         self.blind_crop = blind_crop  # don't try to validate cropping location, good for certain datasets
+        self.interp_method = interp_method
 
     def most_ok_in_window(self, mask, sc=4):
         n, m = np.array(self.shape) // sc
@@ -209,7 +212,7 @@ class PairedRandomCrop:
         i2s, i2e, j2s, j2e = (np.array((i2, i2+m, j2, j2+n))*curr_sc/trg_sc + 0.5).astype(np.int)
         i2s, j2s = max(0, i2s), max(0, j2s)
         i2e, j2e = min(img2.size[0], i2e), min(img2.size[1], j2e)
-        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n), PIL.Image.BILINEAR)
+        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n), self.interp_method)
 
         if debug:
             import matplotlib.pyplot as plt
