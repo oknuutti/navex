@@ -172,11 +172,12 @@ class PairedRandomCrop:
         sc1 = np.sqrt(np.mean(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
         ic2, jc2 = np.nanmean(c_aflow, axis=(0, 1))
         sc2 = np.sqrt(np.nanmean(np.sum((c_aflow - np.array((ic2, jc2)))**2, axis=2)))
-        curr_sc = sc2 / sc1
+        curr_sc = np.clip(sc2 / sc1, 1/5, 5)  # limit to reasonable original scale range between the image pair
 
         # determine target scale based on current scale, self.max_sc_diff, and self.random_sc_diff
         lsc = abs(np.log10(self.max_sc_diff))
-        if self.random_sc_diff and is_random:                       # if first try fails, don't scale for second try
+        if self.random_sc_diff and is_random:
+            # if first try fails, don't scale for second try
             trg_sc = 10**np.random.uniform(-lsc, lsc)
         else:
             min_sc, max_sc = 10 ** (-lsc), 10 ** lsc
@@ -212,7 +213,15 @@ class PairedRandomCrop:
         i2s, i2e, j2s, j2e = (np.array((i2, i2+m, j2, j2+n))*curr_sc/trg_sc + 0.5).astype(np.int)
         i2s, j2s = max(0, i2s), max(0, j2s)
         i2e, j2e = min(img2.size[0], i2e), min(img2.size[1], j2e)
-        c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n), self.interp_method)
+
+        try:
+            c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n), self.interp_method)
+        except PIL.Image.DecompressionBombError as e:
+            from navex.datasets.base import DataLoadingException
+            raise DataLoadingException((
+                "invalid crop params? (i2s, j2s, i2e, j2e): %s, img2.size: %s, "
+                "sc1: %s, sc2: %s, curr_sc: %s, trg_sc: %s"
+                ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
 
         if debug:
             import matplotlib.pyplot as plt
