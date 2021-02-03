@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Callable, List, Optional
 
 from torch import nn, Tensor
 import torch.nn.functional as F
@@ -128,14 +128,24 @@ class InvertedResidual(nn.Module):
 class InvertedPartialResidual(InvertedResidual):
     def forward(self, input: Tensor) -> Tensor:
         result = self.block(input)
-        c = min(input.shape[1], result.shape[1])
-        result[:, :c, :, :] += input[:, :c, :, :]
+
+        _, c0, h0, w0 = input.shape
+        _, c1, h1, w1 = result.shape
+        c = min(c0, c1)
+
+        if h0 == h1 and w0 == w1:
+            result[:, :c, :, :] += input[:, :c, :, :]
+        else:
+            result[:, :c, :, :] += F.interpolate(input[:, :c, :, :], (h1, w1), mode='nearest')
+
         return result
 
 
 class MobileAP(BasePoint):
-    def __init__(self, arch, in_channels=1, batch_norm=True, det_hidden_ch=128, qlt_hidden_ch=128, des_hidden_ch=128,
-                 descriptor_dim=128, width_mult=1.0, dropout=0.0, pretrained=False, cache_dir=None):
+    def __init__(self, arch, in_channels=1, det_hidden_ch=128, qlt_hidden_ch=128, des_hidden_ch=128,
+                 descriptor_dim=128, head_exp_coef=6, head_use_se=False, partial_residual=False, dropout=0.0,
+                 width_mult=1.0, pretrained=False, cache_dir=None):
+
         super(MobileAP, self).__init__()
 
         self.conf = {
@@ -145,17 +155,31 @@ class MobileAP(BasePoint):
             'qlt_hidden_ch': qlt_hidden_ch,
             'des_hidden_ch': des_hidden_ch,
             'descriptor_dim': descriptor_dim,
-            'batch_norm': batch_norm,
+            'dropout': dropout,
+            'head_exp_coef': head_exp_coef,
+            'head_use_se': head_use_se,
+            'partial_residual': partial_residual,
             'width_mult': width_mult,
             'pretrained': pretrained,
         }
 
+        # NOTE: Affine/renorm is False by default in TensorFlow, which is used for MobileNet and EfficientNet.
+        #       However, in TorchVision models, affine is set to True as in PyTorch its True by default.
+        #       Also, PyTorch momentum is 1 - TensorFlow momentum. PyTorch default is 0.1, however,
+        #       both mobilenet and efficientnet use 0.01 for momentum.
+        self.norm_layer = partial(nn.BatchNorm2d, eps=0.001, momentum=0.01, affine=False)
+        if partial_residual:
+            # idea from https://github.com/WongKinYiu/PartialResidualNetworks
+            self.block_cls = partial(InvertedPartialResidual, norm_layer=self.norm_layer)
+        else:
+            self.block_cls = partial(InvertedResidual, norm_layer=self.norm_layer)
+
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
                                                      width_mult=width_mult, in_channels=in_channels)
 
-        self.des_head = self.create_descriptor_head(out_ch, des_hidden_ch, descriptor_dim, batch_norm, dropout)
-        self.det_head = self.create_detector_head(out_ch, det_hidden_ch, batch_norm, dropout)
-        self.qlt_head = self.create_quality_head(out_ch, qlt_hidden_ch, batch_norm, dropout)
+        self.des_head = self.create_descriptor_head(out_ch, des_hidden_ch, descriptor_dim, head_exp_coef, head_use_se, dropout)
+        self.det_head = self.create_detector_head(out_ch, det_hidden_ch, head_exp_coef, head_use_se, dropout)
+        self.qlt_head = self.create_quality_head(out_ch, qlt_hidden_ch, head_exp_coef, head_use_se, dropout)
 
         if pretrained:
             raise NotImplemented()
@@ -164,104 +188,115 @@ class MobileAP(BasePoint):
             init_modules = [self.backbone, self.des_head, self.det_head, self.qlt_head]
             initialize_weights(init_modules)
 
-    def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1, **kwargs):
+    def add_layer(self, l, in_ch, kernel, exp_coef, out_ch, use_se, activation, stride, dilation):
+        l.append(self.block_cls(InvertedResidualConfig(in_ch, kernel, round(in_ch * exp_coef), out_ch, use_se, activation,
+                                              stride, dilation, self.conf['width_mult'])))
+        return out_ch
 
-        norm_layer = partial(nn.BatchNorm2d, eps=0.001, momentum=0.01)
-        if arch[-3:] == 'prn':
-            # idea from https://github.com/WongKinYiu/PartialResidualNetworks
-            block = partial(InvertedPartialResidual, norm_layer=norm_layer)
-        else:
-            block = partial(InvertedResidual, norm_layer=norm_layer)
-
-        def add_layer(l, in_ch, kernel, exp_coef, out_ch, use_se, activation, stride, dilation):
-            l.append(block(InvertedResidualConfig(in_ch, kernel, round(in_ch*exp_coef), out_ch, use_se, activation,
-                                                  stride, dilation, width_mult)))
-            return out_ch
-
-        layers = []
+    def create_backbone(self, arch, cache_dir=None, pretrained=False, in_channels=1, **kwargs):
+        arch = arch.lower().split('_')
+        a0, a1 = arch[0], arch[1] if len(arch) > 1 else ''
 
         # building first layer
-        in_ch = 16
-        layers.append(ConvBNActivation(in_channels, in_ch, kernel_size=3, stride=2, norm_layer=norm_layer,
-                                       activation_layer=nn.Hardswish))
+        in_ch = 32 if a0 == 'en' else 16
+        layers = [ConvBNActivation(in_channels, in_ch, kernel_size=3, stride=2, norm_layer=self.norm_layer,
+                                   activation_layer=nn.Hardswish)]
 
-        # TODO: double check architecture from paper, figure out how to modify
+        if a0 == 'mn3' and a1 == 'l':
+            # mobilenetv3 large
 
-        if arch[:5] == 'large':
             # in_ch, kernel, exp_ch, out_ch, use_se, activation, stride, dilation
-            in_ch = add_layer(layers, in_ch, 3, 1, 16, False, "RE", 1, 1)
-            in_ch = add_layer(layers, in_ch, 3, 4, 24, False, "RE", 2, 1)   # C1
-            in_ch = add_layer(layers, in_ch, 3, 3, 24, False, "RE", 1, 1)
-            in_ch = add_layer(layers, in_ch, 5, 3, 40, True, "RE", 2, 1)    # C2
-            in_ch = add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)
-            in_ch = add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 3, 1, 16, False, "RE", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 3, 4, 24, False, "RE", 2, 1)   # C1
+            in_ch = self.add_layer(layers, in_ch, 3, 3, 24, False, "RE", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 2, 1)    # C2
+            in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 5, 3, 64, True, "RE", 1, 1)            # hf-net mod: 40=>64
             # in_ch = add_layer(layers, in_ch, 3, 6, 80, False, "HS", 2, 1)  # C3
             # in_ch = add_layer(layers, in_ch, 3, 2.5, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 2.3, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 2.3, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 6, 112, True, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 6, 112, True, "HS", 1, 1)
+        elif a0 == 'en' and a1 == '0':
+                # EfficientNet-B0 from https://arxiv.org/pdf/1905.11946v5.pdf
+
+                # in_ch, kernel, exp_ch, out_ch, use_se, activation, stride, dilation
+                in_ch = self.add_layer(layers, in_ch, 3, 1, 16, True, "HS", 1, 1)
+                in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 2, 1)  # C1
+                in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 1, 1)
+                in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 2, 1)  # C2
+                in_ch = self.add_layer(layers, in_ch, 5, 6, 64, True, "HS", 1, 1)        # hf-net mod: 40=>64
+
         else:
-            in_ch = add_layer(layers, in_ch, 3, 1, 16, True, "RE", 2, 1),  # C1
-            in_ch = add_layer(layers, in_ch, 3, 4, 24, False, "RE", 2, 1),  # C2
-            in_ch = add_layer(layers, in_ch, 3, 3.67, 24, False, "RE", 1, 1),
+            assert a0 == 'mn3' and a1 == 's', 'invalid arch %s' % (arch,)
+            # mobilenetv3 small
+            in_ch = self.add_layer(layers, in_ch, 3, 1, 16, True, "RE", 2, 1),   # C1
+            in_ch = self.add_layer(layers, in_ch, 3, 4, 24, False, "RE", 2, 1),  # C2
+            # in_ch = self.add_layer(layers, in_ch, 3, 3.67, 24, False, "RE", 1, 1),
+            in_ch = self.add_layer(layers, in_ch, 5, 4, 40, True, "RE", 1, 1),       # hf-net mod: instead of above line
             # in_ch = add_layer(layers, in_ch, 5, 4, 40, True, "HS", 2, 1),  # C3
             # in_ch = add_layer(layers, in_ch, 5, 6, 40, True, "HS", 1, 1),
             # in_ch = add_layer(layers, in_ch, 5, 6, 40, True, "HS", 1, 1),
             # in_ch = add_layer(layers, in_ch, 5, 3, 48, True, "HS", 1, 1),
             # in_ch = add_layer(layers, in_ch, 5, 3, 48, True, "HS", 1, 1),
 
-        # TODO: use this for heads?
-        # building last several layers
-        layers.append(ConvBNActivation(in_ch, 6 * in_ch, kernel_size=1,
-                                       norm_layer=norm_layer, activation_layer=nn.Hardswish))
+        return nn.Sequential(*layers), in_ch
 
-        return nn.Sequential(*layers), 6 * in_ch
+    def create_descriptor_head(self, in_channels, mid_channels, out_channels, expansion_coef=6, use_se=False, dropout=0.0):
+        seq = []
+        if mid_channels > 0:
+            in_channels = self.add_layer(seq, in_channels, 3, expansion_coef, mid_channels, use_se, "HS", 1, 1)
 
-    @staticmethod
-    def create_detector_head(in_channels, single=False):
-        return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
+        if dropout > 0:
+            seq.append(nn.Dropout(dropout))
 
-    @staticmethod
-    def create_quality_head(in_channels, single=False):
-        return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
+        seq.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0))
+        return nn.Sequential(*seq)
 
-    def extract_features(self, x):
-        x_features = self.backbone(x)
-        x_features, *auxs = x_features if isinstance(x_features, tuple) else (x_features, )
-        return [x_features] + list(auxs)
+    def create_detector_head(self, in_channels, mid_channels, expansion_coef=6, use_se=False, dropout=0.0):
+        seq = []
+        if mid_channels > 0:
+            in_channels = self.add_layer(seq, in_channels, 3, expansion_coef, mid_channels, use_se, "HS", 1, 1)
+
+        if dropout > 0:
+            seq.append(nn.Dropout(dropout))
+
+        seq.append(nn.Conv2d(in_channels, 65, kernel_size=1, padding=0))  # as in superpoint & hf-net
+        return nn.Sequential(*seq)
+
+    def create_quality_head(self, in_channels, mid_channels, expansion_coef=6, use_se=False, dropout=0.0):
+        seq = []
+        if mid_channels > 0:
+            in_channels = self.add_layer(seq, in_channels, 3, expansion_coef, mid_channels, use_se, "HS", 1, 1)
+
+        if dropout > 0:
+            seq.append(nn.Dropout(dropout))
+
+        seq.append(nn.Conv2d(in_channels, 2, kernel_size=1, padding=0))     # double out channel as in R2D2
+        return nn.Sequential(*seq)
 
     def forward(self, input):
         # input is a pair of images
-        x_features, *auxs = self.extract_features(input)
-        x_des = x_features
-        x_feat2 = x_features.pow(2)
-        x_det = self.det_head(x_feat2)
-        x_qlt = self.qlt_head(x_feat2)
-        x_output = [self.fix_output(x_des, x_det, x_qlt)]
-        exec_aux = self.training and len(auxs) > 0
-
-        if exec_aux:
-            for i, aux in enumerate(auxs):
-                a_des = aux
-                a_feat2 = aux.pow(2)
-                a_det = getattr(self, 'aux_t' + str(i + 1))(a_feat2)
-                a_qlt = getattr(self, 'aux_q' + str(i + 1))(a_feat2)
-                ao = self.fix_output(a_des, a_det, a_qlt)
-                x_output.append(ao)
-
-        return x_output if exec_aux else x_output[0]
-
-    @staticmethod
-    def activation(ux):
-        if ux.shape[1] == 1:
-            x = F.softplus(ux)
-            return x / (1 + x)
-        elif ux.shape[1] == 2:
-            return F.softmax(ux, dim=1)[:, :1, :, :]
+        features = self.backbone(input)
+        des = self.des_head(features)
+        det = self.det_head(features)
+        qlt = self.qlt_head(features)
+        output = self.fix_output(des, det, qlt)
+        return output
 
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
-        det = self.activation(detection)
-        qlt = self.activation(quality)
+        detection = F.pixel_shuffle(F.softmax(detection, dim=1)[:, 1:, :, :], 8)
+
+        # like in R2D2
+        def activation(x):
+            if x.shape[1] == 1:
+                x = F.softplus(x)
+                return x / (1 + x)
+            else:
+                return F.softmax(x, dim=1)[:, :1, :, :]
+
+        det = activation(detection)
+        qlt = activation(quality)
         return des, det, qlt

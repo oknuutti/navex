@@ -7,8 +7,7 @@ from .base import BasePoint, initialize_weights
 
 class AstroPoint(BasePoint):
     def __init__(self, arch, in_channels=1, det_hidden_ch=128, qlt_hidden_ch=128, des_hidden_ch=128,
-                 direct_detection=False, batch_norm=True, descriptor_dim=128,
-                 width_mult=1.0, dropout=0.0, pretrained=False, cache_dir=None):
+                 batch_norm=True, descriptor_dim=128, width_mult=1.0, dropout=0.0, pretrained=False, cache_dir=None):
         super(AstroPoint, self).__init__()
 
         self.conf = {
@@ -17,7 +16,6 @@ class AstroPoint(BasePoint):
             'det_hidden_ch': det_hidden_ch,
             'qlt_hidden_ch': qlt_hidden_ch,
             'des_hidden_ch': des_hidden_ch,
-            'direct_detection': direct_detection,
             'batch_norm': batch_norm,
             'descriptor_dim': descriptor_dim,
             'width_mult': width_mult,
@@ -30,7 +28,7 @@ class AstroPoint(BasePoint):
                                                      in_channels=in_channels, depth=3)
 
         self.des_head = self.create_descriptor_head(out_ch, des_hidden_ch, descriptor_dim, batch_norm, dropout)
-        self.det_head = self.create_detector_head(out_ch, det_hidden_ch, direct_detection, batch_norm, dropout)
+        self.det_head = self.create_detector_head(out_ch, det_hidden_ch, batch_norm, dropout)
         self.qlt_head = self.create_quality_head(out_ch, qlt_hidden_ch, batch_norm, dropout)
 
         if pretrained:
@@ -64,7 +62,7 @@ class AstroPoint(BasePoint):
         return nn.Sequential(*seq)
 
     @staticmethod
-    def create_detector_head(in_channels, mid_channels, direct=False, batch_norm=False, dropout=0.0):
+    def create_detector_head(in_channels, mid_channels, batch_norm=False, dropout=0.0):
         seq = []
         if mid_channels > 0:
             seq.append(nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1))
@@ -76,7 +74,7 @@ class AstroPoint(BasePoint):
         if dropout > 0:
             seq.append(nn.Dropout(dropout))
 
-        seq.append(nn.Conv2d(in_channels, 1 if direct else 65, kernel_size=1, padding=0))   # as in superpoint & hf-net
+        seq.append(nn.Conv2d(in_channels, 65, kernel_size=1, padding=0))   # as in superpoint & hf-net
         return nn.Sequential(*seq)
 
     @staticmethod

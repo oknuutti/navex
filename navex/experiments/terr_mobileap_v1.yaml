@@ -33,25 +33,25 @@ training:
   deterministic: 1
 
 model:
-  arch: 'ap-own_vgg'
-  in_channels: !h_int 1
-  det_hidden_ch: !h_int 128
-  qlt_hidden_ch: !h_int 128
-  des_hidden_ch: !h_int 128
-  descriptor_dim: !h_int 128
-  width_mult: !h_float 1.0
-  dropout: !h_float 10.0
-  head_exp_coef:    6  # not in use
-  head_use_se:      0  # not in use
-  partial_residual: 0  # not in use
-  batch_norm: 1
-  pretrained: 0
-  cache_dir: 'cache'
+  arch: 'mob-mn3_L'
+  in_channels:      !h_int    1
+  det_hidden_ch:    !h_int    128
+  qlt_hidden_ch:    !h_int    128
+  des_hidden_ch:    !h_int    128
+  descriptor_dim:   !h_int    128
+  width_mult:       !h_float  1.0
+  dropout:          !h_float  0.0
+  head_exp_coef:    !h_float  6
+  head_use_se:      !h_int    0
+  partial_residual: !h_int    0
+  batch_norm: 1         # not in use
+  pretrained: 0         # not in use
+  cache_dir: 'cache'    # not in use
 
 loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -2.0      # weight for expected ap loss
-  det_n: !h_int  12       # detector neighbourhood size
+  wap: !h_float -1.0      # weight for expected ap loss
+  det_n: !h_int  16       # detector neighbourhood size
   base: !h_float 0.30     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
@@ -68,7 +68,7 @@ loss:
 optimizer:
   method: 'adam'
   learning_rate: !h_float 3e-4
-  weight_decay: !h_float 5e-4
+  weight_decay: !h_float 1e-5
   split_params: 0
   eps: !!float 1e-8
 

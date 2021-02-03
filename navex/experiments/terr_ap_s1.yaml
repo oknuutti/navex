@@ -38,7 +38,6 @@ model:
   width_mult: 1.0        # try lower values
   dropout: !h_tune_quniform       '0.0, 0.3, 0.1'
   batch_norm: !h_tune_choice      '[0, 1]'
-  direct_detection: 0    # not implemented
   pretrained: 0          # not implemented
   cache_dir: 'cache'
 

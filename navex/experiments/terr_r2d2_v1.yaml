@@ -17,10 +17,10 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 8
+  batch_size: 16
   batch_mem: 32000
   gpu: 1
-  epochs: 30
+  epochs: 25
   print_freq: 5
   test_freq: 1
   save_freq: 1
@@ -34,23 +34,25 @@ training:
 
 model:
   arch: 'r2d2-own_vgg'
-  in_channels: !h_int 3
-  det_hidden_ch: 0  # not in use for r2d2 model
-  qlt_hidden_ch: 0  # not in use for r2d2 model
-  des_hidden_ch: 0  # not in use for r2d2 model
-  descriptor_dim: !h_int 128
+  in_channels: !h_int 1
+  det_hidden_ch: 0  # not in use
+  qlt_hidden_ch: 0  # not in use
+  des_hidden_ch: 0  # not in use
+  descriptor_dim: 128  # not really in use
+  head_exp_coef:    6  # not in use
+  head_use_se:      0  # not in use
+  partial_residual: 0  # not in use
   width_mult: 1.0
   dropout: 0.0
   batch_norm: 1
-  direct_detection: 0
   pretrained: 0
   cache_dir: 'cache'
 
 loss:
-  wdt: !h_float 1.0      # weight for peakiness and cosim losses
-  wap: !h_float 1.0      # weight for expected ap loss
+  wdt: !h_float -1.0      # weight for peakiness and cosim losses
+  wap: !h_float -1.0      # weight for expected ap loss
   det_n: !h_int  16       # detector neighbourhood size
-  base: !h_float 0.50     # quality loss target mAP
+  base: !h_float 0.30     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 7        # was 7       # neighbourhood size in descriptor cells
@@ -65,8 +67,8 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 1e-4
-  weight_decay: !h_float 5e-4
+  learning_rate: !h_float 3e-4
+  weight_decay: !h_float 1e-5
   split_params: 0
   eps: !h_float 1e-8
 
@@ -76,7 +78,7 @@ data:
   max_proj: !h_float 0.7     # synth pair warp related
   noise_max: !h_float 0.10
   rnd_gain: !h_float 1.5
-  image_size: !h_int 256
+  image_size: !h_int 224
   path: 'data'
   npy: 'false'
   trn_ratio: 0.8

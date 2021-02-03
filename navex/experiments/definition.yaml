@@ -159,6 +159,18 @@ model:
     type: int
     help: "the descriptor dimensions"
 
+  head_exp_coef:
+    type: float
+    help: "for mobile arch, expansion factor for the hidden layers in heads"
+
+  head_use_se:
+    type: int
+    help: "for mobile arch, use squeeze-exitation for the hidden layers in heads"
+
+  partial_residual:
+    type: int
+    help: "for mobile arch, use partial residuals instead of skipping the residual connection entirely when layer dims don't match"
+
   width_mult:
     alt: ['--wm']
     type: float
@@ -172,10 +184,6 @@ model:
   batch_norm:
     type: int
     help: "use batch normalization"
-
-  direct_detection:
-    type: int
-    help: "do not use multiple channels for the detector head"
 
   pretrained:
     help: "use a pretrained backbone, true/false for torchvision models, path to saved weights for own models"

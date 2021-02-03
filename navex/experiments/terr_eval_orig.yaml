@@ -22,7 +22,6 @@ model:
   width_mult: 1.0
   dropout: 0.0
   batch_norm: true
-  direct_detection: false
   pretrained: false
   cache_dir: 'c:/project-data/navex/cache'
 

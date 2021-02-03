@@ -10,6 +10,7 @@ from ..datasets.revisitop1m import WebImageSynthPairDataset
 from ..losses.r2d2 import R2D2Loss
 from ..models.astropoint import AstroPoint
 from .base import TrialBase
+from ..models.mobile_ap import MobileAP
 from ..models.r2d2 import R2D2
 
 
@@ -24,12 +25,19 @@ class TerrestrialTrial(TrialBase):
                 arch = arch[0]
 
             if arch == 'ap':
+                for k in ('head_exp_coef', 'head_use_se', 'partial_residual'):
+                    model_conf.pop(k)
                 model = AstroPoint(**model_conf)
             elif arch == 'r2d2':
-                for k in ('det_hidden_ch', 'qlt_hidden_ch', 'des_hidden_ch', 'direct_detection', 'dropout'):
+                for k in ('det_hidden_ch', 'qlt_hidden_ch', 'des_hidden_ch', 'dropout',
+                          'head_exp_coef', 'head_use_se', 'partial_residual'):
                     model_conf.pop(k)
                 model_conf['descriptor_dim'] = 128
                 model = R2D2(**model_conf)
+            elif arch == 'mob':
+                for k in ('batch_norm',):
+                    model_conf.pop(k)
+                model = MobileAP(**model_conf)
             else:
                 assert False, 'unknown main arch type "%s", valid ones are "ap" and "r2d2"' % arch
         else:
