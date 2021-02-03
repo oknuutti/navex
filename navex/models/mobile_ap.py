@@ -136,7 +136,7 @@ class InvertedPartialResidual(InvertedResidual):
         if h0 == h1 and w0 == w1:
             result[:, :c, :, :] += input[:, :c, :, :]
         else:
-            result[:, :c, :, :] += F.interpolate(input[:, :c, :, :], (h1, w1), mode='nearest')
+            result[:, :c, :, :] += F.interpolate(input[:, :c, :, :], (h1, w1), mode='area')
 
         return result
 
@@ -231,10 +231,10 @@ class MobileAP(BasePoint):
         else:
             assert a0 == 'mn3' and a1 == 's', 'invalid arch %s' % (arch,)
             # mobilenetv3 small
-            in_ch = self.add_layer(layers, in_ch, 3, 1, 16, True, "RE", 2, 1),   # C1
-            in_ch = self.add_layer(layers, in_ch, 3, 4, 24, False, "RE", 2, 1),  # C2
+            in_ch = self.add_layer(layers, in_ch, 3, 1, 16, True, "RE", 2, 1)   # C1
+            in_ch = self.add_layer(layers, in_ch, 3, 4, 24, False, "RE", 2, 1)  # C2
             # in_ch = self.add_layer(layers, in_ch, 3, 3.67, 24, False, "RE", 1, 1),
-            in_ch = self.add_layer(layers, in_ch, 5, 4, 40, True, "RE", 1, 1),       # hf-net mod: instead of above line
+            in_ch = self.add_layer(layers, in_ch, 5, 4, 40, True, "RE", 1, 1)       # hf-net mod: instead of above line
             # in_ch = add_layer(layers, in_ch, 5, 4, 40, True, "HS", 2, 1),  # C3
             # in_ch = add_layer(layers, in_ch, 5, 6, 40, True, "HS", 1, 1),
             # in_ch = add_layer(layers, in_ch, 5, 6, 40, True, "HS", 1, 1),

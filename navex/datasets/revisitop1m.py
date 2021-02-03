@@ -11,7 +11,7 @@ class WebImageSynthPairDataset(SynthesizedPairDataset, AugmentedDatasetMixin):
         assert not npy, '.npy format not supported'
         self.npy = npy
         self.min_size = int(image_size*0.75)
-        self.max_aspect_ratio = 2.5
+        self.max_aspect_ratio = 2.1
 
         AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                        max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)

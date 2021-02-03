@@ -323,7 +323,7 @@ class RandomHomography:
 
         ok = False
         bad_h = 0
-        for i in range(5):
+        for i in range(10):
             H = self.random_H(w, h)
             w_aflow = uh_aflow.reshape((-1, 3)).dot(H.T)
             if np.any(np.isclose(w_aflow[:, 2:], 0)):
