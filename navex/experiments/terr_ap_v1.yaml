@@ -17,7 +17,7 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: !h_int 32
+  batch_size: !h_int 16
   batch_mem: 32000
   gpu: 1
   epochs: 25
@@ -37,8 +37,8 @@ model:
   in_channels: !h_int 1
   det_hidden_ch: !h_int 128
   qlt_hidden_ch: !h_int 128
-  des_hidden_ch: !h_int 256
-  descriptor_dim: !h_int 256
+  des_hidden_ch: !h_int 128
+  descriptor_dim: !h_int 128
   width_mult: !h_float 1.0
   dropout: !h_float 0.0
   batch_norm: 1
@@ -48,9 +48,9 @@ model:
 
 loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -2.0      # weight for expected ap loss
+  wap: !h_float -1.0      # weight for expected ap loss
   det_n: !h_int  16       # detector neighbourhood size
-  base: !h_float 0.50     # quality loss target mAP
+  base: !h_float 0.3     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -65,8 +65,8 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 3.5e-4
-  weight_decay: !h_float 2e-6
+  learning_rate: !h_float 3e-4
+  weight_decay: !h_float 1e-5
   split_params: 0
   eps: !!float 1e-8
 
@@ -76,7 +76,7 @@ data:
   max_proj: !h_float 0.7     # synth pair warp related
   noise_max: !h_float 0.10
   rnd_gain: !h_float 1.5
-  image_size: !h_int 420
+  image_size: !h_int 224
   path: 'data'
   npy: 'false'
   trn_ratio: 0.8

@@ -166,18 +166,18 @@ def ap_to_latex():
         tz.to_input('media/example-input.png'),
 
         # BACKBONE
-        tz.to_ConvConvRelu(name='b1', s_filer=512, n_filer=(64, 64), offset="(0,0,0)", to="(0,0,0)",
+        tz.to_ConvConvRelu(name='b1', s_filer='W', n_filer=(64, 64), offset="(0,0,0)", to="(0,0,0)",
                            height=40, depth=40, width=(2, 2)),
         tz.to_Pool(name="b1_pool", offset="(0,0,0)", to="(b1-east)",
                    height=32, depth=32, width=1, opacity=0.5),
 
-        *bk.block_2ConvPool(name='b2', botton='b1_pool', top='b2_pool', s_filer=256, n_filer=64, offset="(1,0,0)",
+        *bk.block_2ConvPool(name='b2', botton='b1_pool', top='b2_pool', s_filer='W/2', n_filer=64, offset="(1,0,0)",
                             size=(32, 32, 2), opacity=0.5),
 
-        *bk.block_2ConvPool(name='b3', botton='b2_pool', top='b3_pool', s_filer=128, n_filer=128, offset="(1,0,0)",
+        *bk.block_2ConvPool(name='b3', botton='b2_pool', top='b3_pool', s_filer='W/4', n_filer=128, offset="(1,0,0)",
                             size=(24, 24, 3.5), opacity=0.5),
 
-        tz.to_ConvConvRelu(name='b4', s_filer=64, n_filer=(128, 128), offset="(1,0,0)", to='(b3_pool-east)',
+        tz.to_ConvConvRelu(name='b4', s_filer='W/8', n_filer=(128, 128), offset="(1,0,0)", to='(b3_pool-east)',
                            height=18, depth=18, width=(3.5, 3.5)),
         tz.to_connection("b3_pool", "b4"),
 
@@ -185,10 +185,10 @@ def ap_to_latex():
         tz.to_ConvRelu(name='ba1', s_filer='', n_filer=256, offset="(2,7,0)", to='(b4-east)',
                        height=18, depth=18, width=5.5),
         tz.to_connection("b4", "ba1"),
-        tz.to_Conv(name='ba2', s_filer=64, n_filer=256, offset="(0,0,0)", to='(ba1-east)',
+        tz.to_Conv(name='ba2', s_filer='W/8', n_filer=256, offset="(0,0,0)", to='(ba1-east)',
                    height=18, depth=18, width=5.5),
 
-        tz.to_SoftMax(name='ba3', s_filer=64, n_filer=256, offset="(1,0,0)", to='(ba2-east)',
+        tz.to_SoftMax(name='ba3', s_filer='W/8', n_filer=256, offset="(1,0,0)", to='(ba2-east)',
                       height=18, depth=18, width=5.5, caption='descriptors'),
         tz.to_connection("ba2", "ba3"),
 
@@ -196,10 +196,10 @@ def ap_to_latex():
         tz.to_ConvRelu(name='bb1', s_filer='', n_filer=256, offset="(2,0,0)", to='(b4-east)',
                        height=18, depth=18, width=5.5),
         tz.to_connection("b4", "bb1"),
-        tz.to_Conv(name='bb2', s_filer=64, n_filer=2, offset="(0,0,0)", to='(bb1-east)',
+        tz.to_Conv(name='bb2', s_filer='W/8', n_filer=2, offset="(0,0,0)", to='(bb1-east)',
                    height=18, depth=18, width=1.5),
 
-        tz.to_SoftMax(name='bb3', s_filer=64, n_filer=1, offset="(1,0,0)", to='(bb2-east)',
+        tz.to_SoftMax(name='bb3', s_filer='W/8', n_filer=1, offset="(1,0,0)", to='(bb2-east)',
                       height=18, depth=18, width=1, caption='reliability'),
         tz.to_connection("bb2", "bb3"),
 
@@ -207,10 +207,10 @@ def ap_to_latex():
         tz.to_ConvRelu(name='bc1', s_filer='', n_filer=256, offset="(2,-8,0)", to='(b4-east)',
                        height=18, depth=18, width=5.5),
         tz.to_connection("b4", "bc1"),
-        tz.to_Conv(name='bc2', s_filer=64, n_filer=65, offset="(0,0,0)", to='(bc1-east)',
+        tz.to_Conv(name='bc2', s_filer='W/8', n_filer=65, offset="(0,0,0)", to='(bc1-east)',
                    height=18, depth=18, width=2),
 
-        tz.to_SoftMax(name='bc3', s_filer=512, n_filer=1, offset="(2,0,0)", to='(bc2-east)',
+        tz.to_SoftMax(name='bc3', s_filer='W', n_filer=1, offset="(2,0,0)", to='(bc2-east)',
                       height=40, depth=40, width=1, caption='repeatability'),
         tz.to_connection("bc2", "bc3"),
 
@@ -237,53 +237,59 @@ def mob_to_latex():
         tz.to_input('media/example-input.png'),
 
         # BACKBONE
-        tz.to_ConvConvRelu(name='b1', s_filer=512, n_filer=(64, 64), offset="(0,0,0)", to="(0,0,0)",
-                           height=40, depth=40, width=(2, 2)),
-        tz.to_Pool(name="b1_pool", offset="(0,0,0)", to="(b1-east)",
-                   height=32, depth=32, width=1, opacity=0.5),
+        tz.to_ConvRelu(name='b1', s_filer='W/2', n_filer=16, offset="(0,0,0)", to="(0,0,0)",
+                           height=32, depth=32, width=2),
 
-        *bk.block_2ConvPool(name='b2', botton='b1_pool', top='b2_pool', s_filer=256, n_filer=64, offset="(1,0,0)",
-                            size=(32, 32, 2), opacity=0.5),
+        tz.to_ConvRelu(name='b2', s_filer='W/2', n_filer=16, offset="(1,0,0)", to="(b1-east)",
+                           height=32, depth=32, width=2),
+        tz.to_connection("b1", "b2"),
 
-        *bk.block_2ConvPool(name='b3', botton='b2_pool', top='b3_pool', s_filer=128, n_filer=128, offset="(1,0,0)",
-                            size=(24, 24, 3.5), opacity=0.5),
+        tz.to_ConvRelu(name='b3', s_filer='W/4', n_filer=24, offset="(1,0,0)", to="(b2-east)",
+                       height=24, depth=24, width=2.5),
+        tz.to_connection("b2", "b3"),
 
-        tz.to_ConvConvRelu(name='b4', s_filer=64, n_filer=(128, 128), offset="(1,0,0)", to='(b3_pool-east)',
-                           height=18, depth=18, width=(3.5, 3.5)),
-        tz.to_connection("b3_pool", "b4"),
+        tz.to_ConvRelu(name='b4', s_filer='W/4', n_filer=24, offset="(1,0,0)", to="(b3-east)",
+                       height=24, depth=24, width=2.5),
+        tz.to_connection("b3", "b4"),
+
+        tz.to_ConvRelu(name='b5', s_filer='W/8', n_filer=32, offset="(1,0,0)", to="(b4-east)",
+                       height=18, depth=18, width=3),
+        tz.to_connection("b4", "b5"),
+
+        tz.to_ConvRelu(name='b6', s_filer='W/8', n_filer=64, offset="(1,0,0)", to="(b5-east)",
+                       height=18, depth=18, width=4.5),
+        tz.to_connection("b5", "b6"),
+
+        tz.to_ConvRelu(name='b7', s_filer='W/8', n_filer=128, offset="(1,0,0)", to="(b6-east)",
+                       height=18, depth=18, width=6),
+        tz.to_connection("b6", "b7"),
 
         # DESCRIPTOR HEAD
-        tz.to_ConvRelu(name='ba1', s_filer='', n_filer=256, offset="(2,7,0)", to='(b4-east)',
-                       height=18, depth=18, width=5.5),
-        tz.to_connection("b4", "ba1"),
-        tz.to_Conv(name='ba2', s_filer=64, n_filer=256, offset="(0,0,0)", to='(ba1-east)',
-                   height=18, depth=18, width=5.5),
+        tz.to_ConvRelu(name='ba1', s_filer='W/8', n_filer=256, offset="(2,7,0)", to='(b7-east)',
+                       height=18, depth=18, width=7.5),
+        tz.to_connection("b7", "ba1"),
 
-        tz.to_SoftMax(name='ba3', s_filer=64, n_filer=256, offset="(1,0,0)", to='(ba2-east)',
-                      height=18, depth=18, width=5.5, caption='descriptors'),
-        tz.to_connection("ba2", "ba3"),
+        tz.to_SoftMax(name='ba2', s_filer='W/8', n_filer=256, offset="(1,0,0)", to='(ba1-east)',
+                      height=18, depth=18, width=7.5, caption='descriptors'),
+        tz.to_connection("ba1", "ba2"),
 
         # QUALITY HEAD
-        tz.to_ConvRelu(name='bb1', s_filer='', n_filer=128, offset="(2,0,0)", to='(b4-east)',
-                       height=18, depth=18, width=5.5),
-        tz.to_connection("b4", "bb1"),
-        tz.to_Conv(name='bb2', s_filer=64, n_filer=1, offset="(0,0,0)", to='(bb1-east)',
-                   height=18, depth=18, width=1.5),
+        tz.to_ConvRelu(name='bb1', s_filer='W/8', n_filer=128, offset="(2,0,0)", to='(b7-east)',
+                       height=18, depth=18, width=6),
+        tz.to_connection("b7", "bb1"),
 
-        tz.to_SoftMax(name='bb3', s_filer=64, n_filer=1, offset="(1,0,0)", to='(bb2-east)',
+        tz.to_SoftMax(name='bb2', s_filer='W/8', n_filer=1, offset="(1,0,0)", to='(bb1-east)',
                       height=18, depth=18, width=1, caption='reliability'),
-        tz.to_connection("bb2", "bb3"),
+        tz.to_connection("bb1", "bb2"),
 
         # DETECTION HEAD
-        tz.to_ConvRelu(name='bc1', s_filer='', n_filer=128, offset="(2,-8,0)", to='(b4-east)',
-                       height=18, depth=18, width=5.5),
-        tz.to_connection("b4", "bc1"),
-        tz.to_Conv(name='bc2', s_filer=64, n_filer=65, offset="(0,0,0)", to='(bc1-east)',
-                   height=18, depth=18, width=2),
+        tz.to_ConvRelu(name='bc1', s_filer='W/8', n_filer=128, offset="(2,-8,0)", to='(b7-east)',
+                       height=18, depth=18, width=6),
+        tz.to_connection("b7", "bc1"),
 
-        tz.to_SoftMax(name='bc3', s_filer=512, n_filer=1, offset="(2,0,0)", to='(bc2-east)',
+        tz.to_SoftMax(name='bc2', s_filer='W', n_filer=1, offset="(2,0,0)", to='(bc1-east)',
                       height=40, depth=40, width=1, caption='repeatability'),
-        tz.to_connection("bc2", "bc3"),
+        tz.to_connection("bc1", "bc2"),
 
         tz.to_end()
     ]
@@ -293,4 +299,4 @@ def mob_to_latex():
 
 
 if __name__ == '__main__':
-    mob_to_latex()
+    ap_to_latex()

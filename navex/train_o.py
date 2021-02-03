@@ -162,14 +162,14 @@ def process(loader, trial, epoch, device, args, validate_only=False, return_outp
 
         if validate_only:
             loss, acc, output = trial.evaluate_batch(input, target, top_k=300, mutual=True,
-                                                     ratio=False, success_px_limit=12)
+                                                     ratio=False, success_px_limit=6)
         else:
             # train one batch
             loss, output = trial.train_batch(input, target, epoch, i)
 
             # measure accuracy and record loss
             with torch.no_grad():
-                acc = trial.accuracy(*output, target, top_k=300, mutual=True, ratio=False, success_px_limit=12)
+                acc = trial.accuracy(*output, target, top_k=300, mutual=True, ratio=False, success_px_limit=6)
 
         accs.update(acc)
         losses.update(loss.detach().cpu().numpy())
