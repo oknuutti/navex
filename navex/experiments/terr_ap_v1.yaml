@@ -40,7 +40,7 @@ model:
   des_hidden_ch: !h_int 128
   descriptor_dim: !h_int 128
   width_mult: !h_float 1.0
-  dropout: !h_float 0.0
+  dropout: !h_float 10.0
   batch_norm: 1
   direct_detection: 0
   pretrained: 0
@@ -48,9 +48,9 @@ model:
 
 loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -1.0      # weight for expected ap loss
-  det_n: !h_int  16       # detector neighbourhood size
-  base: !h_float 0.3     # quality loss target mAP
+  wap: !h_float -2.0      # weight for expected ap loss
+  det_n: !h_int  12       # detector neighbourhood size
+  base: !h_float 0.30     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -66,15 +66,15 @@ loss:
 optimizer:
   method: 'adam'
   learning_rate: !h_float 3e-4
-  weight_decay: !h_float 1e-5
+  weight_decay: !h_float 5e-4
   split_params: 0
   eps: !!float 1e-8
 
 data:
-  max_rot: !h_float 10.0     # in degrees, synth pair warp related
+  max_rot: !h_float 8.0      # in degrees, synth pair warp related
   max_shear: !h_float 0.2    # synth pair warp related
-  max_proj: !h_float 0.7     # synth pair warp related
-  noise_max: !h_float 0.10
+  max_proj: !h_float 0.75    # synth pair warp related
+  noise_max: !h_float 0.15
   rnd_gain: !h_float 1.5
   image_size: !h_int 224
   path: 'data'
