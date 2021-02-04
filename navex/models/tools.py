@@ -216,7 +216,7 @@ def max_rect_bounded_by_quad_mask(mask: np.ndarray = None):
     if scale > 1:
         rect = rect * scale + np.array([1, 1, -1, -1]) * (scale - 1)
 
-    if 1:
+    if False:
         j, i = np.unravel_index(idx, (n, n))
 
         import cv2
