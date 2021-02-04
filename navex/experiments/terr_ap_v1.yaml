@@ -27,7 +27,7 @@ training:
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 5
+  early_stopping: 0
   reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
@@ -40,7 +40,7 @@ model:
   des_hidden_ch: !h_int 128
   descriptor_dim: !h_int 128
   width_mult: !h_float 1.0
-  dropout: !h_float 0.1
+  dropout: !h_float 0.0
   head_exp_coef:    6  # not in use
   head_use_se:      0  # not in use
   partial_residual: 0  # not in use
@@ -52,7 +52,7 @@ loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
   wap: !h_float -2.0      # weight for expected ap loss
   det_n: !h_int  12       # detector neighbourhood size
-  base: !h_float 0.30     # quality loss target mAP
+  base: !h_float 0.65     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -67,7 +67,7 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 3e-4
+  learning_rate: !h_float 5e-4
   weight_decay: !h_float 5e-4
   split_params: 0
   eps: !!float 1e-8
@@ -76,9 +76,9 @@ data:
   max_rot: !h_float 8.0      # in degrees, synth pair warp related
   max_shear: !h_float 0.2    # synth pair warp related
   max_proj: !h_float 0.4     # synth pair warp related
-  noise_max: !h_float 0.15
-  rnd_gain: !h_float 1.5
-  image_size: !h_int 224
+  noise_max: !h_float 0.2
+  rnd_gain: !h_float 2.0
+  image_size: !h_int 512
   path: 'data'
   npy: 'false'
   trn_ratio: 0.8
