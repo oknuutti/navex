@@ -10,6 +10,8 @@ from r2d2.tools.transforms import RandomTilt
 from r2d2.tools.transforms_tools import persp_apply
 from torchvision.transforms import Lambda
 
+from navex.models import tools
+
 
 class GeneralTransform:
     def __init__(self, transform):
@@ -282,13 +284,14 @@ class PairedCenterCrop(PairedRandomCrop):
 
 
 class RandomHomography:
-    def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, fill_value=np.nan):
+    def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, fill_value=np.nan, simple=False):
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
         self.max_proj = max_proj
         self.min_size = min_size
         self.fill_value = fill_value
+        self.simple = simple
 
     def random_H(self, w, h):
         tr_x = random.uniform(-self.max_tr, self.max_tr) * w
@@ -333,9 +336,9 @@ class RandomHomography:
             w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:]).reshape(aflow_shape)
             corners = w_aflow[[0, 0, -1, -1], [0, -1, 0, -1], :]
 
-            if np.any(np.isnan(self.fill_value)):
+            if np.any(np.isnan(self.fill_value)) and self.simple:
                 # define resulting image so that not need to fill any values
-                # TODO: FIX THIS: sometimes results in negative width or height
+                #  - this simple method can result in negative width or height
                 x0 = max(corners[0, 0], corners[2, 0])
                 x1 = min(corners[1, 0], corners[3, 0])
                 y0 = max(corners[0, 1], corners[1, 1])
@@ -362,8 +365,17 @@ class RandomHomography:
         ifun = interp.RegularGridInterpolator((np.arange(h), np.arange(w)), np.array(img), bounds_error=False,
                                               fill_value=np.array(self.fill_value)*255)
         img_arr = ifun(np.flip(grid, axis=2))
-        w_img = PIL.Image.fromarray(img_arr.astype(np.uint8))
 
+        if np.any(np.isnan(self.fill_value)) and not self.simple:
+            mask = np.logical_not(np.isnan(np.atleast_3d(img_arr)[:, :, 0]))
+            x0, y0, x1, y1 = tools.max_rect_bounded_by_quad_mask(mask)
+            img_arr = img_arr[y0:y1, x0:x1]
+            w_aflow = (w_aflow - np.array((x0, y0), dtype=w_aflow.dtype)).reshape((-1, 2))
+            w_aflow[np.any(w_aflow < 0, axis=1), :] = np.nan
+            w_aflow[np.logical_or(w_aflow[:, 0] > img_arr.shape[1] - 1, w_aflow[:, 1] > img_arr.shape[0] - 1), :] = np.nan
+            w_aflow = w_aflow.reshape((h, w, 2))
+
+        w_img = PIL.Image.fromarray(img_arr.astype(np.uint8))
         return w_img, w_aflow
 
 

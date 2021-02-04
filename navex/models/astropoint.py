@@ -149,8 +149,7 @@ class AstroPoint(BasePoint):
 
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
-        if not self.conf['direct_detection']:
-            detection = F.pixel_shuffle(F.softmax(detection, dim=1)[:, 1:, :, :], 8)
+        detection = F.pixel_shuffle(F.softmax(detection, dim=1)[:, 1:, :, :], 8)
 
         # like in R2D2
         def activation(x):

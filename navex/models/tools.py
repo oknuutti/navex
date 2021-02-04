@@ -150,6 +150,65 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
     return acc
 
 
+def max_rect_bounded_by_quad_mask(mask: np.ndarray = None):
+    assert len(mask.shape) == 2, 'wrong shape for 2d mask: %s' % (mask.shape,)
+    n, m = mask.shape
+
+    #  ...x0....x1.......
+    #  .....*****........
+    #  y0a.#######.y0b...
+    #  ....#######*......
+    #  ..**#######****...
+    #  ..**#######*****..
+    #  ...*#######******.
+    #  y1a.#######******.
+    #  .....************.
+    #  ...x0.***x1*y1b*..
+    #  ..................
+
+    rects = np.zeros((n, 2, 4), dtype=np.int64)
+    for j in range(n):
+        idxs = np.where(mask[j, :])[0].astype(np.int64)
+        if len(idxs) > 0:
+            x0, x1 = idxs[0], idxs[-1]
+
+            idxs = np.where(mask[:, x0])[0].astype(np.int64)
+            y0a, y1a = idxs[0], idxs[-1]
+
+            idxs = np.where(mask[:, x1])[0].astype(np.int64)
+            y0b, y1b = idxs[0], idxs[-1]
+
+            rects[j, 0, :] = x0, y0a, x1, y1a
+            rects[j, 1, :] = x0, y0b, x1, y1b
+
+    # calc intersection between all rects[:, 0] and all rects[:, 1]
+    I = np.zeros((n, n, 4), dtype=np.int64)
+    I[:, :, :2] = np.max(np.stack((
+                            np.repeat(rects[:, 0:1, :2], n, axis=1),
+                            np.repeat(np.swapaxes(rects[:, 1:2, :2], 0, 1), n, axis=0)
+                        )), axis=0)
+    I[:, :, 2:4] = np.min(np.stack((
+                            np.repeat(rects[:, 0:1, 2:4], n, axis=1),
+                            np.repeat(np.swapaxes(rects[:, 1:2, 2:4], 0, 1), n, axis=0)
+                        )), axis=0)
+
+    areas = np.clip(I[:, :, 2] - I[:, :, 0], 0, np.inf) * np.clip(I[:, :, 3] - I[:, :, 1], 0, np.inf)
+    idx = np.argmax(areas)
+    rect = I.reshape((-1, 4))[idx, :]
+
+    if False:
+        j, i = np.unravel_index(idx, (n, n))
+
+        import cv2
+        x0, y0, x1, y1 = rect
+        img_arr = cv2.rectangle((mask.astype(np.uint8) * 128).reshape((n, m, 1)).repeat(3, axis=2),
+                                (x0, y0), (x1, y1), color=[0, 255, 0], thickness=3)
+        cv2.imshow('rect', cv2.resize(img_arr, (768, 768)))
+        cv2.waitKey()
+
+    return rect
+
+
 def ap_to_latex():
     # need that https://github.com/HarisIqbal88/PlotNeuralNet is installed
     #  - have to do manually by cloning repo and placing to site-packages/plot_nn

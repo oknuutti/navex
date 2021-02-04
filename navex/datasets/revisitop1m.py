@@ -39,7 +39,7 @@ class WebImageSynthPairDataset(SynthesizedPairDataset, AugmentedDatasetMixin):
             elif os.path.isdir(fullpath):
                 self._recurse(fullpath, samples, test)
 
-    def _load_samples(self, test=True):
+    def _load_samples(self, test=False):
         samples = []
         self._recurse(self.root, samples, test)
         samples = sorted(samples)
