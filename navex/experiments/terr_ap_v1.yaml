@@ -40,7 +40,7 @@ model:
   des_hidden_ch: !h_int 128
   descriptor_dim: !h_int 128
   width_mult: !h_float 1.0
-  dropout: !h_float 10.0
+  dropout: !h_float 0.1
   head_exp_coef:    6  # not in use
   head_use_se:      0  # not in use
   partial_residual: 0  # not in use
@@ -75,7 +75,7 @@ optimizer:
 data:
   max_rot: !h_float 8.0      # in degrees, synth pair warp related
   max_shear: !h_float 0.2    # synth pair warp related
-  max_proj: !h_float 0.75    # synth pair warp related
+  max_proj: !h_float 0.4     # synth pair warp related
   noise_max: !h_float 0.15
   rnd_gain: !h_float 1.5
   image_size: !h_int 224

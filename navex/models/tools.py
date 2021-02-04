@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 
 import torch
@@ -154,6 +156,18 @@ def max_rect_bounded_by_quad_mask(mask: np.ndarray = None):
     assert len(mask.shape) == 2, 'wrong shape for 2d mask: %s' % (mask.shape,)
     n, m = mask.shape
 
+    transposed = False
+    if n > m:
+        mask = mask.T
+        n, m = mask.shape
+        transposed = True
+
+    scale = 1
+    if n > 1000:
+        scale = math.ceil(n / 1000)
+        mask = mask[::scale, ::scale]
+        n, m = mask.shape
+
     #  ...x0....x1.......
     #  .....*****........
     #  y0a.#######.y0b...
@@ -166,23 +180,23 @@ def max_rect_bounded_by_quad_mask(mask: np.ndarray = None):
     #  ...x0.***x1*y1b*..
     #  ..................
 
-    rects = np.zeros((n, 2, 4), dtype=np.int64)
+    rects = np.zeros((n, 2, 4), dtype=np.float32)
     for j in range(n):
-        idxs = np.where(mask[j, :])[0].astype(np.int64)
+        idxs = np.where(mask[j, :])[0].astype(np.float32)
         if len(idxs) > 0:
             x0, x1 = idxs[0], idxs[-1]
 
-            idxs = np.where(mask[:, x0])[0].astype(np.int64)
+            idxs = np.where(mask[:, round(x0)])[0].astype(np.float32)
             y0a, y1a = idxs[0], idxs[-1]
 
-            idxs = np.where(mask[:, x1])[0].astype(np.int64)
+            idxs = np.where(mask[:, round(x1)])[0].astype(np.float32)
             y0b, y1b = idxs[0], idxs[-1]
 
             rects[j, 0, :] = x0, y0a, x1, y1a
             rects[j, 1, :] = x0, y0b, x1, y1b
 
     # calc intersection between all rects[:, 0] and all rects[:, 1]
-    I = np.zeros((n, n, 4), dtype=np.int64)
+    I = np.zeros((n, n, 4), dtype=np.float32)
     I[:, :, :2] = np.max(np.stack((
                             np.repeat(rects[:, 0:1, :2], n, axis=1),
                             np.repeat(np.swapaxes(rects[:, 1:2, :2], 0, 1), n, axis=0)
@@ -194,12 +208,26 @@ def max_rect_bounded_by_quad_mask(mask: np.ndarray = None):
 
     areas = np.clip(I[:, :, 2] - I[:, :, 0], 0, np.inf) * np.clip(I[:, :, 3] - I[:, :, 1], 0, np.inf)
     idx = np.argmax(areas)
-    rect = I.reshape((-1, 4))[idx, :]
+    rect = np.round(I.reshape((-1, 4))[idx, :]).astype(np.int32)
 
-    if False:
+    if transposed:
+        rect = rect[(1, 0, 3, 2),]
+
+    if scale > 1:
+        rect = rect * scale + np.array([1, 1, -1, -1]) * (scale - 1)
+
+    if 1:
         j, i = np.unravel_index(idx, (n, n))
 
         import cv2
+
+        if scale > 1:
+            mask = cv2.resize(mask.astype(np.uint8), (m*scale, n*scale))
+
+        if transposed:
+            mask = mask.T
+
+        n, m = mask.shape
         x0, y0, x1, y1 = rect
         img_arr = cv2.rectangle((mask.astype(np.uint8) * 128).reshape((n, m, 1)).repeat(3, axis=2),
                                 (x0, y0), (x1, y1), color=[0, 255, 0], thickness=3)

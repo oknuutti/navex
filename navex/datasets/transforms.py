@@ -307,8 +307,8 @@ class RandomHomography:
                        [sh_y, 1, 0],
                        [0,    0, 1]], dtype=np.float32)
 
-        p1 = random.uniform(-self.max_proj, self.max_proj) / w
-        p2 = random.uniform(-self.max_proj, self.max_proj) / h
+        p1 = random.uniform(1/(1+self.max_proj) - 1, self.max_proj) / w
+        p2 = random.uniform(1/(1+self.max_proj) - 1, self.max_proj) / h
         Hp = np.array([[1,  0,  0],
                        [0,  1,  0],
                        [p1, p2, 1]], dtype=np.float32)
