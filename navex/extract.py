@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import torch
 from torch.functional import F
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from navex.datasets.extract import SingleImageDataset
@@ -15,11 +16,13 @@ from navex.models import tools
 #    python navex/extract.py --images data/hpatches/image_list_hpatches_sequences.txt \
 #                            --model output/tune_s4c_44.ckpt \
 #                            --tag ap4c --top-k 2000
+from navex.models.r2d2orig import R2D2
 
 
 def main():
     parser = argparse.ArgumentParser("extract features from images")
     parser.add_argument("--model", type=str, required=True, help='model path')
+    parser.add_argument("--model-type", type=str, choices=('r2d2', 'trial'), default='trial', help='model type')
     parser.add_argument("--images", type=str, required=True, help='images / list')
     parser.add_argument("--tag", type=str, default='astr', help='output file tag')
     parser.add_argument("--top-k", type=int, default=2000, help='number of keypoints')
@@ -34,9 +37,20 @@ def main():
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
 
-    model = TrialWrapperBase.load_from_checkpoint(args.model, map_location="cuda:0" if args.gpu else "cpu")
+    device = "cuda:0" if args.gpu else "cpu"
 
-    fst, rgb = model.trial.model, None
+    if args.model_type == 'r2d2':
+        model = R2D2(path=args.model)
+        model.to(device)
+    elif args.model_type == 'trial':
+        model = TrialWrapperBase.load_from_checkpoint(args.model, map_location=device)
+        model.trial.workers = 0
+        model.trial.batch_size = 1
+        model.use_gpu = args.gpu
+    else:
+        assert False, 'invalid model type: %s' % args.model_type
+
+    fst, rgb = model, None
     while True:
         try:
             fst = next(fst.children())
@@ -44,13 +58,17 @@ def main():
             rgb = fst.in_channels == 3
             break
 
-    model.trial.workers = 0
-    model.trial.batch_size = 1
-    model.use_gpu = args.gpu
     model.eval()
     dataset = SingleImageDataset(args.images, rgb=rgb)
 
-    for i, data in enumerate(tqdm(model.wrap_ds(dataset))):
+    if args.model_type == 'r2d2':
+        data_loader = DataLoader(dataset, pin_memory=args.gpu)  # TODO: debug
+    else:
+        data_loader = model.wrap_ds(dataset)
+
+    for i, data in enumerate(tqdm(data_loader)):
+        data = data.to(device)
+
         # extract keypoints/descriptors for a single image
         xys, desc, scores = extract_multiscale(model, data,
                                                scale_f=args.scale_f,

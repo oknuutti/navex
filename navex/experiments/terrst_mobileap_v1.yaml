@@ -14,7 +14,7 @@ search:
   port: 0
 
 training:
-  trial: 'terr'
+  trial: 'terrst'
   name: 'v0'
   cache: 'cache'
   output: 'output'
@@ -35,7 +35,7 @@ training:
 
 model:
   arch: 'mob-mn3_L'
-  in_channels:      !h_int    1
+  in_channels:      !h_int    3
   det_hidden_ch:    !h_int    128
   qlt_hidden_ch:    !h_int    128
   des_hidden_ch:    !h_int    128
@@ -50,21 +50,10 @@ model:
   cache_dir: 'cache'    # not in use
 
 loss:
-  wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -1.0      # weight for expected ap loss
-  det_n: !h_int  16       # detector neighbourhood size
-  base: !h_float 0.30     # quality loss target mAP
-  nq: 20          # quantizer bins for ap calc
-  sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    ngh: 4        # was 7       # neighbourhood size in descriptor cells
-    subq: -3      # was -8      # grid step size for positive samples
-    subd: 1       # was 1       # neigbourhood sampling interval
-    pos_d: 1      # was 2       # positive samples generated up to this far from ideal location
-    neg_d: 3      # was 5       # negative samples generated starting from distance from ideal location
-    border: 4     # was 16
-    subd_neg: -6  # was -8      # grid step size for generating additional negative samples
-    max_neg_b: 4                # distractors mined from max this number of images from same batch
-    maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
+  teacher: 'output/r2d2_WASF_N16.pt'
+  des_w: !h_float -1.0      # weight for descriptor head loss
+  det_w: !h_float -1.0      # weight for detector head loss
+  qlt_w: !h_float -1.0      # weight for quality head loss
 
 optimizer:
   method: 'adam'

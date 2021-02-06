@@ -1,4 +1,5 @@
 import bisect
+import math
 import os
 import random
 
@@ -13,7 +14,7 @@ import torchvision.transforms as tr
 
 from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, ComposedTransforms, \
     GeneralTransform, PairedCenterCrop, PairedRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform, \
-    RandomTiltWrapper, RandomScale, ScaleToRange
+    RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange
 
 from .. import RND_SEED
 
@@ -26,6 +27,36 @@ def worker_init_fn(id):
 
 def unit_aflow(W, H):
     return np.stack(np.meshgrid(np.arange(W, dtype=np.float32), np.arange(H, dtype=np.float32)), axis=2)
+
+
+def _find_imgs_recurse(path, samples, npy, ext, test, depth):
+    for fname in os.listdir(path):
+        fullpath = os.path.join(path, fname)
+        if fname[-4:] == ('.npy' if npy else ext):
+            ok = test is None
+            if not ok:
+                try:
+                    img = default_loader(fullpath)
+                    ok = test(img)
+                except Exception as e:
+                    print('%s' % e)
+            if ok:
+                samples.append(fullpath)
+            else:
+                print('rejected: %s' % fullpath)
+        elif depth > 0 and os.path.isdir(fullpath):
+            _find_imgs_recurse(fullpath, samples, npy, ext, test, depth-1)
+
+
+def find_imgs_recurse(root, npy=False, ext='.jpg', test=None, depth=100):
+    samples = []
+    _find_imgs_recurse(root, samples, npy, ext, test, depth)
+    samples = sorted(samples)
+    return samples
+
+
+def find_imgs(root, npy=False, ext='.jpg', test=None):
+    return find_imgs_recurse(root, npy, ext, test, 0)
 
 
 class DataLoadingException(Exception):
@@ -63,7 +94,7 @@ class ImagePairDataset(VisionDataset):
         raise NotImplemented()
 
 
-class IndexFileLoader:
+class PairIndexFileLoader:
     """
     Args:
         img1_col (int): index file image 1 column
@@ -116,7 +147,7 @@ class IndexedImagePairDataset(ImagePairDataset):
         samples (list): List of ((img1 path, img2 path), aflow path) tuples
     """
     def __init__(self, index_file, aflow_loader, image_loader=default_loader,
-                 index_file_loader=IndexFileLoader(), transforms=None):
+                 index_file_loader=PairIndexFileLoader(), transforms=None):
         self.index_file = index_file
         self.index_file_loader = index_file_loader
         super(IndexedImagePairDataset, self).__init__(None, aflow_loader, image_loader, transforms=transforms)
@@ -143,7 +174,7 @@ class SynthesizedPairDataset(VisionDataset):
     def __init__(self, root, max_tr, max_rot, max_shear, max_proj, min_size, transforms=None, image_loader=default_loader):
         super(SynthesizedPairDataset, self).__init__(root, transforms=transforms)
 
-        # fv = AugmentedDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedDatasetMixin.TR_NORM_MONO.mean
+        # fv = AugmentedPairDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedPairDatasetMixin.TR_NORM_MONO.mean
         fv = np.nan
         self.warping_transforms = tr.Compose([
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
@@ -184,13 +215,12 @@ class SynthesizedPairDataset(VisionDataset):
         raise NotImplemented()
 
 
-class AugmentedDatasetMixin:
+class AugmentedPairDatasetMixin:
     TR_NORM_RGB = tr.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     TR_NORM_MONO = tr.Normalize(mean=[0.449], std=[0.226])
 
     def __init__(self, noise_max=0.25, rnd_gain=(0.5, 3), image_size=512, max_sc=2**(1/4), blind_crop=False,
-                 eval=False, rgb=False):
-
+                 resize_max_size=1024, resize_max_sc=2.0, eval=False, rgb=False):
         self.noise_max = noise_max
         self.rnd_gain = rnd_gain if isinstance(rnd_gain, (tuple, list)) else (1 / rnd_gain, rnd_gain)
         self.image_size = image_size
@@ -198,14 +228,16 @@ class AugmentedDatasetMixin:
         self.blind_crop = blind_crop
         self.eval = eval
         self.rgb = rgb
-        resize_max_size = 1024
-        resize_max_sc = 2.0
+        self.resize_max_size = resize_max_size
+        self.resize_max_sc = resize_max_sc
+        self.fill_value = AugmentedPairDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedPairDatasetMixin.TR_NORM_MONO.mean
+        self._init_transf()
 
-        fill_value = AugmentedDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedDatasetMixin.TR_NORM_MONO.mean
+    def _init_transf(self):
         self._train_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-            RandomScale(min_size=max(self.image_size, 256), max_size=resize_max_size, max_sc=resize_max_sc),
-            PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=fill_value),
+            PairRandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
+            PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
             PhotometricTransform(RandomExposure(*self.rnd_gain)),  # apply a random gain on the image
@@ -213,8 +245,8 @@ class AugmentedDatasetMixin:
         ])
         self._eval_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-            ScaleToRange(min_size=max(self.image_size, 256), max_size=np.inf, max_sc=np.inf),
-            PairedCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=fill_value),
+            PairScaleToRange(min_size=max(self.image_size, 256), max_size=np.inf, max_sc=np.inf),
+            PairedCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
@@ -223,6 +255,80 @@ class AugmentedDatasetMixin:
     def set_eval(self, eval):
         self.eval = eval
         self.transforms = self._eval_transf if self.eval else self._train_transf
+
+
+class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
+    def __init__(self, noise_max, rnd_gain, image_size, max_tr, max_rot, max_shear, max_proj, min_size,
+                 resize_max_size=1024, resize_max_sc=2.0, eval=False, rgb=False):
+
+        self.max_tr = max_tr
+        self.max_rot = max_rot
+        self.max_shear = max_shear
+        self.max_proj = max_proj
+        self.min_size = min_size
+
+        super(AugmentedDatasetMixin, self).__init__(noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                                    resize_max_size=resize_max_size, resize_max_sc=resize_max_sc,
+                                                    eval=eval, rgb=rgb)
+
+    def _init_transf(self):
+        self._train_transf = tr.Compose([
+            IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
+            RandomHomography(max_tr=self.max_tr, max_rot=self.max_rot, max_shear=self.max_shear, max_proj=self.max_proj,
+                             min_size=self.min_size, fill_value=np.nan, image_only=True),
+            RandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
+            tr.RandomCrop(self.image_size),
+            tr.ToTensor(),
+            RandomDarkNoise(0, self.noise_max, 0.3, 3),  # apply extra dark noise at a random level (dropout might be enough though)
+            RandomExposure(*self.rnd_gain),              # apply a random gain on the image
+            self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
+        ])
+        self._eval_transf = tr.Compose([
+            IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
+            ScaleToRange(min_size=max(self.image_size, 256), max_size=np.inf, max_sc=np.inf),
+            tr.CenterCrop(self.image_size),
+            tr.ToTensor(),
+            self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
+        ])
+        self.transforms = self._eval_transf if self.eval else self._train_transf
+
+
+class BasicDataset(VisionDataset, AugmentedDatasetMixin):
+    def __init__(self, root='data', folder=None, max_tr=0, max_rot=math.radians(15), max_shear=0.2, max_proj=0.8,
+                 noise_max=0.20, rnd_gain=(0.5, 2), image_size=512, eval=False, rgb=False, npy=False, ext='.jpg',
+                 test=None, folder_depth=0):
+        assert not npy, '.npy format not supported'
+        self.npy = npy
+        self.ext = ext
+        self.test = test
+        self.folder_depth = folder_depth
+
+        AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                       max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
+                                       min_size=image_size // 2, eval=eval, rgb=rgb)
+
+        VisionDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms)
+
+        self.image_loader = default_loader
+        self.samples = self._load_samples()
+
+    def _load_samples(self):
+        return find_imgs_recurse(self.root, self.npy, self.ext, self.test, self.folder_depth)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img_pth = self.samples[idx]
+
+        try:
+            img = self.image_loader(img_pth)
+            if self.transforms is not None:
+                img = self.transforms(img)
+        except Exception as e:
+            raise DataLoadingException("Problem with dataset %s, index %s: %s" %
+                                       (self.__class__, idx, self.samples[idx],)) from e
+        return img
 
 
 class AugmentedConcatDataset(ConcatDataset):

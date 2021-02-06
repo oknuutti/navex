@@ -50,6 +50,11 @@ search:
 training:
   __group__: 1
 
+  trial:
+    alt: ['--trial']
+    choices: ['terr', 'terrst']
+    help: "which trial to run"
+
   name:
     alt: ['--name', '--pid', '--id']
     help: "experiment name or id used for outputs"
@@ -195,30 +200,56 @@ model:
 loss:
   __group__: 1
 
+  teacher:
+    trial: ["terrst"]
+    alt: ["--teacher"]
+    help: "path to the teacher model"
+
+  des_w:
+    trial: ["terrst"]
+    type: float
+    help: "weight for descriptor head output loss"
+
+  det_w:
+    trial: ["terrst"]
+    type: float
+    help: "weight for detection head output loss"
+
+  qlt_w:
+    trial: ["terrst"]
+    type: float
+    help: "weight for quality head output loss"
+
   wdt:
+    trial: ["terr"]
     type: float
     help: "weight for peakiness and cosim losses"
 
   wap:
+    trial: ["terr"]
     type: float
     help: "weight for expected ap loss"
 
   det_n:
+    trial: ["terr"]
     alt: ['--det-n']
     type: int
     help: "size of kernel for detector losses"
 
   base:
+    trial: ["terr"]
     alt: ['--base-ap']
     type: float
     help: "expected average precision for ap loss"
 
   nq:
+    trial: ["terr"]
     type: int
     help: ""
 
   sampler:
     __group__: 1
+    trial: ["terr"]
 
     ngh:
       type: int

@@ -14,6 +14,7 @@ search:
   port: 0
 
 training:
+  trial: 'terr'
   name: 'v0'
   cache: 'cache'
   output: 'output'

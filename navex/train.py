@@ -9,6 +9,7 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 
+from navex.trials.terrastudent import TerraStudentTrial
 from .experiments.parser import ExperimentConfigParser, to_dict
 from .trials.terrestrial import TerrestrialTrial
 from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint
@@ -38,9 +39,17 @@ def main():
     acc_grad_batches = 2 ** max(0, math.ceil(math.log2((args.batch_mem * 1024 * 1024) / totmem)))  # in MB
     gpu_batch_size = args.batch_size // acc_grad_batches
 
-    trial = TerrestrialTrial(to_dict(config.model), to_dict(config.loss),
-                             to_dict(config.optimizer), to_dict(config.data),
-                             gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
+    if args.trial == 'terr':
+        trial = TerrestrialTrial(to_dict(config.model), to_dict(config.loss),
+                                 to_dict(config.optimizer), to_dict(config.data),
+                                 gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
+    elif args.trial == 'terrst':
+        trial = TerraStudentTrial(to_dict(config.model), to_dict(config.loss),
+                                  to_dict(config.optimizer), to_dict(config.data),
+                                  gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
+    else:
+        assert False, 'invalid trial: %s' % args.trial
+
     model = TrialWrapperBase(trial, use_gpu=bool(args.gpu))
     if config.to_npy:
         convert_data_to_npy(model)
@@ -82,7 +91,7 @@ def main():
                          flush_logs_every_n_steps=10,
                          gpus=1 if args.gpu else 0,
                          limit_train_batches=0.002 if PROFILING_ONLY else 1.0,
-                         limit_val_batches=0.004 if PROFILING_ONLY else 1.0,
+                         limit_val_batches=0.005 if PROFILING_ONLY else 1.0,
                          auto_select_gpus=bool(args.gpu),
                          deterministic=bool(args.deterministic),
                          auto_lr_find=bool(args.auto_lr_find),

@@ -21,7 +21,9 @@ class ExperimentConfigParser(ArgumentParser):
             def _add_subtree(obj, lv, path, d):
                 for k, v in d.items():
                     name = (path+'__'+k) if path else k
-                    if v.pop('__group__', False):
+                    if not isinstance(v, dict):
+                        pass
+                    elif v.pop('__group__', False):
                         group = obj.add_argument_group(k) if lv == 0 else obj
                         self.groups[k] = group
                         _add_subtree(group, lv+1, name, v)
@@ -38,6 +40,7 @@ class ExperimentConfigParser(ArgumentParser):
                         if default is not None:
                             help += " (default: %s)" % (default,)
 
+                        v.pop('trial', None)
                         obj.add_argument('--' + name.replace('_', '-'), *alt, dest=name,
                                          default=default, help=help, **v)
 
@@ -64,6 +67,9 @@ class ExperimentConfigParser(ArgumentParser):
         with open(getattr(raw_args, self.config_file_param), 'r') as fh:
             args = yaml.safe_load(fh)
 
+        trial = args['training'].get('trial', None)
+        assert trial is not None, 'Required training.trial parameter not given'
+
         for key, val in raw_args.__dict__.items():
             if val is None:
                 continue
@@ -83,7 +89,8 @@ class ExperimentConfigParser(ArgumentParser):
 
         if self.definition is not None:
             def _check_subtree(path, a, d):
-                ak, dk = set(a.keys()), set(d.keys()) - set(('__group__',))
+                ak = set(a.keys())
+                dk = {k for k, v in d.items() if k != '__group__' and trial in v.get('trial', [trial])}
                 assert dk.issubset(ak), "Keys %s not found at '%s'" % (dk - ak, path)
                 for k in dk:
                     v = d[k]

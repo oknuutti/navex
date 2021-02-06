@@ -63,9 +63,8 @@ class RandomScale:
         self.random = random
         self.interp_method = interp_method    # or should use LANCZOS for better quality?
 
-    def __call__(self, imgs, aflow):
-        img1, img2 = imgs
-        w, h = img1.size
+    def __call__(self, img):
+        w, h = img.size
         min_side = min(w, h)
         min_sc = self.min_size / min_side
         max_sc = min(self.max_sc, self.max_size / min_side)
@@ -78,7 +77,19 @@ class RandomScale:
 
         if not np.isclose(trg_sc, 1.0):
             nw, nh = round(w * trg_sc), round(h * trg_sc)
-            img1 = img1.resize((nw, nh), self.interp_method)
+            img = img.resize((nw, nh), self.interp_method)
+
+        return img
+
+
+class PairRandomScale(RandomScale):
+    def __call__(self, imgs, aflow):
+        img1, img2 = imgs
+        w, h = img1.size
+        img1 = super(PairRandomScale, self).__call__(img1)
+        nw, nh = img1.size
+
+        if w != nw or h != nh:
             aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_NEAREST)
 
         return (img1, img2), aflow
@@ -87,6 +98,11 @@ class RandomScale:
 class ScaleToRange(RandomScale):
     def __init__(self, min_size, max_size, max_sc):
         super(ScaleToRange, self).__init__(min_size, max_size, max_sc, random=False)
+
+
+class PairScaleToRange(PairRandomScale):
+    def __init__(self, min_size, max_size, max_sc):
+        super(PairScaleToRange, self).__init__(min_size, max_size, max_sc, random=False)
 
 
 class PairedRandomCrop:
@@ -284,7 +300,8 @@ class PairedCenterCrop(PairedRandomCrop):
 
 
 class RandomHomography:
-    def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, fill_value=np.nan, simple=False):
+    def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, fill_value=np.nan,
+                 simple=False, image_only=False):
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
@@ -292,6 +309,7 @@ class RandomHomography:
         self.min_size = min_size
         self.fill_value = fill_value
         self.simple = simple
+        self.image_only = image_only
 
     def random_H(self, w, h):
         tr_x = random.uniform(-self.max_tr, self.max_tr) * w
@@ -376,7 +394,7 @@ class RandomHomography:
             w_aflow = w_aflow.reshape((h, w, 2))
 
         w_img = PIL.Image.fromarray(img_arr.astype(np.uint8))
-        return w_img, w_aflow
+        return w_img if self.image_only else (w_img, w_aflow)
 
 
 class RandomTiltWrapper(RandomTilt):

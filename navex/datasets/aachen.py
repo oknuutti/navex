@@ -4,18 +4,21 @@ import math
 import numpy as np
 
 from r2d2.datasets.aachen import AachenPairs_OpticalFlow
+from torchvision.datasets import VisionDataset
+from torchvision.datasets.folder import default_loader
 
-from .base import ImagePairDataset, DataLoadingException, AugmentedDatasetMixin, SynthesizedPairDataset, unit_aflow
+from .base import ImagePairDataset, DataLoadingException, AugmentedPairDatasetMixin, SynthesizedPairDataset, unit_aflow, \
+    AugmentedDatasetMixin, find_imgs, BasicDataset
 
 
-class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedDatasetMixin):
+class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedPairDatasetMixin):
     def __init__(self, root='data', folder='aachen', noise_max=0.25, rnd_gain=(0.5, 3), image_size=512, max_sc=2 ** (1 / 4),
                  eval=False, rgb=False, npy=False):
 
         root = os.path.join(root, folder)
         AachenPairs_OpticalFlow.__init__(self, root, rgb=rgb, npy=npy)
-        AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                       max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=False)
+        AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                           max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=False)
         ImagePairDataset.__init__(self, root, None, transforms=self.transforms)
 
     def _load_samples(self):
@@ -35,13 +38,13 @@ class AachenFlowDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedData
         return (img1, img2), aflow
 
 
-class AachenStyleTransferDataset(ImagePairDataset, AugmentedDatasetMixin):
+class AachenStyleTransferPairDataset(ImagePairDataset, AugmentedPairDatasetMixin):
     def __init__(self, root='data', folder='aachen', noise_max=0.20, rnd_gain=(0.5, 2), image_size=512,
                  eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
 
-        AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                       max_sc=1.0, eval=eval, rgb=rgb, blind_crop=True)
+        AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                           max_sc=1.0, eval=eval, rgb=rgb, blind_crop=True)
 
         ImagePairDataset.__init__(self, os.path.join(root, folder), self.identity_aflow, transforms=self.transforms)
         self.npy = npy
@@ -65,27 +68,31 @@ class AachenStyleTransferDataset(ImagePairDataset, AugmentedDatasetMixin):
         return samples
 
 
-class AachenSynthPairDataset(SynthesizedPairDataset, AugmentedDatasetMixin):
+class AachenSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin):
     def __init__(self, root='data', folder='aachen', max_tr=0, max_rot=math.radians(15), max_shear=0.2, max_proj=0.8,
                  noise_max=0.20, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4),
                  eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
         self.npy = npy
 
-        AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                       max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)
+        AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                           max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)
 
-        SynthesizedPairDataset.__init__(self, os.path.join(root, folder), max_tr=max_tr, max_rot=max_rot,
-                                        max_shear=max_shear, max_proj=max_proj, min_size=image_size//2,
+        SynthesizedPairDataset.__init__(self, os.path.join(root, folder, 'images_upright', 'db'), max_tr=max_tr,
+                                        max_rot=max_rot, max_shear=max_shear, max_proj=max_proj, min_size=image_size//2,
                                         transforms=self.transforms)
 
     def _load_samples(self):
-        path_db = os.path.join(self.root, 'images_upright', 'db')
+        return find_imgs(self.root, self.npy)
 
-        samples = []
-        for file_db in os.listdir(path_db):
-            if file_db[-4:] == ('.npy' if self.npy else '.jpg'):
-                samples.append(os.path.join(path_db, file_db))
 
-        samples = sorted(samples)
-        return samples
+class AachenDataset(BasicDataset):
+    def __init__(self, root='data', folder='aachen', **kwargs):
+        folder = os.path.join(folder, 'images_upright', 'db')
+        super(AachenDataset, self).__init__(root, folder, **kwargs)
+
+
+class AachenSyntheticNightDataset(BasicDataset):
+    def __init__(self, root='data', folder='aachen', **kwargs):
+        folder = os.path.join(folder, 'style_transfer')
+        super(AachenSyntheticNightDataset, self).__init__(root, folder, **kwargs)

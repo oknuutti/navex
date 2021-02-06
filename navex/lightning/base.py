@@ -58,9 +58,14 @@ class TrialWrapperBase(pl.LightningModule):
         return AsynchronousLoader(dl) if self.use_gpu else dl
 
     def training_step(self, batch, batch_idx):
-        data, labels = batch
         epoch_id = self.trainer.current_epoch
-        loss, output = self.trial.train_batch(data, labels, epoch_id, batch_idx)
+
+        if isinstance(batch, Tensor):
+            loss, output = self.trial.train_batch(batch, epoch_id, batch_idx)
+            output, labels = (output[0],), output[1]
+        else:
+            data, labels = batch
+            loss, output = self.trial.train_batch(data, labels, epoch_id, batch_idx)
 
         with torch.no_grad():
             acc = self.trial.accuracy(*output, labels, mutual=True, ratio=False, success_px_limit=6)
@@ -75,8 +80,11 @@ class TrialWrapperBase(pl.LightningModule):
         self._eval_step(batch, batch_idx, 'tst')
 
     def _eval_step(self, batch, batch_idx, log_prefix):
-        data, labels = batch
-        loss, acc, output = self.trial.evaluate_batch(data, labels, mutual=True, ratio=False, success_px_limit=6)
+        if isinstance(batch, Tensor):
+            loss, acc, output = self.trial.evaluate_batch(batch, mutual=True, ratio=False, success_px_limit=6)
+        else:
+            data, labels = batch
+            loss, acc, output = self.trial.evaluate_batch(data, labels, mutual=True, ratio=False, success_px_limit=6)
         self._log(log_prefix, loss, acc, self.trial.log_values())
         return loss
 

@@ -2,9 +2,7 @@ import json
 import math
 import os
 
-import torch
-
-from ..datasets.aachen import AachenFlowDataset, AachenSynthPairDataset, AachenStyleTransferDataset
+from ..datasets.aachen import AachenFlowPairDataset, AachenSynthPairDataset, AachenStyleTransferPairDataset
 from ..datasets.base import AugmentedConcatDataset
 from ..datasets.revisitop1m import WebImageSynthPairDataset
 from ..losses.r2d2 import R2D2Loss
@@ -62,36 +60,6 @@ class TerrestrialTrial(TrialBase):
 
         self._tr_data, self._val_data, self._test_data = [None] * 3
 
-    def get_optimizer(self, method, split_params, weight_decay, learning_rate, eps):
-        # get optimizable params from both the network and the loss function
-        params = [m.params_to_optimize(split=split_params)
-                  for m in (self.model, self.loss_fn)]
-        if split_params:
-            params = [sum(p, []) for p in zip(*params)]
-        else:
-            params = sum(params, [])
-
-        if split_params:
-            assert method in ('adam', 'adabelief'), 'method not supported'
-            new_biases, new_weights, biases, weights, others = params
-            params = [
-                {'params': new_biases, 'lr': learning_rate * 2, 'weight_decay': 0.0, 'eps': eps},
-                {'params': new_weights, 'lr': learning_rate, 'weight_decay': weight_decay, 'eps': eps},
-                {'params': biases, 'lr': learning_rate * 2, 'weight_decay': 0.0, 'eps': eps},
-                {'params': weights, 'lr': learning_rate, 'weight_decay': weight_decay, 'eps': eps},
-                {'params': others, 'lr': learning_rate, 'weight_decay': 0, 'eps': eps},
-            ]
-
-        if method == 'adam':
-            optimizer = torch.optim.Adam(params, lr=learning_rate, weight_decay=weight_decay, eps=eps)
-        elif method == 'adabelief':
-            from adabelief_pytorch import AdaBelief
-            optimizer = AdaBelief(params, lr=learning_rate, weight_decay=weight_decay, eps=eps, weight_decouple=False,
-                                  betas=(0.9, 0.999), rectify=False, fixed_decay=False, print_change_log=False)
-        else:
-            assert False, 'Invalid optimizer: %s' % method
-        return optimizer
-
     def log_values(self):
         log = {}
         if not isinstance(self.loss_fn.wdt, float):
@@ -119,11 +87,11 @@ class TerrestrialTrial(TrialBase):
 
             ds = []
             if 1:
-                ds.append(AachenFlowDataset(self.data_conf['path'], **common, **dconf))
+                ds.append(AachenFlowPairDataset(self.data_conf['path'], **common, **dconf))
             if 1:
                 ds.append(WebImageSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
             if 1:
-                ds.append(AachenStyleTransferDataset(self.data_conf['path'], **common, **dconf))
+                ds.append(AachenStyleTransferPairDataset(self.data_conf['path'], **common, **dconf))
             if 1:
                 ds.append(AachenSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
 
