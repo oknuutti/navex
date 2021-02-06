@@ -67,7 +67,7 @@ class RandomScale:
         w, h = img.size
         min_side = min(w, h)
         min_sc = self.min_size / min_side
-        max_sc = min(self.max_sc, self.max_size / min_side)
+        max_sc = max(min_sc, min(self.max_sc, self.max_size / min_side))
 
         if self.random:
             trg_sc = math.exp(random.uniform(math.log(min_sc), math.log(max_sc)))
