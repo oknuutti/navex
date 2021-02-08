@@ -90,7 +90,8 @@ class ExperimentConfigParser(ArgumentParser):
         if self.definition is not None:
             def _check_subtree(path, a, d):
                 ak = set(a.keys())
-                dk = {k for k, v in d.items() if k != '__group__' and trial in v.get('trial', [trial])}
+                dk = {k for k, v in d.items() if k != '__group__' and isinstance(v, dict)
+                                                 and trial in v.get('trial', [trial])}
                 assert dk.issubset(ak), "Keys %s not found at '%s'" % (dk - ak, path)
                 for k in dk:
                     v = d[k]

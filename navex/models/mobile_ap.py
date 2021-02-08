@@ -211,7 +211,7 @@ class MobileAP(BasePoint):
             in_ch = self.add_layer(layers, in_ch, 3, 3, 24, False, "RE", 1, 1)
             in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 2, 1)    # C2
             in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)
-            in_ch = self.add_layer(layers, in_ch, 5, 3, 64, True, "RE", 1, 1)            # hf-net mod: 40=>64
+            in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)            # hf-net mod: 40=>64?
             # in_ch = add_layer(layers, in_ch, 3, 6, 80, False, "HS", 2, 1)  # C3
             # in_ch = add_layer(layers, in_ch, 3, 2.5, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 2.3, 80, False, "HS", 1, 1)
@@ -226,7 +226,7 @@ class MobileAP(BasePoint):
                 in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 2, 1)  # C1
                 in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 1, 1)
                 in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 2, 1)  # C2
-                in_ch = self.add_layer(layers, in_ch, 5, 6, 64, True, "HS", 1, 1)        # hf-net mod: 40=>64
+                in_ch = self.add_layer(layers, in_ch, 5, 6, 64, True, "HS", 1, 1)        # hf-net mod: 40=>64?
 
         else:
             assert a0 == 'mn3' and a1 == 's', 'invalid arch %s' % (arch,)

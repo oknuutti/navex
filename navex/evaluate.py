@@ -3,6 +3,7 @@ import os
 import torch
 
 from navex.lightning.base import TrialWrapperBase
+from navex.trials.terrastudent import TerraStudentTrial
 from .experiments.parser import ExperimentConfigParser, to_dict
 from .train_o import validate
 from .models.r2d2orig import R2D2
@@ -20,8 +21,7 @@ def main():
 
     device = torch.device("cuda:0" if use_cuda else "cpu")
 
-    if 0:
-        #model = to_dict(config.model)
+    if args.resume[-3:] == '.pt':
         model = R2D2(path=args.resume)
     else:
         light = TrialWrapperBase.load_from_checkpoint(args.resume, map_location="cuda:0" if use_cuda else "cpu")

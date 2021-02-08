@@ -39,8 +39,7 @@ class StudentLoss(BaseLoss):
             loss = weight * loss_fn(out, lbl) - 0.5 * log(2 * weight)
             losses.append(loss)
 
-        # TODO: check that summing works ok
-        return torch.stack(losses, dim=1).sum(dim=1)
+        return torch.stack(losses).sum()
 
     def params_to_optimize(self, split=False):
         params = []
