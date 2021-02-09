@@ -6,30 +6,27 @@ from .base import BasePoint, initialize_weights
 
 
 class AstroPoint(BasePoint):
-    def __init__(self, arch, in_channels=1, det_hidden_ch=128, qlt_hidden_ch=128, des_hidden_ch=128,
-                 batch_norm=True, descriptor_dim=128, width_mult=1.0, dropout=0.0, pretrained=False, cache_dir=None):
+    def __init__(self, arch, des_head, det_head, qlt_head, in_channels=1,
+                 width_mult=1.0, pretrained=False, cache_dir=None):
         super(AstroPoint, self).__init__()
 
         self.conf = {
             'arch': arch,
             'in_channels': in_channels,
-            'det_hidden_ch': det_hidden_ch,
-            'qlt_hidden_ch': qlt_hidden_ch,
-            'des_hidden_ch': des_hidden_ch,
-            'batch_norm': batch_norm,
-            'descriptor_dim': descriptor_dim,
             'width_mult': width_mult,
-            'dropout': dropout,
             'pretrained': pretrained,
+            'des_head': des_head,
+            'det_head': det_head,
+            'qlt_head': qlt_head,
         }
 
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
-                                                     width_mult=width_mult, batch_norm=batch_norm, subtype='sp',
+                                                     width_mult=width_mult, subtype='sp',
                                                      in_channels=in_channels, depth=3)
 
-        self.des_head = self.create_descriptor_head(out_ch, des_hidden_ch, descriptor_dim, batch_norm, dropout)
-        self.det_head = self.create_detector_head(out_ch, det_hidden_ch, batch_norm, dropout)
-        self.qlt_head = self.create_quality_head(out_ch, qlt_hidden_ch, batch_norm, dropout)
+        self.des_head = self.create_descriptor_head(out_ch, des_head)
+        self.det_head = self.create_detector_head(out_ch, det_head)
+        self.qlt_head = self.create_quality_head(out_ch, qlt_head)
 
         if pretrained:
             raise NotImplemented()
@@ -46,52 +43,31 @@ class AstroPoint(BasePoint):
                 nn.init.constant_(m.weight.data, 1)
 
     @staticmethod
-    def create_descriptor_head(in_channels, mid_channels, out_channels, batch_norm=False, dropout=0.0):
+    def _create_head(in_ch, out_ch, conf):
         seq = []
-        if mid_channels > 0:
-            seq.append(nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1))
-            if batch_norm:
-                seq.append(nn.BatchNorm2d(mid_channels))
+        if conf['hidden_ch'] > 0:
+            seq.append(nn.Conv2d(in_ch, conf['hidden_ch'], kernel_size=3, padding=1))
+            seq.append(nn.BatchNorm2d(conf['hidden_ch']))
             seq.append(nn.ReLU())
-            in_channels = mid_channels
+            in_ch = conf['hidden_ch']
 
-        if dropout > 0:
-            seq.append(nn.Dropout(dropout))
+        if conf['dropout'] > 0:
+            seq.append(nn.Dropout(conf['dropout']))
 
-        seq.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0))
+        seq.append(nn.Conv2d(in_ch, out_ch, kernel_size=1, padding=0))
         return nn.Sequential(*seq)
 
-    @staticmethod
-    def create_detector_head(in_channels, mid_channels, batch_norm=False, dropout=0.0):
-        seq = []
-        if mid_channels > 0:
-            seq.append(nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1))
-            if batch_norm:
-                seq.append(nn.BatchNorm2d(mid_channels))
-            seq.append(nn.ReLU())
-            in_channels = mid_channels
+    @classmethod
+    def create_descriptor_head(cls, in_ch, conf):
+        return cls.create_descriptor_head(in_ch, conf['dimensions'], conf)
 
-        if dropout > 0:
-            seq.append(nn.Dropout(dropout))
+    @classmethod
+    def create_detector_head(cls, in_ch, conf):
+        return cls.create_descriptor_head(in_ch, 65, conf)
 
-        seq.append(nn.Conv2d(in_channels, 65, kernel_size=1, padding=0))   # as in superpoint & hf-net
-        return nn.Sequential(*seq)
-
-    @staticmethod
-    def create_quality_head(in_channels, mid_channels, batch_norm=False, dropout=0.0):
-        seq = []
-        if mid_channels:
-            seq.append(nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1))
-            if batch_norm:
-                seq.append(nn.BatchNorm2d(mid_channels))
-            seq.append(nn.ReLU())
-            in_channels = mid_channels
-
-        if dropout > 0:
-            seq.append(nn.Dropout(dropout))
-
-        seq.append(nn.Conv2d(in_channels, 2, kernel_size=1, padding=0))     # double out channel as in R2D2
-        return nn.Sequential(*seq)
+    @classmethod
+    def create_quality_head(cls, in_ch, conf):
+        return cls.create_descriptor_head(in_ch, 2, conf)
 
     def params_to_optimize(self, split=False):
         np = list(self.named_parameters(recurse=False))

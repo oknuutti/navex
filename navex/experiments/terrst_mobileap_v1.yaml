@@ -34,23 +34,32 @@ training:
   deterministic: 1
 
 model:
-  arch: 'mob-mn3_L'
+  arch: !h_str 'mob-mn3_L'
   in_channels:      !h_int    3
-  det_hidden_ch:    !h_int    128
-  qlt_hidden_ch:    !h_int    128
-  des_hidden_ch:    !h_int    128
-  descriptor_dim:   !h_int    128
-  width_mult:       !h_float  1.0
-  dropout:          !h_float  0.0
-  head_exp_coef:    !h_float  6
-  head_use_se:      !h_int    0
   partial_residual: !h_int    0
-  batch_norm: 1         # not in use
+  width_mult:       !h_float  1.0
   pretrained: 0         # not in use
   cache_dir: 'cache'    # not in use
+  des_head:
+    dimensions:  !h_int    128
+    hidden_ch:   !h_int    128
+    exp_coef:    !h_float  6.0
+    use_se:      !h_int    0
+    dropout:     !h_float  0.0
+  det_head:
+    hidden_ch:   !h_int    128
+    exp_coef:    !h_float  6.0
+    use_se:      !h_int    0
+    dropout:     !h_float  0.0
+  qlt_head:
+    hidden_ch:   !h_int    128
+    exp_coef:    !h_float  6.0
+    use_se:      !h_int    0
+    dropout:     !h_float  0.0
 
 loss:
-  teacher: 'output/r2d2_WASF_N16.pt'
+  teacher: !h_str  'output/r2d2_WASF_N16.pt'
+  des_loss: !h_str 'L1'     # L1 or L2
   des_w: !h_float -1.0      # weight for descriptor head loss
   det_w: !h_float -1.0      # weight for detector head loss
   qlt_w: !h_float -1.0      # weight for quality head loss
@@ -66,7 +75,7 @@ data:
   max_rot: !h_float 8.0      # in degrees, synth pair warp related
   max_shear: !h_float 0.2    # synth pair warp related
   max_proj: !h_float 0.4     # synth pair warp related
-  noise_max: !h_float 0.15
+  noise_max: !h_float 0.10
   rnd_gain: !h_float 1.5
   image_size: !h_int 224
   path: 'data'

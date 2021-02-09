@@ -175,12 +175,14 @@ class StudentTrialMixin:
         self.teacher = teacher
         self.teacher.eval()
 
-    def train_batch(self, data: Tensor, epoch_idx: int, batch_idx: int):
+    def train_batch(self, data: Tuple[Tensor, Tensor], epoch_idx: int, batch_idx: int):
+        clean_data, noisy_data = data
+
         with torch.no_grad():
-            labels = self.teacher(data)
+            labels = self.teacher(clean_data)
 
         self.model.train()
-        output = self.model(data)
+        output = self.model(noisy_data)
         loss = self.loss(output, labels)
         self.loss_backward_fn(loss)
 
@@ -189,17 +191,19 @@ class StudentTrialMixin:
 
         return loss, (output, labels)
 
-    def evaluate_batch(self, data: Tensor, **acc_conf):
+    def evaluate_batch(self, data: Tuple[Tensor, Tensor], **acc_conf):
+        clean_data, noisy_data = data
+
         self.model.eval()
         with torch.no_grad():
             if self.count_ops:
-                d = data[:1, :, :, :]
+                d = clean_data[:1, :, :, :]
                 macs, params = self.count_ops(self.model, inputs=(d,), verbose=False)
                 print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s)' % (params * 1e-6, macs * 1e-9, d.shape))
                 self.count_ops = False
 
-            output = self.model(data)
-            labels = self.teacher(data)
+            output = self.model(noisy_data)
+            labels = self.teacher(clean_data)
             validation_loss = self.loss(output, labels)
             accuracy = self.accuracy(output, labels, **acc_conf)
         return validation_loss, accuracy, (output, labels)

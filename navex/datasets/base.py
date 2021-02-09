@@ -272,24 +272,33 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                                                     eval=eval, rgb=rgb)
 
     def _init_transf(self):
-        self._train_transf = tr.Compose([
-            IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
-            RandomHomography(max_tr=self.max_tr, max_rot=self.max_rot, max_shear=self.max_shear, max_proj=self.max_proj,
-                             min_size=self.min_size, fill_value=np.nan, image_only=True),
-            RandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
-            tr.RandomCrop(self.image_size),
-            tr.ToTensor(),
-            RandomDarkNoise(0, self.noise_max, 0.3, 3),  # apply extra dark noise at a random level (dropout might be enough though)
-            RandomExposure(*self.rnd_gain),              # apply a random gain on the image
+        self._train_transf = [
+            tr.Compose([
+                IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
+                RandomHomography(max_tr=self.max_tr, max_rot=self.max_rot, max_shear=self.max_shear, max_proj=self.max_proj,
+                                 min_size=self.min_size, fill_value=np.nan, image_only=True),
+                RandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
+                tr.RandomCrop(self.image_size),
+                tr.ToTensor(),
+            ]), 
+            tr.Compose([
+                RandomDarkNoise(0, self.noise_max, 0.3,
+                                3),  # apply extra dark noise at a random level (dropout might be enough though)
+                RandomExposure(*self.rnd_gain),  # apply a random gain on the image
+            ]),
             self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
-        ])
-        self._eval_transf = tr.Compose([
-            IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
-            ScaleToRange(min_size=max(self.image_size, 256), max_size=np.inf, max_sc=np.inf),
-            tr.CenterCrop(self.image_size),
-            tr.ToTensor(),
+        ]
+
+        self._eval_transf = [
+            tr.Compose([
+                IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
+                ScaleToRange(min_size=max(self.image_size, 256), max_size=np.inf, max_sc=np.inf),
+                tr.CenterCrop(self.image_size),
+                tr.ToTensor()]), 
+            IdentityTransform(), 
             self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
-        ])
+        ]
+
         self.transforms = self._eval_transf if self.eval else self._train_transf
 
 
@@ -323,12 +332,13 @@ class BasicDataset(VisionDataset, AugmentedDatasetMixin):
 
         try:
             img = self.image_loader(img_pth)
-            if self.transforms is not None:
-                img = self.transforms(img)
+            img = self.transforms[0](img)
+            noisy_img = self.transforms[1](img)
+            img, noisy_img = map(self.transforms[2], (img, noisy_img))
         except Exception as e:
             raise DataLoadingException("Problem with dataset %s, index %s: %s" %
                                        (self.__class__, idx, self.samples[idx],)) from e
-        return img
+        return img, noisy_img
 
 
 class AugmentedConcatDataset(ConcatDataset):

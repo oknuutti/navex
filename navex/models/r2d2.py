@@ -6,27 +6,26 @@ from .base import BasePoint, initialize_weights
 
 
 class R2D2(BasePoint):
-    def __init__(self, arch, in_channels=1, batch_norm=True, descriptor_dim=128,
+    def __init__(self, arch, des_head, det_head, qlt_head, in_channels=1,
                  width_mult=1.0, pretrained=False, cache_dir=None):
         super(R2D2, self).__init__()
 
         self.conf = {
             'arch': arch,
             'in_channels': in_channels,
-            'batch_norm': batch_norm,
-            'descriptor_dim': descriptor_dim,
+            'descriptor_dim': des_head['dimensions'],
             'width_mult': width_mult,
             'pretrained': pretrained,
         }
 
-        assert width_mult * 128 == descriptor_dim, 'descriptor dimensions dont correspond with backbone width'
+        assert width_mult * 128 == des_head['dimensions'], 'descriptor dimensions dont correspond with backbone width'
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
                                                      width_mult=width_mult, in_channels=in_channels)
-        assert out_ch == descriptor_dim, 'channel depths dont match'
+        assert out_ch == des_head['dimensions'], 'channel depths dont match'
 
         # det_head single=True in r2d2 github code, in article was single=False though
-        self.det_head = self.create_detector_head(descriptor_dim, single=True)
-        self.qlt_head = self.create_quality_head(descriptor_dim)
+        self.det_head = self.create_detector_head(des_head['dimensions'], single=True)
+        self.qlt_head = self.create_quality_head(des_head['dimensions'])
 
         if pretrained:
             raise NotImplemented()

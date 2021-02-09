@@ -11,7 +11,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 from pl_bolts.datamodules import AsynchronousLoader
 
-from ..trials.base import TrialBase
+from ..trials.base import TrialBase, StudentTrialMixin
 
 
 def _fn_none(x):
@@ -60,7 +60,7 @@ class TrialWrapperBase(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         epoch_id = self.trainer.current_epoch
 
-        if isinstance(batch, Tensor):
+        if isinstance(self.trial, StudentTrialMixin):
             loss, output = self.trial.train_batch(batch, epoch_id, batch_idx)
             output, labels = (output[0],), output[1]
         else:
@@ -80,7 +80,7 @@ class TrialWrapperBase(pl.LightningModule):
         self._eval_step(batch, batch_idx, 'tst')
 
     def _eval_step(self, batch, batch_idx, log_prefix):
-        if isinstance(batch, Tensor):
+        if isinstance(self.trial, StudentTrialMixin):
             loss, acc, output = self.trial.evaluate_batch(batch, mutual=True, ratio=False, success_px_limit=6)
         else:
             data, labels = batch

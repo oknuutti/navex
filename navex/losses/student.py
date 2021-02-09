@@ -8,15 +8,21 @@ from torch.nn.modules.loss import L1Loss, BCELoss
 from .base import BaseLoss
 
 
+class L2Loss:
+    def __call__(self, out, lbl):
+        return torch.norm(out - lbl, dim=1).mean()
+
+
 class StudentLoss(BaseLoss):
-    def __init__(self, des_w=1.0, det_w=1.0, qlt_w=1.0):
+    def __init__(self, des_loss='L1', des_w=1.0, det_w=1.0, qlt_w=1.0):
         super(StudentLoss, self).__init__()
 
         self.des_w = des_w if des_w >= 0 else nn.Parameter(torch.Tensor([-des_w]))
         self.det_w = det_w if det_w >= 0 else nn.Parameter(torch.Tensor([-det_w]))
         self.qlt_w = qlt_w if qlt_w >= 0 else nn.Parameter(torch.Tensor([-qlt_w]))
 
-        self.des_loss = L1Loss()
+        assert des_loss in ('L1', 'L2'), 'invalid descriptor loss function %s' % (des_loss,)
+        self.des_loss = L1Loss() if des_loss == 'L1' else L2Loss()
         self.det_loss = BCELoss()
         self.qlt_loss = BCELoss()
 

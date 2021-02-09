@@ -142,8 +142,7 @@ class InvertedPartialResidual(InvertedResidual):
 
 
 class MobileAP(BasePoint):
-    def __init__(self, arch, in_channels=1, det_hidden_ch=128, qlt_hidden_ch=128, des_hidden_ch=128,
-                 descriptor_dim=128, head_exp_coef=6, head_use_se=False, partial_residual=False, dropout=0.0,
+    def __init__(self, arch, des_head, det_head, qlt_head, in_channels=1, partial_residual=False,
                  width_mult=1.0, pretrained=False, cache_dir=None):
 
         super(MobileAP, self).__init__()
@@ -151,16 +150,19 @@ class MobileAP(BasePoint):
         self.conf = {
             'arch': arch,
             'in_channels': in_channels,
-            'det_hidden_ch': det_hidden_ch,
-            'qlt_hidden_ch': qlt_hidden_ch,
-            'des_hidden_ch': des_hidden_ch,
-            'descriptor_dim': descriptor_dim,
-            'dropout': dropout,
-            'head_exp_coef': head_exp_coef,
-            'head_use_se': head_use_se,
             'partial_residual': partial_residual,
             'width_mult': width_mult,
             'pretrained': pretrained,
+            'des_head': des_head,
+            'det_head': det_head,
+            'qlt_head': qlt_head,
+            # 'det_hidden_ch': det_hidden_ch,
+            # 'qlt_hidden_ch': qlt_hidden_ch,
+            # 'des_hidden_ch': des_hidden_ch,
+            # 'descriptor_dim': descriptor_dim,
+            # 'dropout': dropout,
+            # 'head_exp_coef': head_exp_coef,
+            # 'head_use_se': head_use_se,
         }
 
         # NOTE: Affine/renorm is False by default in TensorFlow, which is used for MobileNet and EfficientNet.
@@ -177,9 +179,9 @@ class MobileAP(BasePoint):
         self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
                                                      width_mult=width_mult, in_channels=in_channels)
 
-        self.des_head = self.create_descriptor_head(out_ch, des_hidden_ch, descriptor_dim, head_exp_coef, head_use_se, dropout)
-        self.det_head = self.create_detector_head(out_ch, det_hidden_ch, head_exp_coef, head_use_se, dropout)
-        self.qlt_head = self.create_quality_head(out_ch, qlt_hidden_ch, head_exp_coef, head_use_se, dropout)
+        self.des_head = self.create_descriptor_head(out_ch, des_head)
+        self.det_head = self.create_detector_head(out_ch, det_head)
+        self.qlt_head = self.create_quality_head(out_ch, qlt_head)
 
         if pretrained:
             raise NotImplemented()
@@ -226,7 +228,7 @@ class MobileAP(BasePoint):
                 in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 2, 1)  # C1
                 in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 1, 1)
                 in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 2, 1)  # C2
-                in_ch = self.add_layer(layers, in_ch, 5, 6, 64, True, "HS", 1, 1)        # hf-net mod: 40=>64?
+                in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 1, 1)        # hf-net mod: 40=>64?
 
         else:
             assert a0 == 'mn3' and a1 == 's', 'invalid arch %s' % (arch,)
@@ -243,38 +245,31 @@ class MobileAP(BasePoint):
 
         return nn.Sequential(*layers), in_ch
 
-    def create_descriptor_head(self, in_channels, mid_channels, out_channels, expansion_coef=6, use_se=False, dropout=0.0):
+    def _create_head(self, in_ch, out_ch, conf):
         seq = []
-        if mid_channels > 0:
-            in_channels = self.add_layer(seq, in_channels, 3, expansion_coef, mid_channels, use_se, "HS", 1, 1)
+        if conf['hidden_ch'] > 0:
+            if conf['exp_coef'] > 0:
+                in_ch = self.add_layer(seq, in_ch, 3, conf['exp_coef'], conf['hidden_ch'], conf['use_se'], "HS", 1, 1)
+            else:
+                seq.append(nn.Conv2d(in_ch, conf['hidden_ch'], kernel_size=3, padding=1))
+                seq.append(nn.BatchNorm2d(conf['hidden_ch']))
+                seq.append(nn.ReLU())
+                in_ch = conf['hidden_ch']
 
-        if dropout > 0:
-            seq.append(nn.Dropout(dropout))
+        if conf['dropout'] > 0:
+            seq.append(nn.Dropout(conf['dropout']))
 
-        seq.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0))
+        seq.append(nn.Conv2d(in_ch, out_ch, kernel_size=1, padding=0))
         return nn.Sequential(*seq)
 
-    def create_detector_head(self, in_channels, mid_channels, expansion_coef=6, use_se=False, dropout=0.0):
-        seq = []
-        if mid_channels > 0:
-            in_channels = self.add_layer(seq, in_channels, 3, expansion_coef, mid_channels, use_se, "HS", 1, 1)
+    def create_descriptor_head(self, in_ch, conf):
+        return self._create_head(in_ch, conf['dimensions'], conf)
 
-        if dropout > 0:
-            seq.append(nn.Dropout(dropout))
+    def create_detector_head(self, in_ch, conf):
+        return self._create_head(in_ch, 65, conf)
 
-        seq.append(nn.Conv2d(in_channels, 65, kernel_size=1, padding=0))  # as in superpoint & hf-net
-        return nn.Sequential(*seq)
-
-    def create_quality_head(self, in_channels, mid_channels, expansion_coef=6, use_se=False, dropout=0.0):
-        seq = []
-        if mid_channels > 0:
-            in_channels = self.add_layer(seq, in_channels, 3, expansion_coef, mid_channels, use_se, "HS", 1, 1)
-
-        if dropout > 0:
-            seq.append(nn.Dropout(dropout))
-
-        seq.append(nn.Conv2d(in_channels, 2, kernel_size=1, padding=0))     # double out channel as in R2D2
-        return nn.Sequential(*seq)
+    def create_quality_head(self, in_channels, conf):
+        return self._create_head(in_channels, 2, conf)
 
     def forward(self, input):
         # input is a pair of images

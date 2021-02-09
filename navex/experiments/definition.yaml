@@ -144,33 +144,9 @@ model:
     help: "`'model architecture: ' + (' | '.join(MODELS.keys()))`"
 
   in_channels:
-    alt: ['--in-channels']
+    alt: ['--in-channels', '--in-ch']
     type: int
     help: "1 for grayscale images, 3 for rgb images"
-
-  det_hidden_ch:
-    type: int
-    help: "detection head hidden layer channels"
-
-  qlt_hidden_ch:
-    type: int
-    help: "quality head hidden layer channels"
-
-  des_hidden_ch:
-    type: int
-    help: "description head hidden layer channels"
-
-  descriptor_dim:
-    type: int
-    help: "the descriptor dimensions"
-
-  head_exp_coef:
-    type: float
-    help: "for mobile arch, expansion factor for the hidden layers in heads"
-
-  head_use_se:
-    type: int
-    help: "for mobile arch, use squeeze-exitation for the hidden layers in heads"
 
   partial_residual:
     type: int
@@ -181,20 +157,85 @@ model:
     type: float
     help: "layer channel width multiplier, full width is 1.0 and e.g. mobilenet accepts 0.75, 0.5 and 0.25 also"
 
-  dropout:
-    alt: ['--do']
-    type: float
-    help: "dropout ratio"
-
-  batch_norm:
-    type: int
-    help: "use batch normalization"
-
   pretrained:
     help: "use a pretrained backbone, true/false for torchvision models, path to saved weights for own models"
 
   cache_dir:
     help: "folder where torchvision models are downloaded to"
+
+  des_head:
+    __group__: 1
+
+    dimensions:
+      alt: ['--des-dim']
+      type: int
+      help: "the descriptor dimensions"
+
+    hidden_ch:
+      alt: ['--des-ch']
+      type: int
+      help: "description head hidden layer channels"
+
+    exp_coef:
+      alt: ['--des-exp']
+      type: float
+      help: "expansion factor for the hidden layer"
+
+    use_se:
+      alt: ['--des-se']
+      type: int
+      help: "use squeeze-exitation for the hidden layer"
+
+    dropout:
+      alt: ['--des-do']
+      type: float
+      help: "dropout ratio"
+
+  det_head:
+    __group__: 1
+
+    hidden_ch:
+      alt: ['--det-ch']
+      type: int
+      help: "detection head hidden layer channels"
+
+    exp_coef:
+      alt: ['--det-exp']
+      type: float
+      help: "expansion factor for the hidden layer"
+
+    use_se:
+      alt: ['--det-se']
+      type: int
+      help: "use squeeze-exitation for the hidden layer"
+
+    dropout:
+      alt: ['--det-do']
+      type: float
+      help: "dropout ratio"
+
+  qlt_head:
+    __group__: 1
+
+    hidden_ch:
+      alt: ['--qlt-ch']
+      type: int
+      help: "quality head hidden layer channels"
+
+    exp_coef:
+      alt: ['--qlt-exp']
+      type: float
+      help: "expansion factor for the hidden layer"
+
+    use_se:
+      alt: ['--qlt-se']
+      type: int
+      help: "use squeeze-exitation for the hidden layer"
+
+    dropout:
+      alt: ['--qlt-do']
+      type: float
+      help: "dropout ratio"
 
 
 loss:
@@ -204,6 +245,12 @@ loss:
     trial: ["terrst"]
     alt: ["--teacher"]
     help: "path to the teacher model"
+
+  des_loss:
+    trial: ["terrst"]
+    alt: ["--des-loss"]
+    choices: ['L1', 'L2']
+    help: "loss function to use for descriptors"
 
   des_w:
     trial: ["terrst"]

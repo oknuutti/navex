@@ -33,7 +33,7 @@ class R2D2Loss(BaseLoss):
         sh, sw = aflow.shape[2:]
         if (sh, sh) != (th, th):
             sc = min(th/sh, tw/sw)
-            sc_aflow = F.interpolate(aflow, size=(th, tw), mode='bilinear', align_corners=False) * sc
+            sc_aflow = F.interpolate(aflow, size=(th, tw), mode='nearest') * sc
         else:
             sc_aflow = aflow
 
