@@ -13,8 +13,9 @@ from torchvision.datasets.folder import default_loader
 import torchvision.transforms as tr
 
 from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, ComposedTransforms, \
-    GeneralTransform, PairedCenterCrop, PairedRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform, \
-    RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange
+    GeneralTransform, PairCenterCrop, PairRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform, \
+    RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
+    PairRandomHorizontalFlip
 
 from .. import RND_SEED
 
@@ -237,8 +238,10 @@ class AugmentedPairDatasetMixin:
         self._train_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
             PairRandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
-            PairedRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
+            PairRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
+            PairRandomHorizontalFlip(),
             GeneralTransform(tr.ToTensor()),
+            PhotometricTransform(tr.ColorJitter()) if self.rgb else PairedIdentityTransform(),
             PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
             PhotometricTransform(RandomExposure(*self.rnd_gain)),  # apply a random gain on the image
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
@@ -246,7 +249,7 @@ class AugmentedPairDatasetMixin:
         self._eval_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
             PairScaleToRange(min_size=max(self.image_size, 256), max_size=np.inf, max_sc=np.inf),
-            PairedCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
+            PairCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
@@ -259,13 +262,16 @@ class AugmentedPairDatasetMixin:
 
 class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
     def __init__(self, noise_max, rnd_gain, image_size, max_tr, max_rot, max_shear, max_proj, min_size,
-                 resize_max_size=1024, resize_max_sc=2.0, eval=False, rgb=False):
+                 student_noise_sd, student_rnd_gain, resize_max_size=1024, resize_max_sc=2.0, eval=False, rgb=False):
 
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
         self.max_proj = max_proj
         self.min_size = min_size
+        self.student_noise_sd = student_noise_sd
+        self.student_rnd_gain = student_rnd_gain if isinstance(student_rnd_gain, (tuple, list)) else \
+                                (1 / student_rnd_gain, student_rnd_gain)
 
         super(AugmentedDatasetMixin, self).__init__(noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                                     resize_max_size=resize_max_size, resize_max_sc=resize_max_sc,
@@ -280,11 +286,14 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                 RandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
                 tr.RandomCrop(self.image_size),
                 tr.ToTensor(),
-            ]), 
+                tr.RandomHorizontalFlip(),
+                tr.ColorJitter() if self.rgb else IdentityTransform(),
+                RandomDarkNoise(0, self.noise_max, 0.3, 3),
+                RandomExposure(*self.rnd_gain),
+            ]),
             tr.Compose([
-                RandomDarkNoise(0, self.noise_max, 0.3,
-                                3),  # apply extra dark noise at a random level (dropout might be enough though)
-                RandomExposure(*self.rnd_gain),  # apply a random gain on the image
+                RandomExposure(*self.student_rnd_gain),
+                GaussianNoise(self.student_noise_sd),
             ]),
             self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
         ]
@@ -304,8 +313,8 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
 
 class BasicDataset(VisionDataset, AugmentedDatasetMixin):
     def __init__(self, root='data', folder=None, max_tr=0, max_rot=math.radians(15), max_shear=0.2, max_proj=0.8,
-                 noise_max=0.20, rnd_gain=(0.5, 2), image_size=512, eval=False, rgb=False, npy=False, ext='.jpg',
-                 test=None, folder_depth=0):
+                 noise_max=0.20, rnd_gain=(0.5, 2), student_noise_sd=0.05, student_rnd_gain=(0.8, 1.2), image_size=512,
+                 eval=False, rgb=False, npy=False, ext='.jpg', test=None, folder_depth=0):
         assert not npy, '.npy format not supported'
         self.npy = npy
         self.ext = ext
@@ -314,6 +323,7 @@ class BasicDataset(VisionDataset, AugmentedDatasetMixin):
 
         AugmentedDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                        max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
+                                       student_noise_sd=student_noise_sd, student_rnd_gain=student_rnd_gain,
                                        min_size=image_size // 2, eval=eval, rgb=rgb)
 
         VisionDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms)

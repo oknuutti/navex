@@ -390,6 +390,18 @@ data:
     type: float
     help: "random gain is sampled uniformly between [1/G, G] and applied to training images after adding noise"
 
+  student_noise_sd:
+    trial: ["terrst"]
+    alt: ['--st-noise-sd']
+    type: float
+    help: "Gaussian noise sd applied to student given training images"
+
+  student_rnd_gain:
+    trial: ["terrst"]
+    alt: ['--st-rnd-gain']
+    type: float
+    help: "random gain is sampled uniformly between [1/G, G] and applied to student training images before adding noise"
+
   image_size:
     alt: ['--img-size']
     type: int

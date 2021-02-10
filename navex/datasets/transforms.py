@@ -6,6 +6,7 @@ import scipy.interpolate as interp
 import PIL
 import cv2
 import torch
+from PIL import ImageOps
 from r2d2.tools.transforms import RandomTilt
 from r2d2.tools.transforms_tools import persp_apply
 from torchvision.transforms import Lambda
@@ -105,7 +106,24 @@ class PairScaleToRange(PairRandomScale):
         super(PairScaleToRange, self).__init__(min_size, max_size, max_sc, random=False)
 
 
-class PairedRandomCrop:
+class PairRandomHorizontalFlip:
+    def __init__(self, p=0.5):
+        self.p = p
+
+    def __call__(self, imgs, aflow):
+        img1, img2 = imgs
+        w2, h2 = img2.size
+
+        if random.uniform(0, 1) < self.p:
+            img1 = ImageOps.mirror(img1)
+            img2 = ImageOps.mirror(img2)
+            aflow = np.fliplr(aflow)
+            aflow[:, :, 0] = w2 - aflow[:, :, 0]
+
+        return (img1, img2), aflow
+
+
+class PairRandomCrop:
     def __init__(self, shape, random=True, max_sc_diff=None, random_sc_diff=True, fill_value=None,
                  blind_crop=False, interp_method=PIL.Image.BILINEAR):
         self.shape = (shape, shape) if isinstance(shape, int) else shape       # yx i.e. similar to aflow.shape
@@ -290,13 +308,13 @@ class PairedRandomCrop:
         return p_img, p_aflow
 
 
-class PairedCenterCrop(PairedRandomCrop):
+class PairCenterCrop(PairRandomCrop):
     def __init__(self, shape, max_sc_diff=None, fill_value=None, blind_crop=False):
-        super(PairedCenterCrop, self).__init__(shape, random=0, max_sc_diff=max_sc_diff,
-                                               random_sc_diff=False, blind_crop=blind_crop, fill_value=fill_value)
+        super(PairCenterCrop, self).__init__(shape, random=0, max_sc_diff=max_sc_diff,
+                                             random_sc_diff=False, blind_crop=blind_crop, fill_value=fill_value)
 
     def __call__(self, imgs, aflow):
-        return super(PairedCenterCrop, self).__call__(imgs, aflow)
+        return super(PairCenterCrop, self).__call__(imgs, aflow)
 
 
 class RandomHomography:
@@ -430,9 +448,7 @@ class RandomExposure:
             transformed image: image with random exposure adjustment (gain).
         """
         gain = math.exp(random.uniform(math.log(self.min_gain), math.log(self.max_gain)))
-        transform = Lambda(lambda img: torch.clamp(img * gain, 0, 1))
-        img_t = transform(img)
-        return img_t
+        return torch.clamp(img * gain, 0, 1)
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '('
@@ -441,7 +457,20 @@ class RandomExposure:
         return format_string
 
 
+class GaussianNoise:
+    def __init__(self, sd):
+        self.sd = sd
+
+    def __call__(self, img):
+        return self.sd * torch.randn_like(img)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(sd={0})'.format(self.sd)
+
+
 class RandomDarkNoise:
+    # simulates dark current image sensor noise at different exposure levels
+
     def __init__(self, min_level, max_level, gain=0.1, pow=3):
         self.min_level = min_level
         self.max_level = max_level
@@ -456,11 +485,14 @@ class RandomDarkNoise:
         Returns:
             transformed image: image with random exposure adjustment (gain).
         """
+
+        # dark current
         mean = random.uniform(self.min_level**(1/self.pow), self.max_level**(1/self.pow)) ** self.pow
-        sd = math.sqrt(self.gain * mean)   # dark shot noise (i.e. photon noise of dark current)
-        transform = Lambda(lambda img: torch.clamp(img + mean + sd*torch.randn_like(img), 0, 1))
-        img_t = transform(img)
-        return img_t
+
+        # dark shot noise (i.e. photon noise of dark current)
+        sd = math.sqrt(self.gain * mean)
+
+        return torch.clamp(img + mean + sd * torch.randn_like(img), 0, 1)
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '('
