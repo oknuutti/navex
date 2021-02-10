@@ -462,7 +462,7 @@ class GaussianNoise:
         self.sd = sd
 
     def __call__(self, img):
-        return self.sd * torch.randn_like(img)
+        return img + self.sd * torch.randn_like(img)
 
     def __repr__(self):
         return self.__class__.__name__ + '(sd={0})'.format(self.sd)

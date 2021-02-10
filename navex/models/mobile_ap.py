@@ -33,12 +33,18 @@ class ConvBNActivation(nn.Sequential):
             norm_layer = nn.BatchNorm2d
         if activation_layer is None:
             activation_layer = nn.ReLU6
-        super(ConvBNActivation, self).__init__(
-            nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding, dilation=dilation, groups=groups,
-                      bias=False),
-            norm_layer(out_planes),
-            activation_layer(inplace=True)
-        )
+
+        if False and kernel_size == 5:
+            # This part was modified as I wanted to test what the impact would be of splitting 5x5 conv to two 3x3 convs
+            conv_layer = nn.Sequential(
+                nn.Conv2d(in_planes, in_planes,  3, stride, 1, dilation=dilation, groups=groups, bias=False),
+                nn.Conv2d(in_planes, out_planes, 3,      1, 1, dilation=dilation, groups=groups, bias=False),
+            )
+        else:
+            conv_layer = nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding,
+                                   dilation=dilation, groups=groups, bias=False)
+
+        super(ConvBNActivation, self).__init__(conv_layer, norm_layer(out_planes), activation_layer(inplace=True))
         self.out_channels = out_planes
 
 
