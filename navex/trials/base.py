@@ -201,8 +201,8 @@ class StudentTrialMixin:
                 print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s)' % (params * 1e-6, macs * 1e-9, d.shape))
                 self.count_ops = False
 
-            output = self.model(noisy_data)
             labels = self.teacher(clean_data)
+            output = self.model(noisy_data)
             validation_loss = self.loss(output, labels)
             accuracy = self.accuracy(output, labels, **acc_conf)
         return validation_loss, accuracy, (output, labels)
