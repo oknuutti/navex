@@ -35,7 +35,7 @@ class StudentLoss(BaseLoss):
         weights = (self.des_w, self.det_w, self.qlt_w)
         align_corners = None if self.interpolation_mode in ('nearest', 'area') else False
 
-        # upscale to higher resolution
+        # upscale to higher resolution (uses a lot of memory though, could downscale but would seem fishy, hmm...)
         losses = []
         for out, lbl, weight, loss_fn in zip(output, label, weights, loss_fns):
             h1, w1 = out.shape[2:]

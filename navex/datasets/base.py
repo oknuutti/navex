@@ -26,10 +26,6 @@ def worker_init_fn(id):
     torch.random.manual_seed(RND_SEED)
 
 
-def unit_aflow(W, H):
-    return np.stack(np.meshgrid(np.arange(W, dtype=np.float32), np.arange(H, dtype=np.float32)), axis=2)
-
-
 def _find_imgs_recurse(path, samples, npy, ext, test, depth):
     for fname in os.listdir(path):
         fullpath = os.path.join(path, fname)

@@ -3,14 +3,13 @@ from typing import Tuple
 
 import torch
 from torch import Tensor
-from torch.nn import Module
 from torch.optim import Optimizer
-from torch.functional import F
 from torch.utils.data.dataloader import DataLoader
 import torchvision.transforms as tr
 
 from .. import RND_SEED
-from ..datasets.base import worker_init_fn, unit_aflow
+from ..datasets.base import worker_init_fn
+from ..datasets.tools import unit_aflow
 from ..models import tools
 
 

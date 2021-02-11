@@ -64,7 +64,8 @@ def main():
         version = int(m[-1]) if m else None
     logger = MyLogger(args.output, name='', version=version)
 
-    callbacks = [MyModelCheckpoint(monitor='val_loss_epoch',
+    monitor = 'val_tot_epoch'  # was val_tot_loss, but now something weird happens with that metric, all others are fine
+    callbacks = [MyModelCheckpoint(monitor=monitor,
                                    mode='min',
                                    verbose=True,
                                    period=args.save_freq,
@@ -73,7 +74,7 @@ def main():
                                              % (config.model.arch, args.name, logger.version))]
 
     if args.early_stopping:
-        callbacks.append(EarlyStopping(monitor='val_loss_epoch',
+        callbacks.append(EarlyStopping(monitor=monitor,
                                        mode='min',
                                        min_delta=0.00,
                                        patience=args.early_stopping,

@@ -9,9 +9,9 @@ import torch
 from PIL import ImageOps
 from r2d2.tools.transforms import RandomTilt
 from r2d2.tools.transforms_tools import persp_apply
-from torchvision.transforms import Lambda
 
-from navex.models import tools
+from ..models import tools
+from .tools import unit_aflow, show_pair
 
 
 class GeneralTransform:
@@ -264,20 +264,7 @@ class PairRandomCrop:
                 ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
 
         if debug:
-            import matplotlib.pyplot as plt
-            fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-            axs[0].imshow(np.array(c_img1))
-            axs[1].imshow(np.array(c_img2))
-            for i in range(8):
-                idx = np.argmax((1-np.isnan(c_aflow[:, :, 0].flatten()).astype(np.float32))
-                                * np.random.lognormal(0, 1, (n*m,)))
-                y0, x0 = np.unravel_index(idx, c_aflow.shape[:2])
-                axs[0].plot(x0, y0, 'x')
-                axs[1].plot(c_aflow[y0, x0, 0], c_aflow[y0, x0, 1], 'x')
-
-            # plt.figure(3), plt.imshow(img1), plt.figure(4), plt.imshow(img2)
-            # plt.figure(3), plt.imshow(c_mask), plt.figure(4), plt.imshow(c_ok.T[j2:j2+n, i2:i2+m])
-            plt.show()
+            show_pair(c_img1, c_img2, c_aflow, pts=8)
             min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
             max_i, max_j = np.nanmax(c_aflow, axis=(0, 1))
             assert min_i >= 0 and min_j >= 0, 'flow coord less than zero: i: %s, j: %s' % (min_i, min_j)
@@ -355,7 +342,6 @@ class RandomHomography:
     def __call__(self, img):
         # from https://stackoverflow.com/questions/16682965/how-to-generaterandomtransform-with-opencv
         #  - NOTE: not certain if actually correct
-        from .base import unit_aflow
         w, h = img.size
         aflow_shape = (h, w, 2)
         uh_aflow = np.concatenate((unit_aflow(w, h), np.ones((*aflow_shape[:2], 1), dtype=np.float32)), axis=2)
