@@ -15,7 +15,7 @@ import torchvision.transforms as tr
 from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, ComposedTransforms, \
     GeneralTransform, PairCenterCrop, PairRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform, \
     RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
-    PairRandomHorizontalFlip
+    PairRandomHorizontalFlip, Clamp
 
 from .. import RND_SEED
 
@@ -244,6 +244,7 @@ class AugmentedPairDatasetMixin:
             PhotometricTransform(tr.ColorJitter()) if self.rgb else PairedIdentityTransform(),
             PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
             PhotometricTransform(RandomExposure(*self.rnd_gain)),  # apply a random gain on the image
+            PhotometricTransform(Clamp(0, 1)),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
         self._eval_transf = ComposedTransforms([
@@ -251,6 +252,7 @@ class AugmentedPairDatasetMixin:
             PairScaleToRange(min_size=max(self.image_size, 256), max_size=np.inf, max_sc=np.inf),
             PairCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
             GeneralTransform(tr.ToTensor()),
+            PhotometricTransform(Clamp(0, 1)),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
         self.transforms = self._eval_transf if self.eval else self._train_transf
@@ -295,7 +297,10 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                 RandomExposure(*self.student_rnd_gain),
                 GaussianNoise(self.student_noise_sd),
             ]),
-            self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
+            tr.Compose([
+                Clamp(0, 1),
+                self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
+            ]),
         ]
 
         self._eval_transf = [
@@ -305,7 +310,10 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                 tr.CenterCrop(self.image_size),
                 tr.ToTensor()]), 
             IdentityTransform(), 
-            self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
+            tr.Compose([
+                Clamp(0, 1),
+                self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
+            ]),
         ]
 
         self.transforms = self._eval_transf if self.eval else self._train_transf
@@ -344,6 +352,10 @@ class BasicDataset(VisionDataset, AugmentedDatasetMixin):
             img = self.image_loader(img_pth)
             img = self.transforms[0](img)
             noisy_img = self.transforms[1](img)
+            # if not self.eval:
+            #     import matplotlib.pyplot as plt
+            #     plt.imshow(torch.vstack((aug_img, noisy_img)).permute((1,2,0)).detach().cpu().numpy())
+            #     print('sleep here')
             img, noisy_img = map(self.transforms[2], (img, noisy_img))
         except Exception as e:
             raise DataLoadingException("Problem with dataset %s, index %s: %s" %

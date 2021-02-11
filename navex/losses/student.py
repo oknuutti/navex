@@ -14,12 +14,13 @@ class L2Loss:
 
 
 class StudentLoss(BaseLoss):
-    def __init__(self, des_loss='L1', des_w=1.0, det_w=1.0, qlt_w=1.0):
+    def __init__(self, des_loss='L1', des_w=1.0, det_w=1.0, qlt_w=1.0, interpolation_mode='bicubic'):
         super(StudentLoss, self).__init__()
 
         self.des_w = des_w if des_w >= 0 else nn.Parameter(torch.Tensor([-des_w]))
         self.det_w = det_w if det_w >= 0 else nn.Parameter(torch.Tensor([-det_w]))
         self.qlt_w = qlt_w if qlt_w >= 0 else nn.Parameter(torch.Tensor([-qlt_w]))
+        self.interpolation_mode = interpolation_mode
 
         assert des_loss in ('L1', 'L2'), 'invalid descriptor loss function %s' % (des_loss,)
         self.des_loss = L1Loss() if des_loss == 'L1' else L2Loss()
@@ -29,17 +30,18 @@ class StudentLoss(BaseLoss):
     def forward(self, output, label):
         loss_fns = (self.des_loss, self.det_loss, self.qlt_loss)
         weights = (self.des_w, self.det_w, self.qlt_w)
+        align_corners = None if self.interpolation_mode in ('nearest', 'area') else False
 
-        # downscale higher resolution
+        # upscale to higher resolution
         losses = []
         for out, lbl, weight, loss_fn in zip(output, label, weights, loss_fns):
             h1, w1 = out.shape[2:]
             h2, w2 = lbl.shape[2:]
             if (h1, w1) != (h2, w2):
-                if h1 * w1 > h2 * w2:
-                    out = F.interpolate(out, size=(h2, w2), mode='area')
-                else:
-                    lbl = F.interpolate(lbl, size=(h1, w1), mode='area')
+                if h1 * w1 < h2 * w2:
+                    out = F.interpolate(out, size=(h2, w2), mode=self.interpolation_mode, align_corners=align_corners)
+                elif h1 * w1 > h2 * w2:
+                    lbl = F.interpolate(lbl, size=(h1, w1), mode=self.interpolation_mode, align_corners=align_corners)
 
             log = math.log if isinstance(weight, float) else torch.log
             loss = weight * loss_fn(out, lbl) - 0.5 * log(2 * weight)

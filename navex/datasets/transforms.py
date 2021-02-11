@@ -448,7 +448,7 @@ class RandomExposure:
             transformed image: image with random exposure adjustment (gain).
         """
         gain = math.exp(random.uniform(math.log(self.min_gain), math.log(self.max_gain)))
-        return torch.clamp(img * gain, 0, 1)
+        return img * gain
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '('
@@ -466,6 +466,18 @@ class GaussianNoise:
 
     def __repr__(self):
         return self.__class__.__name__ + '(sd={0})'.format(self.sd)
+
+
+class Clamp:
+    def __init__(self, min, max):
+        self.min = min
+        self.max = max
+
+    def __call__(self, img):
+        return torch.clamp(img, self.min, self.max)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(min={0}, max={1})'.format(self.min, self.max)
 
 
 class RandomDarkNoise:
@@ -492,7 +504,7 @@ class RandomDarkNoise:
         # dark shot noise (i.e. photon noise of dark current)
         sd = math.sqrt(self.gain * mean)
 
-        return torch.clamp(img + mean + sd * torch.randn_like(img), 0, 1)
+        return img + mean + sd * torch.randn_like(img)
 
     def __repr__(self):
         format_string = self.__class__.__name__ + '('
