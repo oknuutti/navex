@@ -7,9 +7,9 @@ from torch.functional import F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from navex.datasets.extract import SingleImageDataset
-from navex.lightning.base import TrialWrapperBase
-from navex.models import tools
+from .datasets.base import ExtractionImageDataset
+from .lightning.base import TrialWrapperBase
+from .models import tools
 
 
 # example:
@@ -59,7 +59,7 @@ def main():
             break
 
     model.eval()
-    dataset = SingleImageDataset(args.images, rgb=rgb)
+    dataset = ExtractionImageDataset(args.images, rgb=rgb)
 
     if args.model_type == 'r2d2':
         data_loader = DataLoader(dataset, pin_memory=args.gpu)  # TODO: debug

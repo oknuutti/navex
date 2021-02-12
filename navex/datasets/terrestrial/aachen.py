@@ -4,12 +4,10 @@ import math
 import numpy as np
 
 from r2d2.datasets.aachen import AachenPairs_OpticalFlow
-from torchvision.datasets import VisionDataset
-from torchvision.datasets.folder import default_loader
 
-from .base import ImagePairDataset, DataLoadingException, AugmentedPairDatasetMixin, SynthesizedPairDataset, \
+from navex.datasets.base import ImagePairDataset, DataLoadingException, AugmentedPairDatasetMixin, SynthesizedPairDataset, \
     AugmentedDatasetMixin, find_imgs, BasicDataset
-from .tools import unit_aflow
+from navex.datasets.tools import unit_aflow
 
 
 class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedPairDatasetMixin):

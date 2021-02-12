@@ -64,9 +64,9 @@ def main():
         version = int(m[-1]) if m else None
     logger = MyLogger(args.output, name='', version=version)
 
-    monitor = 'val_tot_epoch'  # was val_tot_loss, but now something weird happens with that metric, all others are fine
+    monitor, monitor_mode = 'val_tot_epoch', 'max'   # was val_tot_loss (& min), but now something weird happens with that metric, all others are fine
     callbacks = [MyModelCheckpoint(monitor=monitor,
-                                   mode='min',
+                                   mode=monitor_mode,
                                    verbose=True,
                                    period=args.save_freq,
                                    dirpath=os.path.join(args.output, 'version_%d' % logger.version),
@@ -75,7 +75,7 @@ def main():
 
     if args.early_stopping:
         callbacks.append(EarlyStopping(monitor=monitor,
-                                       mode='min',
+                                       mode=monitor_mode,
                                        min_delta=0.00,
                                        patience=args.early_stopping,
                                        verbose=True))

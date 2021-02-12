@@ -3,8 +3,8 @@ import math
 
 from .base import StudentTrialMixin
 from ..datasets.base import AugmentedConcatDataset
-from ..datasets.aachen import AachenDataset, AachenSyntheticNightDataset
-from ..datasets.revisitop1m import WebImageDataset
+from navex.datasets.terrestrial.aachen import AachenDataset, AachenSyntheticNightDataset
+from navex.datasets.terrestrial.revisitop1m import WebImageDataset
 from ..lightning.base import TrialWrapperBase
 from ..models.r2d2orig import R2D2
 from ..trials.terrestrial import TerrestrialTrial
