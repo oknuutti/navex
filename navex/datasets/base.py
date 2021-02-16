@@ -2,6 +2,8 @@ import bisect
 import math
 import os
 import random
+import sqlite3
+from typing import Any, Dict, Tuple, Union, List
 
 import numpy as np
 import PIL
@@ -18,6 +20,8 @@ from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, C
     RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
     PairRandomHorizontalFlip, Clamp
 
+from .tools import find_files_recurse
+
 from .. import RND_SEED
 
 
@@ -25,36 +29,6 @@ def worker_init_fn(id):
     random.seed(RND_SEED)
     np.random.seed(RND_SEED)
     torch.random.manual_seed(RND_SEED)
-
-
-def _find_imgs_recurse(path, samples, npy, ext, test, depth):
-    for fname in os.listdir(path):
-        fullpath = os.path.join(path, fname)
-        if fname[-4:] == ('.npy' if npy else ext):
-            ok = test is None
-            if not ok:
-                try:
-                    img = default_loader(fullpath)
-                    ok = test(img)
-                except Exception as e:
-                    print('%s' % e)
-            if ok:
-                samples.append(fullpath)
-            else:
-                print('rejected: %s' % fullpath)
-        elif depth > 0 and os.path.isdir(fullpath):
-            _find_imgs_recurse(fullpath, samples, npy, ext, test, depth-1)
-
-
-def find_imgs_recurse(root, npy=False, ext='.jpg', test=None, depth=100):
-    samples = []
-    _find_imgs_recurse(root, samples, npy, ext, test, depth)
-    samples = sorted(samples)
-    return samples
-
-
-def find_imgs(root, npy=False, ext='.jpg', test=None):
-    return find_imgs_recurse(root, npy, ext, test, 0)
 
 
 class DataLoadingException(Exception):
@@ -337,7 +311,7 @@ class BasicDataset(VisionDataset, AugmentedDatasetMixin):
         self.samples = self._load_samples()
 
     def _load_samples(self):
-        return find_imgs_recurse(self.root, self.npy, self.ext, self.test, self.folder_depth)
+        return find_files_recurse(self.root, self.npy, self.ext, self.test, self.folder_depth)
 
     def __len__(self):
         return len(self.samples)

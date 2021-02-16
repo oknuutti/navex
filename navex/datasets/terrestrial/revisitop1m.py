@@ -1,7 +1,10 @@
 import math
 import os
 
-from navex.datasets.base import SynthesizedPairDataset, AugmentedPairDatasetMixin, BasicDataset, find_imgs_recurse
+from torchvision.datasets.folder import default_loader
+
+from navex.datasets.base import SynthesizedPairDataset, AugmentedPairDatasetMixin, BasicDataset
+from navex.datasets.tools import find_files_recurse
 
 
 class WebImageSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin):
@@ -23,11 +26,12 @@ class WebImageSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin
     def _load_samples(self, test=False):
         s = self
 
-        def test_fn(img):
+        def test_fn(imgpath):
+            img = default_loader(imgpath)
             return (img.size[0] >= s.min_size and img.size[1] >= s.min_size
                     and max(img.size) / min(img.size) <= s.max_aspect_ratio)
 
-        samples = find_imgs_recurse(self.root, ext='.jpg', npy=self.npy, test=test_fn if test else None)
+        samples = find_files_recurse(self.root, ext='.jpg', npy=self.npy, test=test_fn if test else None)
         return samples
 
 

@@ -6,8 +6,8 @@ import numpy as np
 from r2d2.datasets.aachen import AachenPairs_OpticalFlow
 
 from navex.datasets.base import ImagePairDataset, DataLoadingException, AugmentedPairDatasetMixin, SynthesizedPairDataset, \
-    AugmentedDatasetMixin, find_imgs, BasicDataset
-from navex.datasets.tools import unit_aflow
+    AugmentedDatasetMixin, BasicDataset
+from navex.datasets.tools import find_files, unit_aflow
 
 
 class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedPairDatasetMixin):
@@ -82,7 +82,7 @@ class AachenSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin):
                                         transforms=self.transforms)
 
     def _load_samples(self):
-        return find_imgs(self.root, self.npy)
+        return find_files(self.root, self.npy)
 
 
 class AachenDataset(BasicDataset):

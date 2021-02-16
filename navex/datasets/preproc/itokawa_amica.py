@@ -6,7 +6,7 @@ import argparse
 from tqdm import tqdm
 import numpy as np
 
-from .tools import read_raw_img, write_data
+from navex.datasets.preproc.tools import read_raw_img, write_data
 
 
 def raw_itokawa():
