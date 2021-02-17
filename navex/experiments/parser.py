@@ -56,9 +56,14 @@ class ExperimentConfigParser(ArgumentParser):
             cls = dict([(c.__name__, c) for c in (bool, int, float, str)] + [('tune', 'tune')]).get(t[0], None)
             assert cls is not None, 'Unknown hyperparameter class: "%s"' % s
 
-            if cls == 'tune':
+            if cls[:4] == 'tune':
                 from ray import tune
+                double = cls == 'tune2'
                 cls = getattr(tune, '_'.join(t[1:]))
+
+                if double:
+                    from ..ray.base import DoubleSampler
+                    cls = DoubleSampler(cls)
 
             return HyperParam(n.value, cls)
 
@@ -147,7 +152,7 @@ class HyperParam:
 
     @value.setter
     def value(self, value):
-        if self.cls.__module__[:9] == 'ray.tune.':
+        if self.cls.__module__[:9] in ('ray.tune.', 'navex.ray'):
             import random
             from ray import tune
             import numpy as np

@@ -2,6 +2,7 @@ import itertools
 import math
 import os
 import argparse
+import logging
 from collections import OrderedDict, Counter
 
 # uses separate data_io conda env!
@@ -61,7 +62,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
 
     is_new = False
     if not os.path.exists(index_path):
-        print('building the index file...')
+        logging.info('building the index file...')
         index = ImageDB(index_path, truncate=True)
         files = find_files(src_path, ext='.xyz.exr', relative=True)
         files = [(i, file) for i, file in enumerate(files)]
@@ -76,7 +77,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
         # TODO: find and add here the direction of light in camera frame coords
 
         values = []
-        print('clustering *.xyz.exr file contents...')
+        logging.info('clustering *.xyz.exr file contents...')
         for i, fname in tqdm(files):
             try:
                 xyz = cv2.imread(os.path.join(src_path, fname), cv2.IMREAD_UNCHANGED).reshape((-1, 3))
@@ -125,7 +126,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
         max_dist = np.median(max_dists)
     pairs = tree.query_pairs(max_dist, eps=0.05)
 
-    print('building the pair file...')
+    logging.info('building the pair file...')
     added_pairs = set()
     image_count = Counter()
     if not os.path.exists(pairs_path):
@@ -140,7 +141,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                 added_pairs.update({(int(i), int(j)), (int(j), int(i))})
                 image_count.update((int(i), int(j)))
 
-    print('calculating aflow for qualifying pairs...')
+    logging.info('calculating aflow for qualifying pairs...')
     pbar = tqdm(pairs)
     add_count = 0
     for tot, (ii, jj) in enumerate(pbar):

@@ -6,6 +6,7 @@ import re
 import shutil
 import random
 import time
+import logging
 
 from tqdm import tqdm
 import numpy as np
@@ -48,6 +49,8 @@ def main():
 
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO)
+
     os.makedirs(args.dst, exist_ok=True)
     index_path = os.path.join(args.dst, args.index)
     src_path = args.src.split('/')
@@ -56,7 +59,7 @@ def main():
     ftp.login()
 
     if not os.path.exists(index_path):
-        print('building the index file by scanning ftp server for image files...')
+        logging.info('building the index file by scanning ftp server for image files...')
 
         files = []
         scan_ftp(ftp, src_path, [args.regex, 'data', 'img'], files)
@@ -73,7 +76,7 @@ def main():
         tmp = fname.split('/')
         files.append((src_path + [tmp[0], 'DATA', 'IMG', tmp[1][:-4] + '.IMG'], fname))
 
-    print('%d/%d files selected for processing...' % (len(files), len(index)))
+    logging.info('%d/%d files selected for processing...' % (len(files), len(index)))
     for src_file, dst_file in tqdm(files):
         dst_path = os.path.join(args.dst, dst_file)
         if not os.path.exists(dst_path):
@@ -84,8 +87,9 @@ def main():
                     with open(tmp_file, 'wb') as fh:
                         ftp.retrbinary("RETR " + '/'.join(src_file), fh.write)
                 except Exception as e:
-                    print('Got exception %s while downloading %s' % (e, src_file))
-                    print('Trying again in 10s (#%d)' % (i+1,))
+                    assert i < 9, 'Failed to download %s 10 times due to %s, giving up' % (src_file, e)
+                    logging.warning('Got exception %s while downloading %s' % (e, src_file))
+                    logging.warning('Trying again in 10s (#%d)' % (i+1,))
                     time.sleep(10)
             img, data = read_cg67p_img(tmp_file)
             write_data(tmp_file[:-4], img, data, xyzd=True)

@@ -41,8 +41,8 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     sj_id = 'navex'     # changed tmp dir because of suspected ray bug (see worker.sbatch)
 
     # e.g. "data/aachen.tar;data/abc.tar" => "data"
-    datadir = full_conf['data']['path'].strip('"').split(';')[0].split('/')[:-1]
-    full_conf['data']['path'] = os.path.join('/tmp', sj_id, *datadir)
+    #datadir = full_conf['data']['path'].strip('"').split(';')[0].split('/')[:-1]
+    full_conf['data']['path'] = os.path.join('/tmp', sj_id)  #, *datadir)
     logging.info('data path set to: %s' % (full_conf['data']['path'],))
 
     full_conf['training']['output'] = tune.get_trial_dir()
@@ -174,7 +174,7 @@ def tune_asha(search_conf, hparams, full_conf):
 def tune_pbs(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
 
-    mutations = nested_filter(hparams, lambda x: hasattr(x, 'sample'), lambda x: x.sample)
+    mutations = nested_filter(hparams, lambda x: hasattr(x, 'sample'), lambda x: x.sampler2.sample)
     mutations = prune_nested(mutations)
     scheduler = PopulationBasedTraining(
         time_attr="training_iteration",
@@ -183,6 +183,8 @@ def tune_pbs(search_conf, hparams, full_conf):
         metric="loss",  # or e.g. tot_ratio, then mode="max"
         mode="min"
     )
+
+    hparams = nested_filter(hparams, lambda x: True, lambda x: x.sampler1 if isinstance(x, DoubleSampler) else x)
 
     class MyReporter(CLIReporter):
         def report(self, trials, done, *sys_info):
@@ -242,6 +244,18 @@ class CheckOnSLURM(TuneCallback):
         terminate = ray.get(ray.get_actor('term_' + node_id).is_set.remote())
         if terminate:
             trainer.checkpoint_connector.hpc_save(trainer.weights_save_path, trainer.logger)
+
+
+class DoubleSampler:
+    def __init__(self, cls):
+        self.cls = cls
+        self.sampler1 = None
+        self.sampler2 = None
+        self.first = True
+
+    def __call__(self, args1, args2):
+        self.sampler1 = self.cls(*args1)
+        self.sampler2 = self.cls(*args2)
 
 
 # @ray.remote(num_cpus=0)

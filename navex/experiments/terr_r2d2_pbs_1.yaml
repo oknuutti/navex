@@ -1,6 +1,6 @@
 search:
-  method: 'asha'
-  samples: 243
+  method: 'pbs'
+  samples: 6
   nodes: 6
   node_types: 'pascal,volta'
 
@@ -61,8 +61,8 @@ model:
 loss:
   wdt: -1.0       # weight for peakiness and cosim losses
   wap: -1.0       # weight for expected ap loss
-  det_n: !h_tune_quniform '8, 16, 2'     # detector neighbourhood size
-  base: !h_tune_uniform   '0.20, 0.80'   # quality loss target mAP
+  det_n: !h_tune2_quniform '(12, 12, 2), (8, 16, 2)'     # detector neighbourhood size
+  base: !h_tune2_uniform   '(0.3, 0.3), (0.20, 0.80)'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -77,10 +77,10 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_loguniform    '1e-4, 1e-3'
-  weight_decay:  !h_tune_loguniform    '1e-6, 1e-3'
+  learning_rate: !h_tune2_loguniform    '(3e-4, 5e-4), (1e-4, 1e-3)'
+  weight_decay:  !h_tune2_loguniform    '(2e-6, 1e-5), (1e-6, 1e-3)'
   split_params: 0
-  eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
+  eps: !h_tune2_choice                  '[1e-8], [1e-8, 1e-7, 1e-6]'
 
 data:
   max_rot: 8.0      # in degrees, synth pair warp related
