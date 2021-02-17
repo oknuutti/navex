@@ -120,10 +120,12 @@ class RayTuneHeadNode:
 
             def run_search():
                 try:
-                    if 0:
+                    if node.search_conf['method'] == 'asha':
                         tune_asha(node.search_conf, node.hparams, node.config)
-                    else:
+                    elif node.search_conf['method'] == 'pbs':
                         tune_pbs(node.search_conf, node.hparams, node.config)
+                    else:
+                        assert False, 'invalid hyperparameter search method %s' % (node.search_conf['method'],)
                 except Exception as e:
                     logging.error('Exception %s detected, terminating' % (e.__class__,))
                     node.exception = e
