@@ -11,12 +11,17 @@
 
 mkdir /tmp/navex
 trap "rm -r /tmp/navex; exit" TERM EXIT
-if [[ "$DATADIR" == *.gz ]]
-then
-  tar -x --use-compress-program=zstdmt -f "$WRKDIR/$DATADIR" -C /tmp/navex
-else
-  tar -xf "$WRKDIR/$DATADIR" -C /tmp/navex
-fi
+
+DATADIR=${DATADIR//;/$'\n'}
+for DDIR in $DATADIR
+do
+  if [[ "$DDIR" == *.gz ]]
+  then
+    tar -x --use-compress-program=zstdmt -f "$WRKDIR/$DDIR" -C /tmp/navex
+  else
+    tar -xf "$WRKDIR/$DDIR" -C /tmp/navex
+  fi
+done
 
 ## start to process
 cd "$WRKDIR/navex"

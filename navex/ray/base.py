@@ -40,7 +40,8 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     assert sj_id, 'not a slurm node!'
     sj_id = 'navex'     # changed tmp dir because of suspected ray bug (see worker.sbatch)
 
-    datadir = full_conf['data']['path'].split('/')[-1].split('.')[0]       # e.g. data/aachen.tar => aachen
+    # e.g. "data/aachen.tar;data/abc.tar" => "data"
+    datadir = '/'.join(full_conf['data']['path'].split(';')[0].split('/')[:-1])
     full_conf['data']['path'] = os.path.join('/tmp', sj_id, datadir)
     full_conf['training']['output'] = tune.get_trial_dir()
     full_conf['training']['cache'] = os.path.join(full_conf['training']['output'], '..', 'cache')

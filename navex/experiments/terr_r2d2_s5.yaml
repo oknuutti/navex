@@ -89,7 +89,7 @@ data:
   noise_max: 0.10
   rnd_gain: 1.5
   image_size: 224
-  path: 'data/data.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
+  path: 'data/aachen.tar;data/revisitop1m.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
   npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1
