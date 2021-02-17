@@ -41,8 +41,10 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     sj_id = 'navex'     # changed tmp dir because of suspected ray bug (see worker.sbatch)
 
     # e.g. "data/aachen.tar;data/abc.tar" => "data"
-    datadir = '/'.join(full_conf['data']['path'].split(';')[0].split('/')[:-1])
-    full_conf['data']['path'] = os.path.join('/tmp', sj_id, datadir)
+    datadir = full_conf['data']['path'].strip('"').split(';')[0].split('/')[:-1]
+    full_conf['data']['path'] = os.path.join('/tmp', sj_id, *datadir)
+    logging.info('data path set to: %s' % (full_conf['data']['path'],))
+
     full_conf['training']['output'] = tune.get_trial_dir()
     full_conf['training']['cache'] = os.path.join(full_conf['training']['output'], '..', 'cache')
     full_conf['model']['cache_dir'] = full_conf['training']['cache']

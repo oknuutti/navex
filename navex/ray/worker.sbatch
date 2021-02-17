@@ -17,9 +17,13 @@ for DDIR in $DATADIR
 do
   if [[ "$DDIR" == *.gz ]]
   then
+    set -x
     tar -x --use-compress-program=zstdmt -f "$WRKDIR/$DDIR" -C /tmp/navex
+    set +x
   else
+    set -x
     tar -xf "$WRKDIR/$DDIR" -C /tmp/navex
+    set +x
   fi
 done
 
