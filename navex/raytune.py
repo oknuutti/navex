@@ -67,7 +67,7 @@ class RayTuneHeadNode:
                                gcs_server_port=self.local_ports[4],
                                raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
                                plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[6] if not self.local_linux else None,
-                               include_dashboard=True, verbose=True, temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
+                               include_dashboard=False, verbose=True, temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
                                max_worker_port=self.max_wport)
 
         logging.info('head node started with details: %s' % ((
