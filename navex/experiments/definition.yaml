@@ -1,6 +1,10 @@
 search:
   __group__: 1
 
+  method:
+    choices: ['asha', 'pbs']
+    help: "hyperparameter search method to be used"
+
   username:
     alt: ['--username']
     help: ""

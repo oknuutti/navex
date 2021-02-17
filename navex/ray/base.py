@@ -17,10 +17,10 @@ from pytorch_lightning.callbacks import EarlyStopping
 import ray
 from ray import tune
 from ray.tune import CLIReporter
-from ray.tune.schedulers import ASHAScheduler
+from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, _TuneCheckpointCallback, TuneCallback
 
-from ..experiments.parser import set_nested, nested_update
+from ..experiments.parser import set_nested, nested_update, nested_filter, prune_nested
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
 from ..trials.terrestrial import TerrestrialTrial
 
@@ -105,8 +105,9 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
             # Workaround:
             ckpt = pl_load(os.path.join(checkpoint_dir, "checkpoint"),
                            map_location="cuda:0" if int(train_conf['gpu']) else "cpu")
-            model = TrialWrapperBase._load_model_state(ckpt, config=hparams)
+            model = TrialWrapperBase._load_model_state(ckpt)
             trainer.current_epoch = ckpt["epoch"]
+        model.trial.update_conf(new_config=hparams, fail_silently=False)
 
     else:
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
@@ -161,6 +162,45 @@ def tune_asha(search_conf, hparams, full_conf):
         max_failures=5,
         # checkpoint_freq=200,
         # checkpoint_at_end=True,
+        keep_checkpoints_num=1,
+        checkpoint_score_attr='min-loss',
+        progress_reporter=reporter,
+        name=train_conf['name'])
+
+
+def tune_pbs(search_conf, hparams, full_conf):
+    train_conf = full_conf['training']
+
+    mutations = nested_filter(hparams, lambda x: hasattr(x, 'sample'), lambda x: x.sample)
+    mutations = prune_nested(mutations)
+    scheduler = PopulationBasedTraining(
+        time_attr="training_iteration",
+        perturbation_interval=5,
+        hyperparam_mutations=mutations,
+        metric="loss",  # or e.g. tot_ratio, then mode="max"
+        mode="min"
+    )
+
+    class MyReporter(CLIReporter):
+        def report(self, trials, done, *sys_info):
+            logging.info(self._progress_str(trials, done, *sys_info))
+
+    reporter = MyReporter(
+        parameter_columns=list(hparams.keys())[:4],
+        metric_columns=["loss", "tot_ratio", "mAP"])
+
+    tune.run(
+        partial(execute_trial, full_conf=full_conf),
+        resources_per_trial={
+            "cpu": full_conf['data']['workers'],
+            "gpu": train_conf['gpu'],
+        },
+        config=hparams,
+        num_samples=search_conf['samples'],
+        scheduler=scheduler,
+        queue_trials=True,
+        reuse_actors=False,
+        max_failures=5,
         keep_checkpoints_num=1,
         checkpoint_score_attr='min-loss',
         progress_reporter=reporter,

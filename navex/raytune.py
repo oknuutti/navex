@@ -15,7 +15,7 @@ import ray
 
 from .ray import overrides      # overrides e.g. services.get_node_ip_address
 from .ray.ssh import Connection
-from .ray.base import tune_asha
+from .ray.base import tune_asha, tune_pbs
 from .experiments.parser import ExperimentConfigParser, to_dict
 
 
@@ -88,6 +88,7 @@ class RayTuneHeadNode:
         # do this some how better
         self.remote_ports = self.local_ports
 
+        assert os.name != 'nt', 'Does not work on Windows at the moment'
         if self.local_linux:
             # no need tunneling, just execute commands locally
             self.ssh = Connection(self.search_conf['host'])
@@ -101,7 +102,8 @@ class RayTuneHeadNode:
                     logging.info('Reverse tunnel %s:%d => 127.0.0.1:%d' % (self.search_conf['host'], rport, lport))
 
         # create node lists so that workers won't be generated on same nodes
-        self._populate_node_configs(self.search_conf['nodes'])
+        if self.search_conf['nodes'] > 0:
+            self._populate_node_configs(self.search_conf['nodes'])
 
         # schedule workers
         logging.info('scheduling %d workers...' % self.search_conf['nodes'])
@@ -118,7 +120,10 @@ class RayTuneHeadNode:
 
             def run_search():
                 try:
-                    tune_asha(node.search_conf, node.hparams, node.config)
+                    if 0:
+                        tune_asha(node.search_conf, node.hparams, node.config)
+                    else:
+                        tune_pbs(node.search_conf, node.hparams, node.config)
                 except Exception as e:
                     logging.error('Exception %s detected, terminating' % (e.__class__,))
                     node.exception = e

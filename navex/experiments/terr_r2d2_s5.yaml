@@ -1,13 +1,13 @@
 search:
-  method: 'asha'
-  samples: 243
-  nodes: 4
+  method: 'pbs'
+  samples: 6
+  nodes: 6
   node_types: 'pascal,volta'
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
   node_type_cpus: '5,5'
-  grace_period: 1
-  reduction_factor: 3
+  grace_period: 1       # for asha only
+  reduction_factor: 3   # for asha only
   username: ''
   keyfile: ''
   proxy: ''
@@ -15,11 +15,12 @@ search:
   port: 0
 
 training:
+  trial: 'terr'
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 16
-  batch_mem: 21000
+  batch_size: 32
+  batch_mem: 32000
   gpu: 1
   epochs: 50
   print_freq: 5
@@ -34,21 +35,34 @@ training:
   deterministic: 1
 
 model:
-  arch: 'own_vgg'
+  arch: 'r2d2-own_vgg'
   in_channels: 1
-  head_conv_ch: 128
-  descriptor_dim: 128    # try lower values
-  width_mult: 1.0        # try lower values
-  dropout: 0.0           # !h_tune_choice    '[0, 0.1]'
-  batch_norm: 1
-  pretrained: 0          # not implemented
-  cache_dir: 'cache'
+  partial_residual: 0   # not in use
+  width_mult:    1.0
+  pretrained: 0         # not in use
+  cache_dir: 'cache'    # not in use
+  des_head:
+    dimensions:  128
+    hidden_ch:   128
+    exp_coef:    0.0
+    use_se:      0
+    dropout:     0.0
+  det_head:
+    hidden_ch:   128
+    exp_coef:    0.0
+    use_se:      0
+    dropout:     0.0
+  qlt_head:
+    hidden_ch:   128
+    exp_coef:    0.0
+    use_se:      0
+    dropout:     0.0
 
 loss:
   wdt: -1.0       # weight for peakiness and cosim losses
-  wap: -3.0       # weight for expected ap loss
-  det_n: !h_tune_quniform  '8, 16, 2'     # detector neighbourhood size
-  base: !h_tune_uniform   '0.50, 0.80'   # quality loss target mAP
+  wap: -1.0       # weight for expected ap loss
+  det_n: !h_tune_quniform '8, 16, 2'     # detector neighbourhood size
+  base: !h_tune_uniform   '0.20, 0.80'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 4        # was 7       # neighbourhood size in descriptor cells
@@ -63,15 +77,18 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_loguniform      '1e-4, 1e-3'
-  weight_decay: !h_tune_loguniform    '1e-6, 5e-5'
+  learning_rate: !h_tune_loguniform    '1e-4, 1e-3'
+  weight_decay:  !h_tune_loguniform    '1e-6, 1e-3'
   split_params: 0
   eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
 
 data:
-  noise_max: 0.20
-  rnd_gain: 2.0
-  image_size: 512
+  max_rot: 8.0      # in degrees, synth pair warp related
+  max_shear: 0.2    # synth pair warp related
+  max_proj: 0.4     # synth pair warp related
+  noise_max: 0.10
+  rnd_gain: 1.5
+  image_size: 224
   path: 'data/data.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
   npy: 'false'
   trn_ratio: 0.8

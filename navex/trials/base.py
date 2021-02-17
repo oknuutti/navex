@@ -38,6 +38,30 @@ class TrialBase(abc.ABC, torch.nn.Module):
         except:
             self.count_ops = False
 
+    def update_conf(self, new_conf: dict, fail_silently: bool = False):
+        for k, v in new_conf.items():
+            ok = self.update_param(k, v)
+            if not ok and not fail_silently:
+                print("Cannot modify parameter `%s` after init" % (k,))
+
+    def update_param(self, param, value):
+        p, ok = param.split('.'), True
+        if p[0] == 'loss':
+            try:
+                self.loss_fn.update_conf({'.'.join(p[1:]): value})
+            except:
+                ok = False
+        elif p[0] == 'optimizer':
+            pm = {'learning_rate': 'lr', 'weight_decay': 'weight_decay', 'eps': 'eps'}
+            if p[1] in pm:
+                for pg in self.optimizer.param_groups:
+                    setattr(pg, pm[p[1]], value)
+            else:
+                ok = False
+        else:
+            ok = False
+        return ok
+
     def get_optimizer(self, method, split_params, weight_decay, learning_rate, eps):
         # get optimizable params from both the network and the loss function
         params = [m.params_to_optimize(split=split_params)

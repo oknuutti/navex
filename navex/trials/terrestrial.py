@@ -57,6 +57,17 @@ class TerrestrialTrial(TrialBase):
 
         self._tr_data, self._val_data, self._test_data = [None] * 3
 
+    def update_param(self, param, value):
+        p, ok = param.split('.'), True
+        if p[0] == 'data':
+            if p[1] in self.data_conf:
+                self.data_conf[p[1]] = value
+            else:
+                ok = False
+        else:
+            ok = super(TerrestrialTrial, self).update_param(param, value)
+        return ok
+
     def log_values(self):
         log = {}
         if not isinstance(self.loss_fn.wdt, float):

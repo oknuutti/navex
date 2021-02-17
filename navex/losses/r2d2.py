@@ -21,6 +21,29 @@ class R2D2Loss(BaseLoss):
         self.cosim_loss = CosSimilarityLoss(int(det_n))
         self.peakiness_loss = PeakinessLoss(int(det_n))
 
+    def update_conf(self, new_config):
+        ok = True
+        for k, v in new_config.items():
+            if k in ('wdt', 'wap'):
+                ov = getattr(self, k)
+                if isinstance(ov, nn.Parameter):
+                    setattr(self, k,  nn.Parameter(torch.Tensor([abs(v)], device=ov.device)))
+                else:
+                    setattr(self, k, abs(v))
+            elif k == 'base':
+                self.ap_loss.super.base = v
+            elif k == 'det_n':
+                assert v % 2 == 0, 'N must be pair'
+                self.cosim_loss.super.name = f'cosim{v}'
+                self.cosim_loss.super.patches = nn.Unfold(v, padding=0, stride=v//2)
+                self.peakiness_loss.super.name = f'peaky{v}'
+                self.peakiness_loss.super.preproc = nn.AvgPool2d(3, stride=1, padding=1)
+                self.peakiness_loss.super.maxpool = nn.MaxPool2d(v + 1, stride=1, padding=v // 2)
+                self.peakiness_loss.super.avgpool = nn.AvgPool2d(v + 1, stride=1, padding=v // 2)
+            else:
+                ok = False
+        return ok
+
     def forward(self, output1, output2, aflow):
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2

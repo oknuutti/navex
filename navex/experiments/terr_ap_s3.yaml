@@ -1,4 +1,5 @@
 search:
+  method: 'asha'
   samples: 243
   nodes: 1
   node_types: 'pascal,volta'

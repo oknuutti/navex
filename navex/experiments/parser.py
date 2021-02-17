@@ -195,6 +195,39 @@ def nested_update(orig, new):
     _upd_subtree(orig, new)
 
 
+def nested_filter(tree, test_fn, mod_fn):
+    def _filter_subtree(o, n, test_fn, mod_fn):
+        for k, v in o.items():
+            if isinstance(v, dict):
+                if k not in n:
+                    n[k] = {}
+                _filter_subtree(v, n[k], test_fn, mod_fn)
+            elif test_fn(v):
+                n[k] = mod_fn(v)
+    new_tree = {}
+    _filter_subtree(tree, new_tree, test_fn, mod_fn)
+    return new_tree
+
+
+def prune_nested(tree):
+    def _prune_subtree(o):
+        n = {}
+        for k, v in o.items():
+            if isinstance(v, dict):
+                if len(v) == 0:
+                    ns = {}
+                else:
+                    ns = _prune_subtree(v)
+                if len(ns) > 0:
+                    n[k] = ns
+            else:
+                n[k] = v
+        return n
+
+    new_tree = _prune_subtree(tree)
+    return new_tree
+
+
 def to_dict(ns):
     def _conv_subtree(from_node, to_node):
         for k, v in (from_node if isinstance(from_node, dict) else from_node.__dict__).items():

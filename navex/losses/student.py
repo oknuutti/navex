@@ -30,6 +30,21 @@ class StudentLoss(BaseLoss):
         self.det_loss = BCELoss()
         self.qlt_loss = BCELoss()
 
+    def update_conf(self, new_config):
+        ok = True
+        for k, v in new_config.items():
+            if k in ('des_w', 'det_w', 'qlt_w'):
+                ov = getattr(self, k)
+                if isinstance(ov, nn.Parameter):
+                    setattr(self, k,  nn.Parameter(torch.Tensor([abs(v)], device=ov.device)))
+                else:
+                    setattr(self, k, abs(v))
+            elif k == 'des_loss':
+                self.des_loss = L1Loss() if v == 'L1' else L2Loss()
+            else:
+                ok = False
+        return ok
+
     def forward(self, output, label):
         loss_fns = (self.des_loss, self.det_loss, self.qlt_loss)
         weights = (self.des_w, self.det_w, self.qlt_w)
