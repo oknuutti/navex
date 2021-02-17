@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import random
+import time
 
 from tqdm import tqdm
 import numpy as np
@@ -78,8 +79,14 @@ def main():
         if not os.path.exists(dst_path):
             tmp_file = dst_path[:-4] + '.IMG'
             os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
-            with open(tmp_file, 'wb') as fh:
-                ftp.retrbinary("RETR " + '/'.join(src_file), fh.write)
+            for i in range(10):
+                try:
+                    with open(tmp_file, 'wb') as fh:
+                        ftp.retrbinary("RETR " + '/'.join(src_file), fh.write)
+                except Exception as e:
+                    print('Got exception %s while downloading %s' % (e, src_file))
+                    print('Trying again in 10s (#%d)' % (i+1,))
+                    time.sleep(10)
             img, data = read_cg67p_img(tmp_file)
             write_data(tmp_file[:-4], img, data, xyzd=True)
             os.unlink(tmp_file)

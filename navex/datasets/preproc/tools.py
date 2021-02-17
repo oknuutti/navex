@@ -4,7 +4,10 @@ import os
 import argparse
 from collections import OrderedDict, Counter
 
-from osgeo import gdal  # uses separate data_io conda env!
+# uses separate data_io conda env!
+# create using:
+#   conda create -n data_io -c conda-forge "python=>3.8" opencv matplotlib gdal geos tqdm scipy
+from osgeo import gdal
 
 import numpy as np
 import matplotlib.pyplot as plt
