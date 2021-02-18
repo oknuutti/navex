@@ -19,7 +19,7 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 16
+  batch_size: !h_int 32
   batch_mem: 32000
   gpu: 1
   epochs: 25
@@ -29,8 +29,8 @@ training:
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 5
-  reduced_precision: 0
+  early_stopping: 0
+  reduced_precision: !h_int 1
   auto_lr_find: 0
   deterministic: 1
 
@@ -43,24 +43,24 @@ model:
   cache_dir: 'cache'    # not in use
   des_head:
     dimensions:  !h_int    128
-    hidden_ch:   !h_int    128
-    exp_coef:    !h_float  0.0
-    use_se:      !h_int    0
-    dropout:     !h_float  0.0
+    hidden_ch:   128
+    exp_coef:    0.0
+    use_se:      0
+    dropout:     0.0
   det_head:
-    hidden_ch:   !h_int    128
-    exp_coef:    !h_float  0.0
-    use_se:      !h_int    0
-    dropout:     !h_float  0.0
+    hidden_ch:   128
+    exp_coef:    0.0
+    use_se:      0
+    dropout:     0.0
   qlt_head:
-    hidden_ch:   !h_int    128
-    exp_coef:    !h_float  0.0
-    use_se:      !h_int    0
-    dropout:     !h_float  0.0
+    hidden_ch:   128
+    exp_coef:    0.0
+    use_se:      0
+    dropout:     0.0
 
 loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -1.0      # weight for expected ap loss
+  wap: !h_float -2.0      # weight for expected ap loss
   det_n: !h_int  16       # detector neighbourhood size
   base: !h_float 0.30     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
@@ -83,7 +83,7 @@ optimizer:
   eps: !h_float 1e-8
 
 data:
-  max_rot: !h_float 10.0     # in degrees, synth pair warp related
+  max_rot: !h_float 8.0     # in degrees, synth pair warp related
   max_shear: !h_float 0.2    # synth pair warp related
   max_proj: !h_float 0.4     # synth pair warp related
   noise_max: !h_float 0.10

@@ -36,15 +36,13 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
     nested_update(full_conf, hparams)
 
     # set paths
-    sj_id = os.getenv('SLURM_JOB_ID')
-    assert sj_id, 'not a slurm node!'
-    sj_id = 'navex'     # changed tmp dir because of suspected ray bug (see worker.sbatch)
-
+    # sj_id = os.getenv('SLURM_JOB_ID')
+    # assert sj_id, 'not a slurm node!'
+    # sj_id = 'navex'     # changed tmp dir because of suspected ray bug (see worker.sbatch)
     # e.g. "data/aachen.tar;data/abc.tar" => "data"
-    #datadir = full_conf['data']['path'].strip('"').split(';')[0].split('/')[:-1]
-    full_conf['data']['path'] = os.path.join('/tmp', sj_id)  #, *datadir)
-    logging.info('data path set to: %s' % (full_conf['data']['path'],))
-
+    # datadir = full_conf['data']['path'].strip('"').split(';')[0].split('/')[:-1]
+    # full_conf['data']['path'] = os.path.join('/tmp', sj_id, *datadir)
+    full_conf['data']['path'] = '/tmp/navex'       # TODO: currently hardcoded, take this from settings instead
     full_conf['training']['output'] = tune.get_trial_dir()
     full_conf['training']['cache'] = os.path.join(full_conf['training']['output'], '..', 'cache')
     full_conf['model']['cache_dir'] = full_conf['training']['cache']

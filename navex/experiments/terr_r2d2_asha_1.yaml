@@ -30,7 +30,7 @@ training:
   evaluate: 0
   pretrained: ''
   early_stopping: 10
-  reduced_precision: 0
+  reduced_precision: 1
   auto_lr_find: 0
   deterministic: 1
 

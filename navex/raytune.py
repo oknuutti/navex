@@ -88,7 +88,6 @@ class RayTuneHeadNode:
         # do this some how better
         self.remote_ports = self.local_ports
 
-        assert os.name != 'nt', 'Does not work on Windows at the moment'
         if self.local_linux:
             # no need tunneling, just execute commands locally
             self.ssh = Connection(self.search_conf['host'])

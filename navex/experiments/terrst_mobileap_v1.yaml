@@ -70,7 +70,7 @@ optimizer:
   learning_rate: !h_float 3e-4
   weight_decay: !h_float 1e-5
   split_params: 0
-  eps: !!float 1e-8
+  eps: !h_float 1e-8
 
 data:
   max_rot: !h_float 8.0      # in degrees, synth pair warp related

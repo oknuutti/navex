@@ -86,8 +86,8 @@ data:
   max_rot: !h_float 8.0      # in degrees, synth pair warp related
   max_shear: !h_float 0.2    # synth pair warp related
   max_proj: !h_float 0.4     # synth pair warp related
-  noise_max: !h_float 0.2
-  rnd_gain: !h_float 2.0
+  noise_max: !h_float 0.1
+  rnd_gain: !h_float 1.5
   image_size: !h_int 512
   path: 'data'
   npy: 'false'
