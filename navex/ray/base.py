@@ -131,9 +131,14 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
 def tune_asha(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
 
+    # "loss", mode="min" OR "tot_ratio", mode="max"
+    metric = "tot_ratio"
+    mode = "max"
+
     scheduler = ASHAScheduler(
-        metric="loss",  # or e.g. tot_ratio, then mode="max"
-        mode="min",
+        time_attr="epoch",
+        metric=metric,
+        mode=mode,
         max_t=train_conf['epochs'],
         grace_period=search_conf['grace_period'],
         reduction_factor=search_conf['reduction_factor'])
@@ -164,7 +169,7 @@ def tune_asha(search_conf, hparams, full_conf):
         # checkpoint_freq=200,
         # checkpoint_at_end=True,
         keep_checkpoints_num=1,
-        checkpoint_score_attr='min-loss',
+        checkpoint_score_attr=f"{mode}-{metric}",
         progress_reporter=reporter,
         name=train_conf['name'])
 
@@ -172,14 +177,18 @@ def tune_asha(search_conf, hparams, full_conf):
 def tune_pbs(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
 
+    # "loss", mode="min" OR "tot_ratio", mode="max"
+    metric = "tot_ratio"
+    mode = "max"
+
     mutations = nested_filter(hparams, lambda x: hasattr(x, 'sample'), lambda x: x.sampler2.sample)
     mutations = prune_nested(mutations)
     scheduler = PopulationBasedTraining(
-        time_attr="training_iteration",
-        perturbation_interval=5,
+        time_attr="epoch",
+        perturbation_interval=1,
         hyperparam_mutations=mutations,
-        metric="loss",  # or e.g. tot_ratio, then mode="max"
-        mode="min"
+        metric=metric,
+        mode=mode
     )
 
     hparams = nested_filter(hparams, lambda x: True, lambda x: x.sampler1 if isinstance(x, DoubleSampler) else x)
@@ -205,7 +214,7 @@ def tune_pbs(search_conf, hparams, full_conf):
         reuse_actors=False,
         max_failures=5,
         keep_checkpoints_num=1,
-        checkpoint_score_attr='min-loss',
+        checkpoint_score_attr=f"{mode}-{metric}",
         progress_reporter=reporter,
         name=train_conf['name'])
 
