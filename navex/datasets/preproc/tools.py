@@ -3,14 +3,17 @@ import math
 import os
 import argparse
 import logging
+import re
 from collections import OrderedDict, Counter
 
 # uses separate data_io conda env!
 # create using:
-#   conda create -n data_io -c conda-forge "python=>3.8" opencv matplotlib gdal geos tqdm scipy
+#   conda create -n data_io -c conda-forge "python=>3.8" pip opencv matplotlib gdal geos tqdm scipy pvl quaternion
 from osgeo import gdal
+import pvl
 
 import numpy as np
+import quaternion
 import matplotlib.pyplot as plt
 import cv2
 import scipy
@@ -50,7 +53,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                        max_angle, min_matches, read_meta, show_only=False, start=0.0, end=1.0):
 
     aflow_path = os.path.join(root, aflow)
-    index_path = os.path.join(root, index)
+    index_path = index if isinstance(index, ImageDB) else os.path.join(root, index)
     pairs_path = os.path.join(root, pairs)
     src_path = os.path.join(root, src)
 
@@ -61,17 +64,17 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
     #  3) Try to construct aflow, reject if too few pixels match.
 
     is_new = False
-    if not os.path.exists(index_path):
+    if isinstance(index_path, ImageDB) or os.path.exists(index_path):
+        index = index_path if isinstance(index_path, ImageDB) else ImageDB(index_path)
+        if read_meta:
+            files = [(id, file[:-4] + '.xyz.exr') for id, file in
+                     index.get_all(('id', 'file'), cond='cx1 is null', start=start, end=end)]
+    else:
         logging.info('building the index file...')
         index = ImageDB(index_path, truncate=True)
         files = find_files(src_path, ext='.xyz.exr', relative=True)
         files = [(i, file) for i, file in enumerate(files)]
         is_new = True
-    else:
-        index = ImageDB(index_path)
-        if read_meta:
-            files = [(id, file[:-4] + '.xyz.exr') for id, file in
-                     index.get_all(('id', 'file'), cond='cx1 is null', start=start, end=end)]
 
     if is_new or read_meta:
         # TODO: find and add here the direction of light in camera frame coords
@@ -169,7 +172,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                     with open(pairs_path, 'a') as fh:
                         fh.write('%d %d %.2f %.4f\n' % (ids[i], ids[j], angle, matches / max_matches))
 
-        pbar.set_postfix({'added':add_count, 'ratio': add_count/(tot + 1)})
+        pbar.set_postfix({'added': add_count, 'ratio': add_count/(tot + 1)})
 
 
 def gen_aflow_script():
@@ -253,7 +256,7 @@ def show_all_pairs(aflow_path, img_path, image_db):
             show_pair(img0, img1, aflow, image_db[id0], image_db[id1])
 
 
-def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0):
+def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0, q_wxyz=True):
     handle = gdal.Open(path, gdal.GA_ReadOnly)
     w, h, n = handle.RasterXSize, handle.RasterYSize, handle.RasterCount
 
@@ -275,7 +278,119 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
     else:
         img = (255 * np.clip((0.95 / top_v) * data[:, :, 0], 0, 1) ** (1 / gamma)).astype(np.uint8)
 
-    return img, data[:, :, 1:]
+    handle = None
+    metadata = parse_metadata(path, q_wxyz)
+    return img, data[:, :, 1:], metadata
+
+
+def parse_metadata(path, q_wxyz=True):
+    # return metadata in J2000 frame
+    meta = pvl.load(path)
+
+    sc_rot_dec = metadata_value(meta, ('DECLINATION',), unit='rad')
+    sc_rot_ra = metadata_value(meta, ('RIGHT_ASCENSION',), unit='rad')
+    sc_rot_cna = metadata_value(meta, ('CELESTIAL_NORTH_CLOCK_ANGLE',), unit='rad')
+    sc_ori_q = ypr_to_q(sc_rot_dec, sc_rot_ra, sc_rot_cna)
+    if sc_ori_q is None:
+        sc_ori_q, j2000_sc_pos = metadata_coord_frame(meta, ('SC_COORDINATE_SYSTEM', 'CAMERA_COORDINATE_SYSTEM'),
+                                                      unit='km', q_wxyz=q_wxyz)
+
+    # Can't figure this out for Hayabusa1 metadata
+    sc_sun_pos_v = metadata_value(meta, ('SC_SUN_POSITION_VECTOR',), unit='km')
+
+    # Can't figure this out for Hayabusa1 metadata
+    sc_trg_pos_v = metadata_value(meta, ('SC_TARGET_POSITION_VECTOR',), unit='km')
+
+    # cant figure this out for Rosetta or Hayabusa1 metadata
+    trg_ori_q = None
+
+    return {'sc_ori': sc_ori_q, 'sc_sun_pos': sc_sun_pos_v,
+            'trg_ori': trg_ori_q, 'sc_trg_pos': sc_trg_pos_v}
+
+
+def metadata_coord_frame(meta, coord_frame_keys, unit, q_wxyz=True):
+    for k in coord_frame_keys:
+        if k not in meta:
+            return None, None
+
+    pos = np.zeros((3,))
+    ori = quaternion.one
+    for k in coord_frame_keys:
+        n_pos = metadata_value(meta[k], ['ORIGIN_OFFSET_VECTOR'], unit=unit)
+        n_ori = meta[k]['ORIGIN_ROTATION_QUATERNION']
+        n_ori = np.quaternion(*(n_ori if q_wxyz else (n_ori[3], n_ori[0], n_ori[1], n_ori[2])))
+        ori = ori * n_ori
+        pos = q_times_v(n_ori.conj(), pos + n_pos)
+
+    return ori, pos
+
+
+def metadata_value(meta, possible_keys, unit=''):
+    src_values = None
+    for key in possible_keys:
+        if key in meta:
+            src_values = meta[key]
+            break
+
+    is_scalar = False
+    dst_values = []
+    if src_values is not None:
+        if src_values.__class__ not in (list, tuple):   # pvl.collections.Quantity has list or tuple as parent!
+            src_values = [src_values]
+            is_scalar = True
+
+        for value in src_values:
+            src_unit = value.units.lower() if isinstance(value, pvl.collections.Quantity) else ''
+            src_unit = re.sub('degrees|degree', 'deg', src_unit)
+            src_unit = re.sub('radians|radian', 'rad', src_unit)
+            src_unit = re.sub('kilometers|kilometer', 'km', src_unit)
+            src_unit = re.sub('meters|meter', 'm', src_unit)
+
+            value = value.value if isinstance(value, pvl.collections.Quantity) else value
+            if src_unit in ('deg', 'rad'):
+                assert unit in ('deg', 'rad'), f"can't transform {src_unit} to {unit}"
+                if src_unit == 'deg' and unit == 'rad':
+                    value = math.radians(value)
+                elif src_unit != unit:
+                    value = math.degrees(value)
+            elif src_unit in ('m', 'km'):
+                assert unit in ('m', 'km'), f"can't transform {src_unit} to {unit}"
+                if src_unit == 'm' and unit == 'km':
+                    value = value * 0.001
+                elif src_unit != unit:
+                    value = value * 1000
+            else:
+                assert src_unit == '' and unit == '', f"unit {src_unit} not handled currently"
+
+            dst_values.append(value)
+    else:
+        dst_values = None
+
+    return dst_values[0] if is_scalar else dst_values
+
+
+def ypr_to_q(dec, ra, cna):
+    if dec is None or ra is None or cna is None:
+        return None
+
+    # intrinsic euler rotations z-y'-x'', first right ascencion, then declination, and last celestial north angle
+    return (
+            np.quaternion(math.cos(ra / 2), 0, 0, math.sin(ra / 2))
+            * np.quaternion(math.cos(-dec / 2), 0, math.sin(-dec / 2), 0)
+            * np.quaternion(math.cos(-cna / 2), math.sin(-cna / 2), 0, 0)
+    )
+
+
+def q_times_v(q, v):
+    qv = np.quaternion(0, *v)
+    qv2 = q * qv * q.conj()
+    return np.array([qv2.x, qv2.y, qv2.z])
+
+
+def safe_split(x, is_q):
+    if x is None:
+        return (None,) * (4 if is_q else 3)
+    return (*x[:3],) if not is_q else (x.w, x.x, x.y, x.z)
 
 
 def write_data(path, img, data, xyzd=False):

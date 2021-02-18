@@ -23,7 +23,7 @@ def _find_files_recurse(root, path, samples, npy, ext, test, depth, relative):
             else:
                 print('rejected: %s' % fullpath)
         elif depth > 0 and os.path.isdir(fullpath):
-            _find_files_recurse(fullpath, samples, npy, ext, test, depth-1, relative)
+            _find_files_recurse(root, os.path.join(path, fname), samples, npy, ext, test, depth-1, relative)
 
 
 def find_files_recurse(root, npy=False, ext='.jpg', test=None, depth=100, relative=False):
@@ -83,6 +83,20 @@ class ImageDB:
                     id INTEGER PRIMARY KEY ASC NOT NULL,
                     rand REAL NOT NULL,
                     file CHAR(128) NOT NULL,
+                    sc_qw REAL DEFAULT NULL,
+                    sc_qx REAL DEFAULT NULL,
+                    sc_qy REAL DEFAULT NULL,
+                    sc_qz REAL DEFAULT NULL,
+                    sc_sun_x REAL DEFAULT NULL,
+                    sc_sun_y REAL DEFAULT NULL,
+                    sc_sun_z REAL DEFAULT NULL,
+                    trg_qw REAL DEFAULT NULL,
+                    trg_qx REAL DEFAULT NULL,
+                    trg_qy REAL DEFAULT NULL,
+                    trg_qz REAL DEFAULT NULL,
+                    sc_trg_x REAL DEFAULT NULL,
+                    sc_trg_y REAL DEFAULT NULL,
+                    sc_trg_z REAL DEFAULT NULL,
                     vd REAL DEFAULT NULL,
                     cx1 REAL DEFAULT NULL,
                     cy1 REAL DEFAULT NULL,
@@ -98,6 +112,14 @@ class ImageDB:
                     cz4 REAL DEFAULT NULL
                 )""")
             self._conn.commit()
+        else:
+            r = self._cursor.execute("SELECT sql FROM sqlite_schema WHERE name = 'images'")
+            sql = r.fetchone()[0]
+            if 'sc_qw' not in sql:
+                for col in ('sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
+                            'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z'):
+                    self._cursor.execute(f"ALTER TABLE images ADD COLUMN {col} REAL DEFAULT NULL")
+                self._conn.commit()
 
     def add(self, fields: Tuple[str, ...], values: List[Tuple]) -> None:
         if len(values) == 0:
