@@ -126,7 +126,7 @@ class RayTuneHeadNode:
                     else:
                         assert False, 'invalid hyperparameter search method %s' % (node.search_conf['method'],)
                 except Exception as e:
-                    logging.error('Exception %s detected, terminating' % (e.__class__,))
+                    logging.error('Exception %s detected, terminating: %s' % (e.__class__, e))
                     node.exception = e
                 if node.exception is None:
                     logging.info('TUNE FINISHED SUCCESSFULLY!')
