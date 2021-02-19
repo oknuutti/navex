@@ -19,7 +19,7 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: 32
+  batch_size: 16
   batch_mem: 32000
   gpu: 1
   epochs: 30
@@ -30,7 +30,7 @@ training:
   evaluate: 0
   pretrained: ''
   early_stopping: 10
-  reduced_precision: 1
+  reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
 
@@ -59,19 +59,19 @@ model:
     dropout:     0.0
 
 loss:
-  wdt: -1.0       # weight for peakiness and cosim losses
-  wap: -1.0       # weight for expected ap loss
+  wdt: -1.5       # weight for peakiness and cosim losses
+  wap: -1.5       # weight for expected ap loss
   det_n: !h_tune_quniform '8, 16, 2'     # detector neighbourhood size
   base: !h_tune_uniform   '0.20, 0.80'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    ngh: 4        # was 7       # neighbourhood size in descriptor cells
-    subq: -3      # was -8      # grid step size for positive samples
+    ngh: 7        # was 7       # neighbourhood size in descriptor cells
+    subq: -8      # was -8      # grid step size for positive samples
     subd: 1       # was 1       # neigbourhood sampling interval
-    pos_d: 1      # was 2       # positive samples generated up to this far from ideal location
-    neg_d: 3      # was 5       # negative samples generated starting from distance from ideal location
-    border: 4     # was 16
-    subd_neg: -6  # was -8      # grid step size for generating additional negative samples
+    pos_d: 2      # was 2       # positive samples generated up to this far from ideal location
+    neg_d: 5      # was 5       # negative samples generated starting from distance from ideal location
+    border: 16    # was 16
+    subd_neg: -8  # was -8      # grid step size for generating additional negative samples
     max_neg_b: 4                # distractors mined from max this number of images from same batch
     maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
 
