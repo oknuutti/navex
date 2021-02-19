@@ -117,7 +117,7 @@ class PairRandomHorizontalFlip:
         if random.uniform(0, 1) < self.p:
             img1 = ImageOps.mirror(img1)
             img2 = ImageOps.mirror(img2)
-            aflow = np.fliplr(aflow)
+            aflow = np.fliplr(aflow).copy()
             aflow[:, :, 0] = w2 - aflow[:, :, 0]
 
         return (img1, img2), aflow
