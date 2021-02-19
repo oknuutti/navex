@@ -108,7 +108,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
                            map_location="cuda:0" if int(train_conf['gpu']) else "cpu")
             model = TrialWrapperBase._load_model_state(ckpt)
             trainer.current_epoch = ckpt["epoch"]
-        model.trial.update_conf(new_config=hparams, fail_silently=False)
+        model.trial.update_conf(new_conf=hparams, fail_silently=False)
 
     else:
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
