@@ -56,7 +56,7 @@ class ExperimentConfigParser(ArgumentParser):
             cls = dict([(c.__name__, c) for c in (bool, int, float, str)] + [('tune', 'tune')]).get(t[0], None)
             assert cls is not None, 'Unknown hyperparameter class: "%s"' % s
 
-            if cls[:4] == 'tune':
+            if isinstance(cls, str) and cls[:4] == 'tune':
                 from ray import tune
                 double = cls == 'tune2'
                 cls = getattr(tune, '_'.join(t[1:]))

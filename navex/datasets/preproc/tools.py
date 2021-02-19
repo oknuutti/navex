@@ -279,11 +279,11 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
         img = (255 * np.clip((0.95 / top_v) * data[:, :, 0], 0, 1) ** (1 / gamma)).astype(np.uint8)
 
     handle = None
-    metadata = parse_metadata(path, q_wxyz)
-    return img, data[:, :, 1:], metadata
+    metastr, metadata = parse_metadata(path, q_wxyz, return_str=True)
+    return img, data[:, :, 1:], metastr, metadata
 
 
-def parse_metadata(path, q_wxyz=True):
+def parse_metadata(path, q_wxyz=True, return_str=False):
     # return metadata in J2000 frame
     meta = pvl.load(path)
 
@@ -292,7 +292,7 @@ def parse_metadata(path, q_wxyz=True):
     sc_rot_cna = metadata_value(meta, ('CELESTIAL_NORTH_CLOCK_ANGLE',), unit='rad')
     sc_ori_q = ypr_to_q(sc_rot_dec, sc_rot_ra, sc_rot_cna)
     if sc_ori_q is None:
-        sc_ori_q, j2000_sc_pos = metadata_coord_frame(meta, ('SC_COORDINATE_SYSTEM', 'CAMERA_COORDINATE_SYSTEM'),
+        sc_ori_q, icrf_sc_pos = metadata_coord_frame(meta, ('SC_COORDINATE_SYSTEM', 'CAMERA_COORDINATE_SYSTEM'),
                                                       unit='km', q_wxyz=q_wxyz)
 
     # Can't figure this out for Hayabusa1 metadata
@@ -304,8 +304,9 @@ def parse_metadata(path, q_wxyz=True):
     # cant figure this out for Rosetta or Hayabusa1 metadata
     trg_ori_q = None
 
-    return {'sc_ori': sc_ori_q, 'sc_sun_pos': sc_sun_pos_v,
-            'trg_ori': trg_ori_q, 'sc_trg_pos': sc_trg_pos_v}
+    meta_str = pvl.dumps(meta, pvl.encoder.PVLEncoder()) if return_str else None
+    metadata = {'sc_ori': sc_ori_q, 'sc_sun_pos': sc_sun_pos_v, 'trg_ori': trg_ori_q, 'sc_trg_pos': sc_trg_pos_v}
+    return (meta_str, metadata) if return_str else metadata
 
 
 def metadata_coord_frame(meta, coord_frame_keys, unit, q_wxyz=True):
@@ -319,8 +320,8 @@ def metadata_coord_frame(meta, coord_frame_keys, unit, q_wxyz=True):
         n_pos = metadata_value(meta[k], ['ORIGIN_OFFSET_VECTOR'], unit=unit)
         n_ori = meta[k]['ORIGIN_ROTATION_QUATERNION']
         n_ori = np.quaternion(*(n_ori if q_wxyz else (n_ori[3], n_ori[0], n_ori[1], n_ori[2])))
+        pos = pos + q_times_v(ori, n_pos)
         ori = ori * n_ori
-        pos = q_times_v(n_ori.conj(), pos + n_pos)
 
     return ori, pos
 
@@ -393,12 +394,15 @@ def safe_split(x, is_q):
     return (*x[:3],) if not is_q else (x.w, x.x, x.y, x.z)
 
 
-def write_data(path, img, data, xyzd=False):
+def write_data(path, img, data, metastr=None, xyzd=False):
     cv2.imwrite(path + '.png', img, (cv2.IMWRITE_PNG_COMPRESSION, 9))
     cv2.imwrite(path + '.xyz.exr', data[:, :, :3], (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
     if data.shape[2] > 3:
         cv2.imwrite(path + ('.d.exr' if xyzd else '.s.exr'), data[:, :, 3:],
                     (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
+    if metastr is not None:
+        with open(path + '.lbl', 'w') as fh:
+            fh.write(metastr)
 
 
 class NearestKernelNDInterpolator(NearestNDInterpolator):

@@ -62,8 +62,8 @@ def raw_itokawa():
                     with open(path + '.img', 'wb') as fh_out:
                         shutil.copyfileobj(fh_in, fh_out)
 
-            img, data, metadata = read_itokawa_img(path + '.lbl')
-            write_data(os.path.join(args.dst, fname[:-4]), img, data)
+            img, data, metastr, metadata = read_itokawa_img(path + '.lbl')
+            write_data(os.path.join(args.dst, fname[:-4]), img, data, metastr)
             rows.append((i, fname[:-4] + '.png') + safe_split(metadata['sc_ori'], True))
 
             if extracted:
@@ -81,7 +81,7 @@ def raw_itokawa():
 
 
 def read_itokawa_img(path):
-    img, data, metadata = read_raw_img(path, (1, 2, 3, 4, 11, 12))
+    img, data, metastr, metadata = read_raw_img(path, (1, 2, 3, 4, 11, 12))
 
     # select only pixel value and x, y, z; calculate pixel size by taking max of px
     # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat
@@ -89,7 +89,7 @@ def read_itokawa_img(path):
     data = np.concatenate((data[:, :, 0:3], px_size), axis=2)
     data[data <= -1e30] = np.nan
 
-    return img, data, metadata
+    return img, data, metastr, metadata
 
 
 if __name__ == '__main__':

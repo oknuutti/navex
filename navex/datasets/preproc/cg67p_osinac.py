@@ -77,7 +77,6 @@ def main():
         files.append((id, src_path + [tmp[0], 'DATA', 'IMG', tmp[1][:-4] + '.IMG'], fname, sc_qw))
 
     logging.info('%d/%d files selected for processing...' % (len(files), len(index)))
-    rows = []
     for id, src_file, dst_file, sc_qw in tqdm(files):
         dst_path = os.path.join(args.dst, dst_file)
         if not os.path.exists(dst_path) or sc_qw is None:
@@ -93,21 +92,21 @@ def main():
                     logging.warning('Got exception %s while downloading %s' % (e, src_file))
                     logging.warning('Trying again in 10s (#%d)' % (i+1,))
                     time.sleep(10)
+                    ftp.close()
                     ftp = ftplib.FTP(args.host)
                     ftp.login()
 
-            img, data, metadata = read_cg67p_img(tmp_file)
-            write_data(tmp_file[:-4], img, data, xyzd=True)
-            rows.append((id, dst_file)
-                        + safe_split(metadata['sc_ori'], True)
-                        + safe_split(metadata['sc_sun_pos'], False)
-                        + safe_split(metadata['sc_trg_pos'], False))
+            img, data, metastr, metadata = read_cg67p_img(tmp_file)
+            write_data(tmp_file[:-4], img, data, metastr, xyzd=True)
+            index.set(('id', 'file', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
+                       'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
+                       'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
+                      [(id, dst_file)
+                      + safe_split(metadata['sc_ori'], True)
+                      + safe_split(metadata['sc_sun_pos'], False)
+                      + safe_split(metadata['sc_trg_pos'], False)])
             os.unlink(tmp_file)
-
-    if len(rows) > 0:
-        index.set(('id', 'file', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
-                                 'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
-                                 'sc_trg_x', 'sc_trg_y', 'sc_trg_z'), rows)
+    ftp.close()
 
     create_image_pairs(args.dst, args.index, args.pairs, args.dst, args.aflow, args.img_max, FOV[args.instr],
                        args.min_angle, args.max_angle, args.min_matches, read_meta=True, start=args.start,
@@ -140,13 +139,13 @@ def scan_ftp(ftp, path, filter, files, depth=0):
 def read_cg67p_img(path):
     pds3_obj_to_band_hack(path)
 
-    img, data, metadata = read_raw_img(path, (1, 7, 8, 9, 2), gamma=1.8, q_wxyz=False)
+    img, data, metastr, metadata = read_raw_img(path, (1, 7, 8, 9, 2), gamma=1.8, q_wxyz=False)
 
     # select only pixel value, model x, y, z and depth
     # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat
     data[data == 0] = np.nan
 
-    return img, data, metadata
+    return img, data, metastr, metadata
 
 
 def pds3_obj_to_band_hack(path):
