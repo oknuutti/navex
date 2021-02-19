@@ -139,7 +139,7 @@ def scan_ftp(ftp, path, filter, files, depth=0):
 def read_cg67p_img(path):
     pds3_obj_to_band_hack(path)
 
-    img, data, metastr, metadata = read_raw_img(path, (1, 7, 8, 9, 2), gamma=1.8, q_wxyz=False)
+    img, data, metastr, metadata = read_raw_img(path, (1, 7, 8, 9, 2), disp_dir=('down', 'left'), gamma=1.8, q_wxyz=False)
 
     # select only pixel value, model x, y, z and depth
     # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat

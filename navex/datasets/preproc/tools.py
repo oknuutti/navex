@@ -256,7 +256,7 @@ def show_all_pairs(aflow_path, img_path, image_db):
             show_pair(img0, img1, aflow, image_db[id0], image_db[id1])
 
 
-def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0, q_wxyz=True):
+def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0, disp_dir=None, q_wxyz=True):
     handle = gdal.Open(path, gdal.GA_ReadOnly)
     w, h, n = handle.RasterXSize, handle.RasterYSize, handle.RasterCount
 
@@ -279,7 +279,19 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
         img = (255 * np.clip((0.95 / top_v) * data[:, :, 0], 0, 1) ** (1 / gamma)).astype(np.uint8)
 
     handle = None
-    metastr, metadata = parse_metadata(path, q_wxyz, return_str=True)
+    metastr, metadata, m_disp_dir = parse_metadata(path, q_wxyz, return_str=True)
+
+    # arrange data so that display direction is (down, right)
+    disp_dir = m_disp_dir or disp_dir
+    assert disp_dir is not None, 'LINE_DISPLAY_DIRECTION and SAMPLE_DISPLAY_DIRECTION specification missing'
+
+    if disp_dir[0].lower() == 'up':
+        img = np.flipud(img)
+        data = np.flipud(data)
+    if disp_dir[1].lower() == 'left':
+        img = np.fliplr(img)
+        data = np.fliplr(data)
+
     return img, data[:, :, 1:], metastr, metadata
 
 
@@ -304,9 +316,19 @@ def parse_metadata(path, q_wxyz=True, return_str=False):
     # cant figure this out for Rosetta or Hayabusa1 metadata
     trg_ori_q = None
 
+    disp_dir, ld, sd = None, None, None
+    if 'LINE_DISPLAY_DIRECTION' in meta and 'SAMPLE_DISPLAY_DIRECTION' in meta:
+        ld, sd = meta['LINE_DISPLAY_DIRECTION'], meta['SAMPLE_DISPLAY_DIRECTION']
+    elif 'IMAGE' in meta and 'LINE_DISPLAY_DIRECTION' in meta['IMAGE'] \
+            and 'SAMPLE_DISPLAY_DIRECTION' in meta['IMAGE']:
+        ld, sd = meta['IMAGE']['LINE_DISPLAY_DIRECTION'], meta['IMAGE']['SAMPLE_DISPLAY_DIRECTION']
+    if isinstance(ld, str) and ld.lower() in ('up', 'down') \
+            and isinstance(sd, str) and sd.lower() in ('left', 'right'):
+        disp_dir = ld, sd
+
     meta_str = pvl.dumps(meta, pvl.encoder.PVLEncoder()) if return_str else None
     metadata = {'sc_ori': sc_ori_q, 'sc_sun_pos': sc_sun_pos_v, 'trg_ori': trg_ori_q, 'sc_trg_pos': sc_trg_pos_v}
-    return (meta_str, metadata) if return_str else metadata
+    return (meta_str, metadata, disp_dir) if return_str else (metadata, disp_dir)
 
 
 def metadata_coord_frame(meta, coord_frame_keys, unit, q_wxyz=True):
