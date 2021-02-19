@@ -49,8 +49,8 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
 
     train_conf = full_conf['training']
 
-    # version is always 0 as output dir is unique for each trial (version=0 restores log if previous file exists)
-    logger = MyLogger(train_conf['output'], name=train_conf['name'], version=0)
+    # version is always '' as output dir is unique for each trial
+    logger = MyLogger(train_conf['output'], name='', version='')
 
     callbacks = [
         TuneReportCheckpointCallback(metrics={
@@ -132,11 +132,11 @@ def tune_asha(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
 
     # "loss", mode="min" OR "tot_ratio", mode="max"
-    metric = "tot_ratio"
-    mode = "max"
+    metric = "loss"
+    mode = "min"
 
     scheduler = ASHAScheduler(
-        time_attr="epoch",
+        # time_attr="epoch",    # the default, "training_iteration" equals epoch??
         metric=metric,
         mode=mode,
         max_t=train_conf['epochs'],
@@ -178,13 +178,13 @@ def tune_pbs(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
 
     # "loss", mode="min" OR "tot_ratio", mode="max"
-    metric = "tot_ratio"
-    mode = "max"
+    metric = "loss"
+    mode = "min"
 
     mutations = nested_filter(hparams, lambda x: hasattr(x, 'sample'), lambda x: x.sampler2.sample)
     mutations = prune_nested(mutations)
     scheduler = PopulationBasedTraining(
-        time_attr="epoch",
+        # time_attr="epoch",    # the default, "training_iteration" equals epoch??
         perturbation_interval=1,
         hyperparam_mutations=mutations,
         metric=metric,
@@ -214,7 +214,7 @@ def tune_pbs(search_conf, hparams, full_conf):
         reuse_actors=False,
         max_failures=5,
         keep_checkpoints_num=1,
-        checkpoint_score_attr=f"{mode}-{metric}",
+        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,
         progress_reporter=reporter,
         name=train_conf['name'])
 
