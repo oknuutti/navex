@@ -169,7 +169,7 @@ def tune_asha(search_conf, hparams, full_conf):
         # checkpoint_freq=200,
         # checkpoint_at_end=True,
         keep_checkpoints_num=1,
-        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,
+#        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,     # doesn't seem to work if not default
         progress_reporter=reporter,
         name=train_conf['name'])
 
@@ -214,7 +214,7 @@ def tune_pbs(search_conf, hparams, full_conf):
         reuse_actors=False,
         max_failures=5,
         keep_checkpoints_num=1,
-        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,
+#        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,
         progress_reporter=reporter,
         name=train_conf['name'])
 
