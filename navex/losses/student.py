@@ -30,9 +30,9 @@ class StudentLoss(BaseLoss):
         self.det_loss = BCELoss()
         self.qlt_loss = BCELoss()
 
-    def update_conf(self, new_config):
+    def update_conf(self, new_conf):
         ok = True
-        for k, v in new_config.items():
+        for k, v in new_conf.items():
             if k in ('des_w', 'det_w', 'qlt_w'):
                 ov = getattr(self, k)
                 if isinstance(ov, nn.Parameter):

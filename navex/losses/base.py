@@ -5,7 +5,7 @@ class BaseLoss(Module):
     def __init__(self):
         super(BaseLoss, self).__init__()
 
-    def update_conf(self, new_config):
+    def update_conf(self, new_conf):
         return False
 
     def params_to_optimize(self, split=False):

@@ -25,7 +25,7 @@ from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
 from ..trials.terrestrial import TerrestrialTrial
 
 
-def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
+def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=False):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
     logging.info('inside execute_trial')
@@ -108,7 +108,9 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None):
                            map_location="cuda:0" if int(train_conf['gpu']) else "cpu")
             model = TrialWrapperBase._load_model_state(ckpt)
             trainer.current_epoch = ckpt["epoch"]
-        model.trial.update_conf(new_conf=hparams, fail_silently=False)
+
+        if update_conf:
+            model.trial.update_conf(new_conf=hparams, fail_silently=False)
 
     else:
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
@@ -152,7 +154,7 @@ def tune_asha(search_conf, hparams, full_conf):
         metric_columns=["loss", "tot_ratio", "mAP"])
 
     tune.run(
-        partial(execute_trial, full_conf=full_conf),
+        partial(execute_trial, full_conf=full_conf, update_conf=False),
         resources_per_trial={
             "cpu": full_conf['data']['workers'],
             "gpu": train_conf['gpu'],
@@ -202,7 +204,7 @@ def tune_pbs(search_conf, hparams, full_conf):
         metric_columns=["loss", "tot_ratio", "mAP"])
 
     tune.run(
-        partial(execute_trial, full_conf=full_conf),
+        partial(execute_trial, full_conf=full_conf, update_conf=True),
         resources_per_trial={
             "cpu": full_conf['data']['workers'],
             "gpu": train_conf['gpu'],
