@@ -66,20 +66,19 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
     is_new = False
     if isinstance(index_path, ImageDB) or os.path.exists(index_path):
         index = index_path if isinstance(index_path, ImageDB) else ImageDB(index_path)
-        if read_meta:
-            files = [(id, file[:-4] + '.xyz.exr') for id, file in
-                     index.get_all(('id', 'file'), cond='cx1 is null', start=start, end=end)]
     else:
-        logging.info('building the index file...')
         index = ImageDB(index_path, truncate=True)
-        files = find_files(src_path, ext='.xyz.exr', relative=True)
-        files = [(i, file) for i, file in enumerate(files)]
         is_new = True
 
-    if is_new or read_meta:
-        # TODO: find and add here the direction of light in camera frame coords
+    if is_new:
+        logging.info('building the index file...')
+        files = find_files(src_path, ext='.xyz.exr', relative=True)
+        files = [(i, file) for i, file in enumerate(files)]
+    else:
+        files = [(id, file[:-4] + '.xyz.exr') for id, file in
+                 index.get_all(('id', 'file'), cond='cx1 is null', start=start, end=end)]
 
-        values = []
+    if is_new or read_meta:
         logging.info('clustering *.xyz.exr file contents...')
         for i, fname in tqdm(files):
             try:
@@ -94,13 +93,14 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                 vd = np.max(np.abs(u - np.mean(u, axis=0)))
             else:
                 vd, u = np.nan, np.ones((12,)) * np.nan
-            values.append((i, fname[:-8] + '.png', vd, *u.flatten()))
-        if is_new:
-            index.add(('id', 'file', 'vd', 'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
-                                           'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
-        else:
-            index.set(('id', 'file', 'vd', 'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
-                                           'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
+
+            values = [(i, fname[:-8] + '.png', vd, *u.flatten())]
+            if is_new:
+                index.add(('id', 'file', 'vd', 'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
+                                               'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
+            else:
+                index.set(('id', 'file', 'vd', 'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
+                                               'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
 
     # read index file
     ids, files, unit_vectors, max_dists = [], [], [], []
