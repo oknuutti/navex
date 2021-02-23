@@ -64,9 +64,10 @@ class R2D2Loss(BaseLoss):
 
         # maybe optimize weights during training, see
         # https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf
-        p_loss = self.wdt*p_loss - 0.5*(math.log(2*self.wdt) if isinstance(self.wdt, float) else torch.log(2*self.wdt))
-        c_loss = self.wdt*c_loss - 0.5*(math.log(2*self.wdt) if isinstance(self.wdt, float) else torch.log(2*self.wdt))
-        a_loss = self.wap*a_loss - 0.5*(math.log(2*self.wap) if isinstance(self.wap, float) else torch.log(2*self.wap))
+        #  => regression: -0.5*log(2*w); classification: -0.5*log(w)
+        p_loss = self.wdt*p_loss - 0.5*(math.log(self.wdt) if isinstance(self.wdt, float) else torch.log(self.wdt))
+        c_loss = self.wdt*c_loss - 0.5*(math.log(self.wdt) if isinstance(self.wdt, float) else torch.log(self.wdt))
+        a_loss = self.wap*a_loss - 0.5*(math.log(self.wap) if isinstance(self.wap, float) else torch.log(self.wap))
 
         return p_loss + c_loss + a_loss
 

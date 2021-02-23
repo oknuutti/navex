@@ -62,7 +62,7 @@ class StudentLoss(BaseLoss):
                     lbl = F.interpolate(lbl, size=(h1, w1), mode=self.interpolation_mode, align_corners=align_corners)
 
             log = math.log if isinstance(weight, float) else torch.log
-            loss = weight * loss_fn(out, lbl) - 0.5 * log(2 * weight)
+            loss = weight * loss_fn(out, lbl) - 0.5 * log(2 * weight)  # log(2*w) if regression, classification: log(w)
             losses.append(loss)
 
         return torch.stack(losses).sum()

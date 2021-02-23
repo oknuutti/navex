@@ -68,7 +68,7 @@ class TrialWrapperBase(pl.LightningModule):
             loss, output = self.trial.train_batch(data, labels, epoch_id, batch_idx)
 
         with torch.no_grad():
-            acc = self.trial.accuracy(*output, labels, mutual=True, ratio=False, success_px_limit=6)
+            acc = self.trial.accuracy(*output, labels, mutual=True, ratio=False, success_px_limit=5)
             self._log('trn', loss, acc, self.trial.log_values())
 
         return loss
