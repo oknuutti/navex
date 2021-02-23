@@ -19,8 +19,9 @@ from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, _TuneCheckpointCallback, TuneCallback
+from ray.tune.suggest import BasicVariantGenerator, SkOptSearch, ConcurrencyLimiter
 
-from ..experiments.parser import set_nested, nested_update, nested_filter, prune_nested
+from ..experiments.parser import set_nested, nested_update, nested_filter, prune_nested, split_double_samplers
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
 from ..trials.terrestrial import TerrestrialTrial
 
@@ -133,14 +134,26 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
 def tune_asha(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
 
-    # "loss", mode="min" OR "tot_ratio", mode="max"
-    metric = "loss"
-    mode = "min"
+    tmp = search_conf.split('-')
+    search_method = 'rs' if len(tmp) == 1 else tmp[1]
+
+    if search_method == 'rs':
+        search_alg = BasicVariantGenerator()
+    elif search_method == 'bo':
+        # need to:  pip install scikit-optimize
+        initial, hparams = split_double_samplers(hparams)
+        start_config = [sample(initial) for _ in range(search_conf['nodes'])]
+        search_alg = SkOptSearch(metric=search_conf['metric'], mode=search_conf['mode'],
+                                 points_to_evaluate=start_config)
+        search_alg = ConcurrencyLimiter(search_alg, max_concurrent=search_conf['nodes'])
+    else:
+        assert False, ('Invalid search method "%s", only random search (rs) '
+                       'or bayesian optimization (bo) supported') % tmp[1]
 
     scheduler = ASHAScheduler(
         # time_attr="epoch",    # the default, "training_iteration" equals epoch??
-        metric=metric,
-        mode=mode,
+        metric=search_conf['metric'],
+        mode=search_conf['mode'],
         max_t=train_conf['epochs'],
         grace_period=search_conf['grace_period'],
         reduction_factor=search_conf['reduction_factor'])
@@ -160,6 +173,7 @@ def tune_asha(search_conf, hparams, full_conf):
             "gpu": train_conf['gpu'],
         },
         config=hparams,
+        search_alg=search_alg,
         # upload_dir=train_conf['output'],
         # trial_name_creator=,
         # trial_dirname_creator=,
@@ -178,22 +192,14 @@ def tune_asha(search_conf, hparams, full_conf):
 
 def tune_pbs(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
+    mutations, hparams = split_double_samplers(hparams)
 
-    # "loss", mode="min" OR "tot_ratio", mode="max"
-    metric = "loss"
-    mode = "min"
-
-    mutations = nested_filter(hparams, lambda x: hasattr(x, 'sample'), lambda x: x.sampler2.sample)
-    mutations = prune_nested(mutations)
     scheduler = PopulationBasedTraining(
-        # time_attr="epoch",    # the default, "training_iteration" equals epoch??
         perturbation_interval=1,
         hyperparam_mutations=mutations,
-        metric=metric,
-        mode=mode
+        metric=search_conf['metric'],
+        mode=search_conf['mode']
     )
-
-    hparams = nested_filter(hparams, lambda x: True, lambda x: x.sampler1 if isinstance(x, DoubleSampler) else x)
 
     class MyReporter(CLIReporter):
         def report(self, trials, done, *sys_info):
@@ -216,12 +222,21 @@ def tune_pbs(search_conf, hparams, full_conf):
         reuse_actors=False,
         max_failures=5,
         keep_checkpoints_num=1,
-#        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,
         progress_reporter=reporter,
         name=train_conf['name'])
 
 
-# class _MyTuneCheckpointCallback(_TuneCheckpointCallback):
+def sample(config, sampled=None):
+    sampled = sampled or {}
+    for key, distribution in config.items():
+        if isinstance(distribution, dict):
+            sampled[key] = sample(distribution)
+        else:
+            sampled[key] = distribution.sample()
+    return sampled
+
+
+        # class _MyTuneCheckpointCallback(_TuneCheckpointCallback):
 #     def _handle(self, trainer: Trainer, pl_module: LightningModule):
 #         if trainer.running_sanity_check:
 #             return
@@ -253,18 +268,6 @@ class CheckOnSLURM(TuneCallback):
         terminate = ray.get(ray.get_actor('term_' + node_id).is_set.remote())
         if terminate:
             trainer.checkpoint_connector.hpc_save(trainer.weights_save_path, trainer.logger)
-
-
-class DoubleSampler:
-    def __init__(self, cls):
-        self.cls = cls
-        self.sampler1 = None
-        self.sampler2 = None
-        self.first = True
-
-    def __call__(self, args1, args2):
-        self.sampler1 = self.cls(*args1)
-        self.sampler2 = self.cls(*args2)
 
 
 # @ray.remote(num_cpus=0)

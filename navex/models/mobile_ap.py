@@ -259,7 +259,8 @@ class MobileAP(BasePoint):
             else:
                 seq.append(nn.Conv2d(in_ch, conf['hidden_ch'], kernel_size=3, padding=1))
                 seq.append(nn.BatchNorm2d(conf['hidden_ch']))
-                seq.append(nn.ReLU())
+                # TODO: fix the current hack where squeeze-exitation param is used to determine activation function
+                seq.append(nn.Hardswish() if conf['use_se'] else nn.ReLU())
                 in_ch = conf['hidden_ch']
 
         if conf['dropout'] > 0:
@@ -280,9 +281,22 @@ class MobileAP(BasePoint):
     def forward(self, input):
         # input is a pair of images
         features = self.backbone(input)
+
         des = self.des_head(features)
-        det = self.det_head(features)
-        qlt = self.qlt_head(features)
+        des2 = None
+
+        if self.conf['det_head']['after_des']:
+            des2 = des.pow(2) if des2 is None else des2
+            det = self.det_head(des2)
+        else:
+            det = self.det_head(features)
+
+        if self.conf['qlt_head']['after_des']:
+            des2 = des.pow(2) if des2 is None else des2
+            qlt = self.qlt_head(des2)
+        else:
+            qlt = self.qlt_head(features)
+
         output = self.fix_output(des, det, qlt)
         return output
 

@@ -62,7 +62,6 @@ class ExperimentConfigParser(ArgumentParser):
                 cls = getattr(tune, '_'.join(t[1:]))
 
                 if double:
-                    from ..ray.base import DoubleSampler
                     cls = DoubleSampler(cls)
 
             return HyperParam(n.value, cls)
@@ -233,6 +232,13 @@ def prune_nested(tree):
     return new_tree
 
 
+def split_double_samplers(hparams):
+    initial = nested_filter(hparams, lambda x: hasattr(x, 'sample'), lambda x: x.sampler2.sample)
+    initial = prune_nested(initial)
+    full = nested_filter(hparams, lambda x: True, lambda x: x.sampler1 if isinstance(x, DoubleSampler) else x)
+    return initial, full
+
+
 def to_dict(ns):
     def _conv_subtree(from_node, to_node):
         for k, v in (from_node if isinstance(from_node, dict) else from_node.__dict__).items():
@@ -260,3 +266,15 @@ def to_namespace(mapping):
     ns = Namespace()
     _conv_subtree(mapping, ns)
     return ns
+
+
+class DoubleSampler:
+    def __init__(self, cls):
+        self.cls = cls
+        self.sampler1 = None
+        self.sampler2 = None
+        self.first = True
+
+    def __call__(self, args1, args2):
+        self.sampler1 = self.cls(*args1)
+        self.sampler2 = self.cls(*args2)

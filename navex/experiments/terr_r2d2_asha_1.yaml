@@ -1,5 +1,7 @@
 search:
   method: 'asha'
+  metric: 'loss'
+  mode: 'min'
   samples: 243
   nodes: 6
   node_types: 'pascal,volta'
@@ -22,7 +24,7 @@ training:
   batch_size: 16
   batch_mem: 32000
   gpu: 1
-  epochs: 30
+  epochs: 27
   print_freq: 5
   test_freq: 1
   save_freq: 1

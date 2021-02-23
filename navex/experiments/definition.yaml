@@ -2,8 +2,14 @@ search:
   __group__: 1
 
   method:
-    choices: ['asha', 'pbs']
+    choices: ['asha', 'asha-bo', 'pbs']
     help: "hyperparameter search method to be used"
+
+  metric:
+    help: ""
+
+  mode:
+    help: ""
 
   username:
     alt: ['--username']
@@ -198,6 +204,11 @@ model:
   det_head:
     __group__: 1
 
+    after_des:
+      alt: ['--det-stack']
+      type: int
+      help: 'attach detection head on top of descriptor head'
+
     hidden_ch:
       alt: ['--det-ch']
       type: int
@@ -220,6 +231,11 @@ model:
 
   qlt_head:
     __group__: 1
+
+    after_des:
+      alt: ['--det-stack']
+      type: int
+      help: 'attach quality head on top of descriptor head'
 
     hidden_ch:
       alt: ['--qlt-ch']

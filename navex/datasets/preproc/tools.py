@@ -233,16 +233,16 @@ def calc_aflow(xyzs0, xyzs1):
     h1, w1 = xyzs1.shape[:2]
 
     img_xy1 = unit_aflow(h1, w1)
-    img_xy1 = (img_xy1[:, :, 0] + 1j * img_xy1[:, :, 1]).flatten()
+    img_xy1 = (img_xy1[:, :, 0] + 1j * img_xy1[:, :, 1]).flatten().astype(np.complex64)
 
     # prepare x, doesnt support nans
-    x = xyzs1[:, :, :3].reshape((-1, 3))
+    x = xyzs1[:, :, :3].reshape((-1, 3)).astype(np.float32)
     I = np.logical_not(np.isnan(x[:, 0]))
     len_sc = max(np.nanquantile(xyzs0[:, :, -1], 0.9), np.nanquantile(xyzs1[:, :, -1], 0.9))
 
     interp = NearestKernelNDInterpolator(x[I, :], img_xy1[I], k_nearest=8, kernel_sc=len_sc, max_distance=len_sc * 3)
-    aflow = interp(xyzs0[:, :, :3].reshape((-1, 3))).reshape((h0, w0))
-    aflow = np.stack((np.real(aflow[:, :]), np.imag(aflow[:, :])), axis=2)
+    aflow = interp(xyzs0[:, :, :3].reshape((-1, 3)).astype(np.float32)).reshape((h0, w0))
+    aflow = np.stack((np.real(aflow[:, :]), np.imag(aflow[:, :])), axis=2).astype(np.float32)
 
     return aflow
 
