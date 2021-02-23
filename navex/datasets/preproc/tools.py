@@ -149,11 +149,12 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
     add_count = 0
     for tot, (ii, jj) in enumerate(pbar):
         i, j = ii // 4, jj // 4
+        id_i, id_j = ids[i], ids[j]
         a, b = ii % 4, jj % 4
         angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i][a] - unit_vectors[j][b]) / 2))
 
-        if angle >= min_angle and i != j and (i, j) not in added_pairs and (
-                image_count[i] < img_max or image_count[j] < img_max):
+        if angle >= min_angle and id_i != id_j and (id_i, id_j) not in added_pairs and (
+                image_count[id_i] < img_max or image_count[id_j] < img_max):
             xyzs0 = load_xyzs(os.path.join(src_path, files[i]), hz_fov=hz_fov)
             xyzs1 = load_xyzs(os.path.join(src_path, files[j]), hz_fov=hz_fov)
             max_matches = min(np.sum(np.logical_not(np.isnan(xyzs0[:, :, 0]))),
@@ -165,12 +166,12 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
 
                 if matches >= min_matches:
                     add_count += 1
-                    added_pairs.add((i, j))
-                    added_pairs.add((j, i))
-                    image_count.update((i, j))
-                    save_aflow(os.path.join(aflow_path, '%d_%d.aflow.png' % (ids[i], ids[j])), aflow)
+                    added_pairs.add((id_i, id_j))
+                    added_pairs.add((id_j, id_i))
+                    image_count.update((id_i, id_j))
+                    save_aflow(os.path.join(aflow_path, '%d_%d.aflow.png' % (id_i, id_j)), aflow)
                     with open(pairs_path, 'a') as fh:
-                        fh.write('%d %d %.2f %.4f\n' % (ids[i], ids[j], angle, matches / max_matches))
+                        fh.write('%d %d %.2f %.4f\n' % (id_i, id_j, angle, matches / max_matches))
 
         pbar.set_postfix({'added': add_count, 'ratio': add_count/(tot + 1)})
 
