@@ -162,7 +162,7 @@ class HyperParam:
             self._value = self.cls(value)
 
     def __str__(self):
-        return "hparam %s(%s)" % (self.cls.__name__, self.value)
+        return "hparam %s(%s)" % (getattr(self.cls, '__name__', self.cls.__class__.__name__), self.value)
 
 
 def flatten_dict(nested, sep='.'):
@@ -234,9 +234,9 @@ def prune_nested(tree):
 
 
 def split_double_samplers(hparams):
-    initial = nested_filter(hparams, lambda x: hasattr(x, 'sample'), lambda x: x.sampler2.sample)
+    initial = nested_filter(hparams, lambda x: isinstance(x, DoubleSampler), lambda x: x.sampler1)
     initial = prune_nested(initial)
-    full = nested_filter(hparams, lambda x: True, lambda x: x.sampler1 if isinstance(x, DoubleSampler) else x)
+    full = nested_filter(hparams, lambda x: True, lambda x: x.sampler2 if isinstance(x, DoubleSampler) else x)
     return initial, full
 
 
@@ -283,3 +283,5 @@ class DoubleSampler:
             args2 = (args2,)
         self.sampler1 = self.cls(*args1)
         self.sampler2 = self.cls(*args2)
+
+        return self

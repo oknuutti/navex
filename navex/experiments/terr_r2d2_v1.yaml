@@ -1,5 +1,7 @@
 search:
   method: 'asha'
+  metric: 'loss'
+  mode: 'min'
   samples: 1
   nodes: 1
   node_types: 'pascal,volta'

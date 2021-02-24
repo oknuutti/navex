@@ -35,6 +35,12 @@ class RayTuneHeadNode:
     def __init__(self, full_conf):
         self.search_conf, self.hparams = full_conf.pop('search'), full_conf.pop('hparams')
         self.config = full_conf
+
+        if os.name == 'nt' and True:
+            # for debugging on windows
+            tune_asha(self.search_conf, self.hparams, self.config)
+            quit()
+
         self.hostname = socket.gethostname()
         self.local_linux = self.hostname and self.search_conf['host'] in self.hostname
         self.redis_pwd = '5241590000000000'

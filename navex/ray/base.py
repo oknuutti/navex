@@ -4,6 +4,7 @@ import os
 import re
 import time
 import logging
+from collections import OrderedDict
 from functools import partial
 from typing import Union, List, Dict
 
@@ -21,6 +22,7 @@ from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, _TuneCheckpointCallback, TuneCallback
 from ray.tune.suggest import BasicVariantGenerator, ConcurrencyLimiter
 from ray.tune.suggest.skopt import SkOptSearch
+from ray.tune.utils import flatten_dict
 
 from ..experiments.parser import set_nested, nested_update, nested_filter, prune_nested, split_double_samplers
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
@@ -44,7 +46,8 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
     # e.g. "data/aachen.tar;data/abc.tar" => "data"
     # datadir = full_conf['data']['path'].strip('"').split(';')[0].split('/')[:-1]
     # full_conf['data']['path'] = os.path.join('/tmp', sj_id, *datadir)
-    full_conf['data']['path'] = '/tmp/navex'       # TODO: currently hardcoded, take this from settings instead
+    if os.name != 'nt':
+        full_conf['data']['path'] = '/tmp/navex'       # TODO: currently hardcoded, take this from settings instead
     full_conf['training']['output'] = tune.get_trial_dir()
     full_conf['training']['cache'] = os.path.join(full_conf['training']['output'], '..', 'cache')
     full_conf['model']['cache_dir'] = full_conf['training']['cache']
@@ -116,7 +119,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
 
     else:
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
-        logging.info('new trial with %s' % (json.dumps(full_conf),))
+        logging.info('new trial with %s' % (full_conf,))
         trial = TerrestrialTrial(full_conf['model'], full_conf['loss'], full_conf['optimizer'], full_conf['data'],
                                  gpu_batch_size, acc_grad_batches, hparams)
         model = TrialWrapperBase(trial)
@@ -143,10 +146,15 @@ def tune_asha(search_conf, hparams, full_conf):
     elif search_method == 'bo':
         # need to:  pip install scikit-optimize
         initial, hparams = split_double_samplers(hparams)
-        start_config = [sample(initial) for _ in range(search_conf['nodes'])]
+        hparams = OrderedDict(hparams)
+
+        initial = flatten_dict(initial, prevent_delimiter=True)
+        key_order = flatten_dict(hparams, prevent_delimiter=True)
+        start_config = [[initial[k].sample() for k in key_order.keys() if k in initial]
+                            for _ in range(max(1, search_conf['nodes']))]
         search_alg = SkOptSearch(metric=search_conf['metric'], mode=search_conf['mode'],
                                  points_to_evaluate=start_config)
-        search_alg = ConcurrencyLimiter(search_alg, max_concurrent=search_conf['nodes'])
+        search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
     else:
         assert False, ('Invalid search method "%s", only random search (rs) '
                        'or bayesian optimization (bo) supported') % tmp[1]
@@ -193,7 +201,7 @@ def tune_asha(search_conf, hparams, full_conf):
 
 def tune_pbs(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
-    mutations, hparams = split_double_samplers(hparams)
+    hparams, mutations = split_double_samplers(hparams)
 
     scheduler = PopulationBasedTraining(
         perturbation_interval=1,

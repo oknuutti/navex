@@ -65,8 +65,8 @@ model:
 loss:
   wdt: -1.5       # weight for peakiness and cosim losses
   wap: -1.5       # weight for expected ap loss
-  det_n: !h_tune2_quniform '(12, 14, 2), (8, 16, 2)'     # detector neighbourhood size
-  base: !h_tune2_uniform   '(0.0, 0.40), (0.00, 0.70)'   # quality loss target mAP
+  det_n: !h_tune2_choice  '[12, 14], [8, 10, 12, 14, 16]'     # detector neighbourhood size
+  base:  !h_tune2_uniform '(0.0, 0.40), (0.00, 0.70)'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 7        # was 7       # neighbourhood size in descriptor cells

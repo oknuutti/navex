@@ -1,5 +1,7 @@
 search:
   method: 'asha-bo'
+  metric: 'loss'
+  mode: 'min'
   samples: 243
   nodes: 6
   node_types: 'pascal,volta'
