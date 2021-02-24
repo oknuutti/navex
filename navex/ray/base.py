@@ -134,7 +134,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
 def tune_asha(search_conf, hparams, full_conf):
     train_conf = full_conf['training']
 
-    tmp = search_conf.split('-')
+    tmp = search_conf['method'].split('-')
     search_method = 'rs' if len(tmp) == 1 else tmp[1]
 
     if search_method == 'rs':

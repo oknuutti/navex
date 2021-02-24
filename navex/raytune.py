@@ -143,8 +143,8 @@ class RayTuneHeadNode:
                 self.exception = e
 
         logging.info('cleaning up...')
-        if self.exception and not isinstance(self.exception, KeyboardInterrupt):
-            time.sleep(300)
+        # if self.exception and not isinstance(self.exception, KeyboardInterrupt):
+        #     time.sleep(300)
 
         # clean up
         for w in self.workers:
