@@ -140,9 +140,10 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
             for k, line in enumerate(fh):
                 if k == 0:
                     continue
-                i, j, *_ = line.split(' ')
+                i, j, angle, ratio = line.split(' ')
                 added_pairs.update({(int(i), int(j)), (int(j), int(i))})
-                image_count.update((int(i), int(j)))
+                if ratio != 'nan':
+                    image_count.update((int(i), int(j)))
 
     logging.info('calculating aflow for qualifying pairs...')
     pbar = tqdm(pairs)
@@ -160,18 +161,21 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
             max_matches = min(np.sum(np.logical_not(np.isnan(xyzs0[:, :, 0]))),
                               np.sum(np.logical_not(np.isnan(xyzs1[:, :, 0]))))
 
+            ratio = np.nan
             if max_matches >= min_matches:
                 aflow = calc_aflow(xyzs0, xyzs1)
                 matches = np.sum(np.logical_not(np.isnan(aflow[:, :, 0])))
 
                 if matches >= min_matches:
                     add_count += 1
-                    added_pairs.add((id_i, id_j))
-                    added_pairs.add((id_j, id_i))
                     image_count.update((id_i, id_j))
+                    ratio = matches / max_matches
                     save_aflow(os.path.join(aflow_path, '%d_%d.aflow.png' % (id_i, id_j)), aflow)
-                    with open(pairs_path, 'a') as fh:
-                        fh.write('%d %d %.2f %.4f\n' % (id_i, id_j, angle, matches / max_matches))
+
+            added_pairs.add((id_i, id_j))
+            added_pairs.add((id_j, id_i))
+            with open(pairs_path, 'a') as fh:
+                fh.write('%d %d %.2f %.4f\n' % (id_i, id_j, angle, ratio))
 
         pbar.set_postfix({'added': add_count, 'ratio': add_count/(tot + 1)})
 
