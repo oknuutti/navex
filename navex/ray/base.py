@@ -6,7 +6,7 @@ import time
 import logging
 from collections import OrderedDict
 from functools import partial
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Optional
 
 import torch
 
@@ -152,8 +152,8 @@ def tune_asha(search_conf, hparams, full_conf):
         key_order = flatten_dict(hparams, prevent_delimiter=True)
         start_config = [[initial[k].sample() for k in key_order.keys() if k in initial]
                             for _ in range(max(1, search_conf['nodes']))]
-        search_alg = SkOptSearch(metric=search_conf['metric'], mode=search_conf['mode'],
-                                 points_to_evaluate=start_config)
+        search_alg = MySkOptSearch(metric=search_conf['metric'], mode=search_conf['mode'],
+                                   points_to_evaluate=start_config)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
     else:
         assert False, ('Invalid search method "%s", only random search (rs) '
@@ -243,6 +243,13 @@ def sample(config, sampled=None):
         else:
             sampled[key] = distribution.sample()
     return sampled
+
+
+class MySkOptSearch(SkOptSearch):
+    def setup_skopt(self):
+        self._parameter_names = list(self._parameter_names)
+        self._parameter_ranges = list(self._parameter_ranges)
+        super(MySkOptSearch, self).setup_skopt()
 
 
         # class _MyTuneCheckpointCallback(_TuneCheckpointCallback):
