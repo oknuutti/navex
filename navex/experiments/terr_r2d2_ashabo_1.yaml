@@ -1,5 +1,5 @@
 search:
-  method: 'asha'
+  method: 'asha-bo'
   metric: 'loss'
   mode: 'min'
   samples: 243
@@ -81,19 +81,19 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_loguniform    '1e-4, 1e-3'
-  weight_decay:  !h_tune_loguniform    '1e-6, 1e-3'
+  learning_rate: !h_tune2_loguniform '((3e-4, 5e-4), (1e-4, 1e-3))'
+  weight_decay:  !h_tune2_loguniform '((1e-6, 1e-5), (1e-6, 1e-3))'
   split_params: 0
-  eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
+  eps:           !h_tune2_choice     '([1e-7], [1e-8, 1e-7, 1e-6])'
 
 data:
-  max_rot: 8.0      # in degrees, synth pair warp related
-  max_shear: 0.2    # synth pair warp related
-  max_proj: 0.4     # synth pair warp related
-  noise_max: 0.10
-  rnd_gain: 1.5
+  max_rot:   8.0   # in degrees, synth pair warp related
+  max_shear: 0.2   # synth pair warp related
+  max_proj:  0.4   # synth pair warp related
+  noise_max: !h_tune2_uniform '((0.06, 0.08), (0.02, 0.20))'
+  rnd_gain:  !h_tune2_uniform '((1.4, 1.6), (1.1, 2.0))'
   image_size: 224
-  path: 'data/aachen.tar;data/revisitop1m.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
+  path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1

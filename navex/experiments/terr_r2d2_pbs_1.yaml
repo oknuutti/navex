@@ -50,11 +50,13 @@ model:
     use_se:      0
     dropout:     0.0
   det_head:
+    after_des:   0
     hidden_ch:   128
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
   qlt_head:
+    after_des:   0
     hidden_ch:   128
     exp_coef:    0.0
     use_se:      0

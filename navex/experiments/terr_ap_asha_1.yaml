@@ -1,7 +1,7 @@
 search:
-  method: 'asha'
+  method: 'asha-bo'
   samples: 243
-  nodes: 4
+  nodes: 6
   node_types: 'pascal,volta'
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
@@ -63,16 +63,19 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune_loguniform      '1e-4, 1e-3'
+  learning_rate: !h_tune_loguniform   '1e-4, 1e-3'
   weight_decay: !h_tune_loguniform    '1e-6, 5e-5'
   split_params: 0
-  eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
+  eps: !h_tune_choice                 '[1e-8, 1e-7, 1e-6]'
 
 data:
-  noise_max: 0.20
-  rnd_gain: 2.0
+  max_rot: 8.0      # in degrees, synth pair warp related
+  max_shear: 0.2    # synth pair warp related
+  max_proj: 0.4     # synth pair warp related
+  noise_max: 0.10
+  rnd_gain: 1.5
   image_size: 512
-  path: 'data/data.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
+  path: 'data/aachen.tar;data/revisitop1m.tar'    # if data/aachen-something.tar => data is searched from /tmp/<job-id>/aachen-something
   npy: 'false'
   trn_ratio: 0.8
   val_ratio: 0.1

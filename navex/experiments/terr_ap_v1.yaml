@@ -48,11 +48,13 @@ model:
     use_se:      !h_int    0
     dropout:     !h_float  0.0
   det_head:
+    after_des:   !h_int    0
     hidden_ch:   !h_int    128
     exp_coef:    !h_float  0.0
     use_se:      !h_int    0
     dropout:     !h_float  0.0
   qlt_head:
+    after_des:   !h_int    0
     hidden_ch:   !h_int    128
     exp_coef:    !h_float  0.0
     use_se:      !h_int    0
@@ -61,16 +63,16 @@ model:
 loss:
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
   wap: !h_float -2.0      # weight for expected ap loss
-  det_n: !h_int  12       # detector neighbourhood size
-  base: !h_float 0.65     # quality loss target mAP
+  det_n: !h_int  16       # detector neighbourhood size
+  base: !h_float 0.30     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    ngh: 4        # was 7       # neighbourhood size in descriptor cells
+    ngh: 2        # was 7       # neighbourhood size in descriptor cells
     subq: -3      # was -8      # grid step size for positive samples
     subd: 1       # was 1       # neigbourhood sampling interval
-    pos_d: 1      # was 2       # positive samples generated up to this far from ideal location
-    neg_d: 3      # was 5       # negative samples generated starting from distance from ideal location
-    border: 4     # was 16
+    pos_d: 0      # was 2       # positive samples generated up to this far from ideal location
+    neg_d: 1      # was 5       # negative samples generated starting from distance from ideal location
+    border: 2     # was 16
     subd_neg: -6  # was -8      # grid step size for generating additional negative samples
     max_neg_b: 4                # distractors mined from max this number of images from same batch
     maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
@@ -78,9 +80,9 @@ loss:
 optimizer:
   method: 'adam'
   learning_rate: !h_float 5e-4
-  weight_decay: !h_float 5e-4
+  weight_decay: !h_float 1e-5
   split_params: 0
-  eps: !!float 1e-8
+  eps: !h_float 1e-7
 
 data:
   max_rot: !h_float 8.0      # in degrees, synth pair warp related
