@@ -19,7 +19,8 @@ from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, _TuneCheckpointCallback, TuneCallback
-from ray.tune.suggest import BasicVariantGenerator, SkOptSearch, ConcurrencyLimiter
+from ray.tune.suggest import BasicVariantGenerator, ConcurrencyLimiter
+from ray.tune.suggest.skopt import SkOptSearch
 
 from ..experiments.parser import set_nested, nested_update, nested_filter, prune_nested, split_double_samplers
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
