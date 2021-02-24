@@ -119,7 +119,7 @@ class RayTuneHeadNode:
 
             def run_search():
                 try:
-                    if node.search_conf['method'] == 'asha':
+                    if node.search_conf['method'].split('-')[0] == 'asha':
                         tune_asha(node.search_conf, node.hparams, node.config)
                     elif node.search_conf['method'] == 'pbs':
                         tune_pbs(node.search_conf, node.hparams, node.config)
