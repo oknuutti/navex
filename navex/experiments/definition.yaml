@@ -233,7 +233,7 @@ model:
     __group__: 1
 
     after_des:
-      alt: ['--det-stack']
+      alt: ['--qlt-stack']
       type: int
       help: 'attach quality head on top of descriptor head'
 
