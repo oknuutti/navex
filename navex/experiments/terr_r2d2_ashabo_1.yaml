@@ -65,8 +65,8 @@ model:
 loss:
   wdt: -1.5       # weight for peakiness and cosim losses
   wap: -1.5       # weight for expected ap loss
-  det_n: !h_tune2_quniform '((12, 14, 2), (8, 16, 2))'     # detector neighbourhood size
-  base: !h_tune2_uniform   '((0.0, 0.40), (0.00, 0.70))'   # quality loss target mAP
+  det_n: !h_tune2_quniform '(12, 14, 2), (8, 16, 2)'     # detector neighbourhood size
+  base: !h_tune2_uniform   '(0.0, 0.40), (0.00, 0.70)'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 7        # was 7       # neighbourhood size in descriptor cells
@@ -81,17 +81,17 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune2_loguniform '((3e-4, 5e-4), (1e-4, 1e-3))'
-  weight_decay:  !h_tune2_loguniform '((1e-6, 1e-5), (1e-6, 1e-3))'
+  learning_rate: !h_tune2_loguniform '(3e-4, 5e-4), (1e-4, 1e-3)'
+  weight_decay:  !h_tune2_loguniform '(1e-6, 1e-5), (1e-6, 1e-3)'
   split_params: 0
-  eps:           !h_tune2_choice     '([1e-8, 1e-7, 1e-6], [1e-8, 1e-7, 1e-6])'
+  eps:           !h_tune2_choice     '[1e-8, 1e-7, 1e-6], [1e-8, 1e-7, 1e-6]'
 
 data:
   max_rot:   8.0   # in degrees, synth pair warp related
   max_shear: 0.2   # synth pair warp related
   max_proj:  0.4   # synth pair warp related
-  noise_max: !h_tune2_uniform '((0.06, 0.08), (0.02, 0.20))'
-  rnd_gain:  !h_tune2_uniform '((1.4, 1.6), (1.1, 2.0))'
+  noise_max: !h_tune2_uniform '(0.06, 0.08), (0.02, 0.20)'
+  rnd_gain:  !h_tune2_uniform '(1.4, 1.6), (1.1, 2.0)'
   image_size: 224
   path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'

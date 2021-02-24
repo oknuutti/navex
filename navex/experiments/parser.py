@@ -53,7 +53,8 @@ class ExperimentConfigParser(ArgumentParser):
 
         def hyp_constr(l, s, n):
             t = s.split('_')
-            cls = dict([(c.__name__, c) for c in (bool, int, float, str)] + [('tune', 'tune')]).get(t[0], None)
+            cls = dict([(c.__name__, c) for c in (bool, int, float, str)]
+                       + [('tune', 'tune'), ('tune2', 'tune2')]).get(t[0], None)
             assert cls is not None, 'Unknown hyperparameter class: "%s"' % s
 
             if isinstance(cls, str) and cls[:4] == 'tune':
@@ -151,7 +152,7 @@ class HyperParam:
 
     @value.setter
     def value(self, value):
-        if self.cls.__module__[:9] in ('ray.tune.', 'navex.ray'):
+        if self.cls.__module__[:9] in ('ray.tune.', 'navex.exp'):
             import random
             from ray import tune
             import numpy as np
@@ -276,5 +277,9 @@ class DoubleSampler:
         self.first = True
 
     def __call__(self, args1, args2):
+        if isinstance(args1, list):
+            args1 = (args1,)
+        if isinstance(args2, list):
+            args2 = (args2,)
         self.sampler1 = self.cls(*args1)
         self.sampler2 = self.cls(*args2)
