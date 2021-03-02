@@ -146,7 +146,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                     image_count.update((int(i), int(j)))
 
     logging.info('calculating aflow for qualifying pairs...')
-    pbar = tqdm(pairs)
+    pbar = tqdm(pairs, mininterval=5)
     add_count = 0
     for tot, (ii, jj) in enumerate(pbar):
         i, j = ii // 4, jj // 4

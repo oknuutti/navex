@@ -149,12 +149,18 @@ def tune_asha(search_conf, hparams, full_conf):
         hparams = OrderedDict(hparams)
 
         initial = flatten_dict(initial, prevent_delimiter=True)
-        key_order = flatten_dict(hparams, prevent_delimiter=True)
-        start_config = [[initial[k].sample() for k in key_order.keys() if k in initial]
+        key_order = list(flatten_dict(hparams, prevent_delimiter=True).keys())
+        start_config = [[initial[k].sample() for k in key_order if k in initial]
                             for _ in range(max(1, search_conf['nodes']))]
         search_alg = MySkOptSearch(metric=search_conf['metric'], mode=search_conf['mode'],
                                    points_to_evaluate=start_config)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
+
+        # RESTORE like this, some interesting params:
+        # search_alg.restore_from_dir(<output dir>)
+        # search_alg.searcher._skopt_opt.Xi, search_alg.searcher._skopt_opt.yi
+        # search_alg.searcher._skopt_opt.base_estimator_.kernel.k2.length_scale
+        # search_alg.searcher._skopt_opt.get_result()
     else:
         assert False, ('Invalid search method "%s", only random search (rs) '
                        'or bayesian optimization (bo) supported') % tmp[1]
@@ -190,13 +196,18 @@ def tune_asha(search_conf, hparams, full_conf):
         scheduler=scheduler,
         queue_trials=True,
         reuse_actors=False,     # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
-        max_failures=5,
+        max_failures=20,
         # checkpoint_freq=200,
         # checkpoint_at_end=True,
         keep_checkpoints_num=1,
 #        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,     # doesn't seem to work if not default
         progress_reporter=reporter,
         name=train_conf['name'])
+
+    if search_method == 'bo':
+        logging.info('RESULT: %s' % (search_alg.searcher._skopt_opt.get_result(),))
+        logging.info('Length scales: %s' % (
+            dict(zip(key_order, search_alg.searcher._skopt_opt.base_estimator_.kernel.k2.length_scale)),))
 
 
 def tune_pbs(search_conf, hparams, full_conf):
@@ -229,7 +240,7 @@ def tune_pbs(search_conf, hparams, full_conf):
         scheduler=scheduler,
         queue_trials=True,
         reuse_actors=False,
-        max_failures=5,
+        max_failures=20,
         keep_checkpoints_num=1,
         progress_reporter=reporter,
         name=train_conf['name'])

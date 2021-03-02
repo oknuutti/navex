@@ -1,15 +1,15 @@
 search:
-  method: 'asha'
+  method: 'asha-bo'
   metric: 'loss'
   mode: 'min'
   samples: 1
   nodes: 1
-  node_types: 'pascal,volta'
+  node_types: 'volta'
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
-  node_type_cpus: '5,5'
-  grace_period: 0
-  reduction_factor: 0
+  node_type_cpus: '6'
+  grace_period: 1       # for asha only
+  reduction_factor: 3   # for asha only
   username: ''
   keyfile: ''
   proxy: ''
@@ -21,24 +21,24 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: !h_int 32
+  batch_size: !h_int 16
   batch_mem: 32000
   gpu: 1
-  epochs: 25
+  epochs: 27
   print_freq: 5
   test_freq: 1
   save_freq: 1
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 0
-  reduced_precision: !h_int 1
+  early_stopping: 10
+  reduced_precision: !h_int 0
   auto_lr_find: 0
   deterministic: 1
 
 model:
   arch: !h_str 'r2d2-own_vgg'
-  in_channels: !h_int 1
+  in_channels: !h_int 3
   partial_residual: 0   # not in use
   width_mult:       !h_float  1.0
   pretrained: 0         # not in use
@@ -63,10 +63,10 @@ model:
     dropout:     0.0
 
 loss:
-  wdt: !h_float -1.0      # weight for peakiness and cosim losses
-  wap: !h_float -2.0      # weight for expected ap loss
+  wdt: !h_float -1.5      # weight for peakiness and cosim losses
+  wap: !h_float -1.5      # weight for expected ap loss
   det_n: !h_int  16       # detector neighbourhood size
-  base: !h_float 0.30     # quality loss target mAP
+  base: !h_float 0.0     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 7        # was 7       # neighbourhood size in descriptor cells
@@ -81,17 +81,17 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 3e-4
-  weight_decay: !h_float 1e-5
+  learning_rate: !h_float 1e-3
+  weight_decay: !h_float 1e-6
   split_params: 0
-  eps: !h_float 1e-8
+  eps: !h_float 1e-7
 
 data:
   max_rot: !h_float 8.0     # in degrees, synth pair warp related
   max_shear: !h_float 0.2    # synth pair warp related
   max_proj: !h_float 0.4     # synth pair warp related
-  noise_max: !h_float 0.10
-  rnd_gain: !h_float 1.5
+  noise_max: !h_float 0.02
+  rnd_gain: !h_float 1.1
   image_size: !h_int 224
   path: 'data'
   npy: 'false'
