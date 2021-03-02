@@ -136,6 +136,10 @@ class ImageDB:
         )
         self._conn.commit()
 
+    def delete(self, id):
+        self._cursor.execute(f"DELETE FROM images WHERE id = {id}")
+        self._conn.commit()
+
     def set(self, fields: Tuple[str, ...], values: List[Tuple]) -> None:
         if len(values) == 0:
             return

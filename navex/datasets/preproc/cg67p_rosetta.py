@@ -1,10 +1,8 @@
 import argparse
 import ftplib
-import math
 import os
 import re
 import shutil
-import random
 import time
 import logging
 
@@ -12,12 +10,13 @@ from tqdm import tqdm
 import numpy as np
 
 from navex.datasets.tools import ImageDB
-from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split
+from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img
 
-FOV = {
-    'navcam': 5,
-    'osinac': 2.21,
-    'osiwac': 0,  # TODO: check these
+INSTR = {
+    'navcam': {'src': '/pub/mirror/INTERNATIONAL-ROSETTA-MISSION/NAVCAM', 'regex': r'^RO-C-NAVCAM-2-.*?-V1.1$',
+               'deep_path': 'DATA/CAM1', 'has_lbl': True,  'has_geom': False, 'fov': 5},
+    'osinac': {'src': '/pub/mirror/INTERNATIONAL-ROSETTA-MISSION/OSINAC', 'regex': r'^RO-C-OSINAC-5-.*',
+               'deep_path': 'DATA/IMG',  'has_lbl': False, 'has_geom': True,  'fov': 2.21},
 }
 
 
@@ -25,10 +24,9 @@ def main():
     parser = argparse.ArgumentParser('Download and process data from Rosetta about C-G/67P')
     parser.add_argument('--host', default='psa.esac.esa.int',
                         help="ftp host from which to fetch the data")
-    parser.add_argument('--src', default='/pub/mirror/INTERNATIONAL-ROSETTA-MISSION/OSINAC',
-                        help="path with the data")
-    parser.add_argument('--regex', default=r'^RO-C-OSINAC-5-.*',
-                        help="at given path, select folders/files based on this")
+    parser.add_argument('--src', help="path with the data")
+    parser.add_argument('--regex', help="at given path, select folders/files based on this")
+    parser.add_argument('--deep-path', help="path to follow after regex match to arrive at the data")
     parser.add_argument('--dst', help="output folder")
     parser.add_argument('--index', default='dataset_all.sqlite',
                         help="index file name in the output folder")
@@ -39,6 +37,10 @@ def main():
     parser.add_argument('--aflow', default='aflow', help="subfolder where the aflow files are generated")
     parser.add_argument('--instr', choices=('navcam', 'osinac', 'osiwac'),
                         help="which instrument, navcam, osinac or osiwac?")
+    parser.add_argument('--has-lbl', type=int, default=-1, help="src has separate lbl files")
+    parser.add_argument('--has-geom', type=int, default=-1, help="img data has geometry backplanes")
+    parser.add_argument('--fov', type=float, help="horizontal field of view in degrees")
+    parser.add_argument('--check-img', type=int, default=0, help="try to screen out bad images")
     parser.add_argument('--img-max', type=int, default=3, help="how many times same images can be repated in pairs")
     parser.add_argument('--min-angle', type=float, default=0,
                         help="min angle (deg) on the unit sphere for pair creation")
@@ -48,6 +50,19 @@ def main():
                         help="min pixel matches in order to approve generated pair")
 
     args = parser.parse_args()
+
+    if not args.src:
+        args.src = INSTR[args.instr]['src']
+    if not args.regex:
+        args.regex = INSTR[args.instr]['regex']
+    if not args.deep_path:
+        args.deep_path = INSTR[args.instr]['deep_path']
+    if not args.fov:
+        args.fov = INSTR[args.instr]['fov']
+    if args.has_lbl == -1:
+        args.has_lbl = INSTR[args.instr]['has_lbl']
+    if args.has_geom == -1:
+        args.has_geom = INSTR[args.instr]['has_geom']
 
     logging.basicConfig(level=logging.INFO)
 
@@ -62,7 +77,7 @@ def main():
         logging.info('building the index file by scanning ftp server for image files...')
 
         files = []
-        scan_ftp(ftp, src_path, [args.regex, 'data', 'img'], files)
+        scan_ftp(ftp, src_path, [args.regex, *args.deep_path.split('/')], files)
 
         index = ImageDB(index_path, truncate=True)
         files = sorted(['/'.join((fpath[-4], fpath[-1])) for fpath in files])
@@ -74,17 +89,20 @@ def main():
     files = []
     for id, fname, sc_qw in index.get_all(('id', 'file', 'sc_qw'), start=args.start, end=args.end):
         tmp = fname.split('/')
-        files.append((id, src_path + [tmp[0], 'DATA', 'IMG', tmp[1][:-4] + '.IMG'], fname, sc_qw))
+        files.append((id, src_path + [tmp[0], *args.deep_path.split('/'), tmp[1][:-4] + '.IMG'], fname, sc_qw))
 
     logging.info('%d/%d files selected for processing...' % (len(files), len(index)))
     for id, src_file, dst_file, sc_qw in tqdm(files):
         dst_path = os.path.join(args.dst, dst_file)
         if not os.path.exists(dst_path) or sc_qw is None:
-            tmp_file = dst_path[:-4] + '.IMG'
+            tmp_file = dst_path[:-4]
             os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
             for i in range(10):
                 try:
-                    with open(tmp_file, 'wb') as fh:
+                    if args.has_lbl:
+                        with open(tmp_file + '.LBL', 'wb') as fh:
+                            ftp.retrbinary("RETR " + '/'.join(src_file)[:-4] + '.LBL', fh.write)
+                    with open(tmp_file + '.IMG', 'wb') as fh:
                         ftp.retrbinary("RETR " + '/'.join(src_file), fh.write)
                     break
                 except Exception as e:
@@ -96,21 +114,37 @@ def main():
                     ftp = ftplib.FTP(args.host)
                     ftp.login()
 
-            img, data, metastr, metadata = read_cg67p_img(tmp_file)
-            write_data(tmp_file[:-4], img, data, metastr, xyzd=True)
-            index.set(('id', 'file', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
-                       'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
-                       'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
-                      [(id, dst_file)
-                      + safe_split(metadata['sc_ori'], True)
-                      + safe_split(metadata['sc_sun_pos'], False)
-                      + safe_split(metadata['sc_trg_pos'], False)])
-            os.unlink(tmp_file)
+            img, data, metastr, metadata = read_cg67p_img(tmp_file + ('.LBL' if args.has_lbl else '.IMG'),
+                                                          args.has_geom)
+            if args.has_lbl:
+                os.unlink(tmp_file + '.LBL')
+
+            ok = True
+            if args.check_img:
+                ok = check_img(img)
+
+            if ok:
+                write_data(tmp_file, img, data, metastr, xyzd=True)
+
+            if ok:
+                index.set(('id', 'file', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
+                           'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
+                           'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
+                          [(id, dst_file)
+                          + safe_split(metadata['sc_ori'], True)
+                          + safe_split(metadata['sc_sun_pos'], False)
+                          + safe_split(metadata['sc_trg_pos'], False)])
+            else:
+                index.delete(id)
+
+            os.unlink(tmp_file + '.IMG')
+
     ftp.close()
 
-    create_image_pairs(args.dst, args.index, args.pairs, args.dst, args.aflow, args.img_max, FOV[args.instr],
-                       args.min_angle, args.max_angle, args.min_matches, read_meta=True, start=args.start,
-                       end=args.end)
+    if args.has_geom:
+        create_image_pairs(args.dst, args.index, args.pairs, args.dst, args.aflow, args.img_max, args.fov,
+                           args.min_angle, args.max_angle, args.min_matches, read_meta=True, start=args.start,
+                           end=args.end)
 
 
 def scan_ftp(ftp, path, filter, files, depth=0):
@@ -136,10 +170,11 @@ def scan_ftp(ftp, path, filter, files, depth=0):
             raise Exception('failed with path `%s`' % ('/'.join(path + [dir]),)) from e
 
 
-def read_cg67p_img(path):
+def read_cg67p_img(path, has_geom):
     pds3_obj_to_band_hack(path)
 
-    img, data, metastr, metadata = read_raw_img(path, (1, 7, 8, 9, 2), disp_dir=('down', 'left'), gamma=1.8, q_wxyz=False)
+    img, data, metastr, metadata = read_raw_img(path, (1, 7, 8, 9, 2) if has_geom else (1,),
+                                                disp_dir=('down', 'left'), gamma=1.8, q_wxyz=False)
 
     # select only pixel value, model x, y, z and depth
     # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat

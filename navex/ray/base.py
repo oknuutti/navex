@@ -1,12 +1,11 @@
 import json
 import math
 import os
-import re
-import time
+import pickle
 import logging
 from collections import OrderedDict
 from functools import partial
-from typing import Union, List, Dict, Optional
+from typing import Union, List, Dict, Tuple
 
 import torch
 
@@ -18,11 +17,14 @@ from pytorch_lightning.callbacks import EarlyStopping
 import ray
 from ray import tune
 from ray.tune import CLIReporter
+from ray.tune.sample import Domain, Quantized, Float, Integer, Categorical, Normal, LogUniform
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, _TuneCheckpointCallback, TuneCallback
 from ray.tune.suggest import BasicVariantGenerator, ConcurrencyLimiter
-from ray.tune.suggest.skopt import SkOptSearch
+from ray.tune.suggest.skopt import SkOptSearch, logger as sk_logger
+from ray.tune.suggest.variant_generator import parse_spec_vars
 from ray.tune.utils import flatten_dict
+from skopt import space as sko_sp
 
 from ..experiments.parser import set_nested, nested_update, nested_filter, prune_nested, split_double_samplers
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
@@ -155,12 +157,6 @@ def tune_asha(search_conf, hparams, full_conf):
         search_alg = MySkOptSearch(metric=search_conf['metric'], mode=search_conf['mode'],
                                    points_to_evaluate=start_config)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
-
-        # RESTORE like this, some interesting params:
-        # search_alg.restore_from_dir(<output dir>)
-        # search_alg.searcher._skopt_opt.Xi, search_alg.searcher._skopt_opt.yi
-        # search_alg.searcher._skopt_opt.base_estimator_.kernel.k2.length_scale
-        # search_alg.searcher._skopt_opt.get_result()
     else:
         assert False, ('Invalid search method "%s", only random search (rs) '
                        'or bayesian optimization (bo) supported') % tmp[1]
@@ -256,12 +252,75 @@ def sample(config, sampled=None):
     return sampled
 
 
+
+
+
 class MySkOptSearch(SkOptSearch):
+
     def setup_skopt(self):
         self._parameter_names = list(self._parameter_names)
         self._parameter_ranges = list(self._parameter_ranges)
         super(MySkOptSearch, self).setup_skopt()
 
+    def save(self, checkpoint_path: str):
+        trials_object = (self._parameters, self._initial_points, self._skopt_opt)
+        with open(checkpoint_path, "wb") as outputFile:
+            pickle.dump(trials_object, outputFile)
+
+    def restore(self, checkpoint_path: str):
+        with open(checkpoint_path, "rb") as inputFile:
+            trials_object = pickle.load(inputFile)
+        i = 0
+        if len(trials_object) == 3:
+            self._parameters = trials_object[0]
+            i = 1
+        self._initial_points = trials_object[0 + i]
+        self._skopt_opt = trials_object[1 + i]
+
+    @staticmethod
+    def convert_search_space(spec: Dict, join: bool = False) -> Dict:
+        spec = flatten_dict(spec, prevent_delimiter=True)
+        resolved_vars, domain_vars, grid_vars = parse_spec_vars(spec)
+
+        if grid_vars:
+            raise ValueError(
+                "Grid search parameters cannot be automatically converted "
+                "to a SkOpt search space.")
+
+        def resolve_value(name: str, domain: Domain) -> sko_sp.Dimension:
+            sampler = domain.get_sampler()
+            if isinstance(sampler, Quantized):
+                sk_logger.warning("SkOpt search does not support quantization. Dropped quantization.")
+                sampler = sampler.get_sampler()
+
+            if isinstance(sampler, Normal):
+                sk_logger.warning(
+                    "SkOpt does not support sampling from normal distribution."
+                    " The {} sampler will be dropped.".format(sampler))
+
+            prior = 'log-uniform' if sampler is not None and isinstance(sampler, LogUniform) else 'uniform'
+
+            if isinstance(domain, Float):
+                return sko_sp.Real(domain.lower, domain.upper, prior=prior, name=name)
+            if isinstance(domain, Integer):
+                return sko_sp.Integer(domain.lower, domain.upper, prior=prior, name=name)
+            if isinstance(domain, Categorical):
+                return sko_sp.Categorical(domain.categories, name=name)
+
+            raise ValueError("SkOpt does not support parameters of type "
+                             "`{}`".format(type(domain).__name__))
+
+        # Parameter name is e.g. "a/b/c" for nested dicts
+        space = {
+            "/".join(path): resolve_value("/".join(path), domain)
+            for path, domain in domain_vars
+        }
+
+        if join:
+            spec.update(space)
+            space = spec
+
+        return space
 
         # class _MyTuneCheckpointCallback(_TuneCheckpointCallback):
 #     def _handle(self, trainer: Trainer, pl_module: LightningModule):

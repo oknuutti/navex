@@ -421,12 +421,18 @@ def safe_split(x, is_q):
     return (*x[:3],) if not is_q else (x.w, x.x, x.y, x.z)
 
 
+def check_img(img, lo_q=0.05, hi_q=0.99, lim=50):
+    lo, hi = np.quantile(img, (lo_q, hi_q))
+    return hi - lo >= lim
+
+
 def write_data(path, img, data, metastr=None, xyzd=False):
     cv2.imwrite(path + '.png', img, (cv2.IMWRITE_PNG_COMPRESSION, 9))
-    cv2.imwrite(path + '.xyz.exr', data[:, :, :3], (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
-    if data.shape[2] > 3:
-        cv2.imwrite(path + ('.d.exr' if xyzd else '.s.exr'), data[:, :, 3:],
-                    (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
+    if data.size > 0:
+        cv2.imwrite(path + '.xyz.exr', data[:, :, :3], (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
+        if data.shape[2] > 3:
+            cv2.imwrite(path + ('.d.exr' if xyzd else '.s.exr'), data[:, :, 3:],
+                        (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
     if metastr is not None:
         with open(path + '.lbl', 'w') as fh:
             fh.write(metastr)
