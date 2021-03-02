@@ -4,11 +4,13 @@ import os
 import argparse
 import logging
 import re
+import time
 from collections import OrderedDict, Counter
+import urllib
 
 # uses separate data_io conda env!
 # create using:
-#   conda create -n data_io -c conda-forge "python=>3.8" pip opencv matplotlib gdal geos tqdm scipy pvl quaternion
+#   conda create -n data_io -c conda-forge "python=>3.8" pip opencv matplotlib gdal geos tqdm scipy pvl quaternion requests bs4
 from osgeo import gdal
 import pvl
 
@@ -261,7 +263,8 @@ def show_all_pairs(aflow_path, img_path, image_db):
             show_pair(img0, img1, aflow, image_db[id0], image_db[id1])
 
 
-def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0, disp_dir=None, q_wxyz=True):
+def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0, disp_dir=None,
+                 skip_meta=False, q_wxyz=True):
     handle = gdal.Open(path, gdal.GA_ReadOnly)
     w, h, n = handle.RasterXSize, handle.RasterYSize, handle.RasterCount
 
@@ -284,7 +287,10 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
         img = (255 * np.clip((0.95 / top_v) * data[:, :, 0], 0, 1) ** (1 / gamma)).astype(np.uint8)
 
     handle = None
-    metastr, metadata, m_disp_dir = parse_metadata(path, q_wxyz, return_str=True)
+    if not skip_meta:
+        metastr, metadata, m_disp_dir = parse_metadata(path, q_wxyz, return_str=True)
+    else:
+        metastr, metadata, m_disp_dir = [None] * 3
 
     # arrange data so that display direction is (down, right)
     disp_dir = m_disp_dir or disp_dir
@@ -368,7 +374,7 @@ def metadata_value(meta, possible_keys, unit=''):
             is_scalar = True
 
         for value in src_values:
-            src_unit = value.units.lower() if isinstance(value, pvl.collections.Quantity) else ''
+            src_unit = value.units.lower().strip() if isinstance(value, pvl.collections.Quantity) else ''
             src_unit = re.sub('degrees|degree', 'deg', src_unit)
             src_unit = re.sub('radians|radian', 'rad', src_unit)
             src_unit = re.sub('kilometers|kilometer', 'km', src_unit)
@@ -421,9 +427,9 @@ def safe_split(x, is_q):
     return (*x[:3],) if not is_q else (x.w, x.x, x.y, x.z)
 
 
-def check_img(img, lo_q=0.05, hi_q=0.99, lim=50):
+def check_img(img, lo_q=0.05, hi_q=0.98, lim=50, min_side=256):
     lo, hi = np.quantile(img, (lo_q, hi_q))
-    return hi - lo >= lim
+    return hi - lo >= lim and np.min(img.shape) >= min_side
 
 
 def write_data(path, img, data, metastr=None, xyzd=False):
@@ -436,6 +442,24 @@ def write_data(path, img, data, metastr=None, xyzd=False):
     if metastr is not None:
         with open(path + '.lbl', 'w') as fh:
             fh.write(metastr)
+
+
+def get_file(url, path):
+    max_retries = 6
+    sleep_time = 3
+    ok = False
+    last_err = None
+    for i in range(max_retries):
+        try:
+            urllib.request.urlretrieve(url, path)
+            ok = True
+            break
+        except urllib.error.ContentTooShortError as e:
+            last_err = e
+            time.sleep(sleep_time)
+
+    if not ok:
+        raise Exception('Error: %s' % last_err)
 
 
 class NearestKernelNDInterpolator(NearestNDInterpolator):

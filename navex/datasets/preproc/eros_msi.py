@@ -5,22 +5,26 @@ import os
 import re
 import shutil
 import random
+import tarfile
 import time
 import gzip
 import logging
+import requests
+from bs4 import BeautifulSoup
 
 from tqdm import tqdm
 import numpy as np
 
-from navex.datasets.tools import ImageDB, find_files
-from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img
+from navex.datasets.tools import ImageDB, find_files, find_files_recurse
+from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img, get_file
 
 
 def main():
     parser = argparse.ArgumentParser('Download and process data from Rosetta about C-G/67P')
     # parser.add_argument('--host', default='psa.esac.esa.int',
     #                     help="ftp host from which to fetch the data")
-    parser.add_argument('--src', help="path with the data")
+    parser.add_argument('--src', default="https://sbnarchive.psi.edu/pds4/near/nearmsi_shapebackplane_downloads/",
+                        help="path with the data")
     # parser.add_argument('--regex', help="at given path, select folders/files based on this")
     # parser.add_argument('--deep-path', help="path to follow after regex match to arrive at the data")
     parser.add_argument('--dst', help="output folder")
@@ -64,30 +68,48 @@ def main():
     index = ImageDB(index_path, truncate=not os.path.exists(index_path))
     files = [(id, file) for id, file in index.get_all(('id', 'file',))]
 
-    next_id = (0 if len(files) else np.max([id for id, _ in files])) + 1
+    next_id = (0 if len(files) == 0 else np.max([id for id, _ in files])) + 1
 
     # find all archives from src, dont include if in archives_done
-    # TODO
-    archives = []
+    page = requests.get(args.src)  # , verify=False)
+    soup = BeautifulSoup(page.content, 'html.parser')
+    archives = [a['href']
+                for a in soup.find_all(name="a")
+                if re.match(r'^nearmsi\..*?\.tar\.gz$', a['href'])
+                and a['href'] not in archives_done]
 
     # process archives in order
-    for archive in tqdm(archives, desc='archives'):
-        if not os.path.exists(os.path.join(args.dst, archive)):
-            # TODO: download
-            pass
+    pbar = tqdm(archives, desc='archives')
+    tot, n_add, n_ok = 0, 0, 0
+    for archive in pbar:
+        archive_url = args.src + '/' + archive
+        archive_path = os.path.join(args.dst, archive)
+        if not os.path.exists(archive_path):
+            get_file(archive_url, archive_path)
 
-        # TODO: extract files
+        # extract archive
+        extract_path = os.path.join(args.dst, 'tmp')
+        tar = tarfile.open(archive_path, "r:gz")
+        tar.extractall(extract_path)
+        tar.close()
 
         # process files one by one
-        arch_files = find_files(os.path.join(args.dst, 'nearmsi.shapebackplane'), ext='.xml')
+        arch_files = find_files_recurse(extract_path, ext='.xml')
         for fullpath in tqdm(arch_files, desc='files'):
-            process_file(fullpath, args.dst, next_id, index, args)
+            added, ok = process_file(fullpath, args.dst, next_id, index, args)
             next_id += 1
+            tot += 1
+            n_add += 1 if added else 0
+            n_ok += 1 if ok else 0
 
-        # TODO: remove extracted dir
+        # remove extracted dir and downloaded archive
+        shutil.rmtree(extract_path)
+        os.unlink(archive_path)
 
         with open(progress_path, 'a') as fh:
             fh.write(archive + '\n')
+
+        pbar.set_postfix({'added': '%.1f%%' % (100 * n_add/tot), 'images ok': '%.1f%%' % (100 * n_ok/tot)})
 
     create_image_pairs(args.dst, index, args.pairs, args.dst, args.aflow, args.img_max, fov,
                        args.min_angle, args.max_angle, args.min_matches, read_meta=True, start=args.start,
@@ -95,42 +117,53 @@ def main():
 
 
 def process_file(src_path, dst_path, id, index, args):
-    dst_file = os.path.join(*os.path.split(src_path)[-2:])[-4:] + '.png'
+    src_path = src_path[:-4]
+    parts = os.path.normpath(src_path).split(os.sep)[-2:]
+    dst_file = os.path.join(*parts) + '.png'
     dst_path = os.path.join(dst_path, dst_file)
     if not os.path.exists(dst_path):
-        tmp_file = dst_path[:-4]
-        os.makedirs(os.path.dirname(tmp_file), exist_ok=True)
+        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
 
         # extract *.fit.gz
         extracted = False
-        if not os.path.exists(tmp_file + '.fit'):
+        if not os.path.exists(src_path + '.fit'):
             extracted = True
-            with gzip.open(tmp_file + '.fit.gz', 'rb') as fh_in:
-                with open(tmp_file + '.fit', 'wb') as fh_out:
+            with gzip.open(src_path + '.fit.gz', 'rb') as fh_in:
+                with open(src_path + '.fit', 'wb') as fh_out:
                     shutil.copyfileobj(fh_in, fh_out)
 
-        img, data, metastr, metadata = read_eros_img(tmp_file + '.xml')
+        img, data = read_eros_img(src_path + '.fit')
 
-        os.unlink(tmp_file + '.xml')
-        os.unlink(tmp_file + '.fit.gz')
+        os.unlink(src_path + '.xml')
+        os.unlink(src_path + '.fit.gz')
         if extracted:
-            os.unlink(tmp_file + '.fit')
+            os.unlink(src_path + '.fit')
 
         ok = True
         if args.check_img:
-            ok = check_img(img)
+            ok = check_img(img, lo_q=0.01, hi_q=0.90)
 
-        if 1 or ok:
-            write_data(tmp_file + ('-fail' if not ok else ''), img, data, metastr, xyzd=False)
-            ok = True
-
+        added = False
         if ok:
-            index.add(('id', 'file'), [(id, dst_file)])
+            rand = np.random.uniform(0, 1)
+            index.add(('id', 'file', 'rand'), [(id, dst_file, rand)])
+
+            if args.start <= rand < args.end:
+                write_data(dst_path[:-4], img, data, xyzd=False)
+                added = True
+
+        return added, ok
+    return True
 
 
 def read_eros_img(path):
-    img, data, metastr, metadata = read_raw_img(path, (1, 2, 3, 4, 11, 12),
-                                                disp_dir=('down', 'left'), gamma=1.8, q_wxyz=False)
+    # this eros data doesn't have any interesting metadata, would need to use the spice kernels
+    img, data, _, _ = read_raw_img(path, (1, 2, 3, 4, 11, 12), skip_meta=True,
+                                                disp_dir=('down', 'right'), gamma=1.8, q_wxyz=False)
+
+    # crop out sides, which seem to be empty / have some severe artifacts/problems
+    img = img[:, 15:-14]
+    data = data[:, 15:-14, :]
 
     # select only pixel value, model x, y, z and depth
     # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat
@@ -138,7 +171,7 @@ def read_eros_img(path):
     data = np.concatenate((data[:, :, 0:3], px_size), axis=2)
     data[data <= -1e30] = np.nan    # TODO: debug this
 
-    return img, data, metastr, metadata
+    return img, data
 
 
 if __name__ == '__main__':
