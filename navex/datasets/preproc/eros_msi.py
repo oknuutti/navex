@@ -153,7 +153,7 @@ def process_file(src_path, dst_path, id, index, args):
                 added = True
 
         return added, ok
-    return True
+    return True, True
 
 
 def read_eros_img(path):
