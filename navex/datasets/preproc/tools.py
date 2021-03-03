@@ -393,8 +393,9 @@ def metadata_value(meta, possible_keys, unit=''):
                     value = value * 0.001
                 elif src_unit != unit:
                     value = value * 1000
-            else:
-                assert src_unit == '' and unit == '', f"unit {src_unit} not handled currently"
+            elif not (src_unit == '' and unit == ''):
+                logging.error("src_unit '%s' and dst_unit '%s' not handled currently" % (src_unit, unit))
+                return None
 
             dst_values.append(value)
     else:

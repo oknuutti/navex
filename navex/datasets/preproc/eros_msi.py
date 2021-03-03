@@ -95,7 +95,7 @@ def main():
 
         # process files one by one
         arch_files = find_files_recurse(extract_path, ext='.xml')
-        for fullpath in tqdm(arch_files, desc='files'):
+        for fullpath in tqdm(arch_files, desc='files', mininterval=3):
             added, ok = process_file(fullpath, args.dst, next_id, index, args)
             next_id += 1
             tot += 1

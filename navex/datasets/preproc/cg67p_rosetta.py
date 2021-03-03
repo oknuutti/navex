@@ -92,7 +92,8 @@ def main():
         files.append((id, src_path + [tmp[0], *args.deep_path.split('/'), tmp[1][:-4] + '.IMG'], fname, sc_qw))
 
     logging.info('%d/%d files selected for processing...' % (len(files), len(index)))
-    for id, src_file, dst_file, sc_qw in tqdm(files):
+    tot, n_ok, pbar = 0, 0, tqdm(files)
+    for id, src_file, dst_file, sc_qw in pbar:
         dst_path = os.path.join(args.dst, dst_file)
         if not os.path.exists(dst_path) or sc_qw is None:
             tmp_file = dst_path[:-4]
@@ -119,8 +120,9 @@ def main():
             if args.has_lbl:
                 os.unlink(tmp_file + '.LBL')
 
-            ok = True
-            if args.check_img:
+            ok = not np.any([metadata[k] is None for k in ('sc_ori', 'sc_sun_pos', 'sc_trg_pos')])
+
+            if ok and args.check_img:
                 ok = check_img(img)
 
             if ok:
@@ -138,6 +140,9 @@ def main():
                 index.delete(id)
 
             os.unlink(tmp_file + '.IMG')
+            n_ok += 1 if ok else 0
+            tot += 1
+            pbar.set_postfix({'ok': '%.1f%%' % (100*n_ok/tot)})
 
     ftp.close()
 
