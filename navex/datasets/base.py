@@ -212,9 +212,10 @@ class AugmentedPairDatasetMixin:
             PairRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
             PairRandomHorizontalFlip(),
             GeneralTransform(tr.ToTensor()),
-            PhotometricTransform(tr.ColorJitter()) if self.rgb else PairedIdentityTransform(),
-            PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),  # apply extra dark noise at a random level (dropout might be enough though)
-            PhotometricTransform(RandomExposure(*self.rnd_gain)),  # apply a random gain on the image
+            PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),
+            # TODO: config access to all color jitter params
+            PhotometricTransform(tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1))
+                if self.rgb else PhotometricTransform(RandomExposure(*self.rnd_gain)),
             PhotometricTransform(Clamp(0, 1)),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
@@ -260,12 +261,15 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                 tr.RandomCrop(self.image_size),
                 tr.ToTensor(),
                 tr.RandomHorizontalFlip(),
-                tr.ColorJitter() if self.rgb else IdentityTransform(),
                 RandomDarkNoise(0, self.noise_max, 0.3, 3),
-                RandomExposure(*self.rnd_gain),
+                # TODO: config access to all color jitter params
+                tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1)
+                    if self.rgb else RandomExposure(*self.rnd_gain),
             ]),
             tr.Compose([
-                RandomExposure(*self.student_rnd_gain),
+                # TODO: config access to all color jitter params
+                tr.ColorJitter(tuple(np.array(self.student_rnd_gain) - 1)[-1], 0.2, 0.2, 0.1)
+                    if self.rgb else RandomExposure(*self.student_rnd_gain),
                 GaussianNoise(self.student_noise_sd),
             ]),
             tr.Compose([

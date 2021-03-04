@@ -305,33 +305,41 @@ class PairCenterCrop(PairRandomCrop):
 
 
 class RandomHomography:
-    def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, fill_value=np.nan,
+    def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, one_tranf_only=False, fill_value=np.nan,
                  simple=False, image_only=False):
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
         self.max_proj = max_proj
         self.min_size = min_size
+        self.one_tranf_only = one_tranf_only
         self.fill_value = fill_value
         self.simple = simple
         self.image_only = image_only
 
+        self.transforms = (['tx', 'ty'] if self.max_tr>0 else []) \
+                        + (['r'] if self.max_rot > 0 else []) \
+                        + (['sx', 'sy'] if self.max_shear > 0 else []) \
+                        + (['p1', 'p2'] if self.max_proj > 0 else [])
+
     def random_H(self, w, h):
-        tr_x = random.uniform(-self.max_tr, self.max_tr) * w
-        tr_y = random.uniform(-self.max_tr, self.max_tr) * h
-        rot = random.uniform(-self.max_rot, self.max_rot)
+        trs = [random.choice(self.transforms)] if self.one_tranf_only else self.transforms
+
+        tr_x = random.uniform(-self.max_tr, self.max_tr) * w if 'tx' in trs else 0
+        tr_y = random.uniform(-self.max_tr, self.max_tr) * h if 'ty' in trs else 0
+        rot = random.uniform(-self.max_rot, self.max_rot) if 'r' in trs else 0
         He = np.array([[math.cos(rot), -math.sin(rot), tr_x],
                        [math.sin(rot), math.cos(rot),  tr_y],
                        [0,             0,              1]], dtype=np.float32)
 
-        sh_x = random.uniform(-self.max_shear, self.max_shear)
-        sh_y = random.uniform(-self.max_shear, self.max_shear)
+        sh_x = random.uniform(-self.max_shear, self.max_shear) if 'sx' in trs else 0
+        sh_y = random.uniform(-self.max_shear, self.max_shear) if 'sy' in trs else 0
         Ha = np.array([[1, sh_x, 0],
                        [sh_y, 1, 0],
                        [0,    0, 1]], dtype=np.float32)
 
-        p1 = random.uniform(1/(1+self.max_proj) - 1, self.max_proj) / w
-        p2 = random.uniform(1/(1+self.max_proj) - 1, self.max_proj) / h
+        p1 = random.uniform(1/(1+self.max_proj) - 1, self.max_proj) / w if 'p1' in trs else 0
+        p2 = random.uniform(1/(1+self.max_proj) - 1, self.max_proj) / h if 'p2' in trs else 0
         Hp = np.array([[1,  0,  0],
                        [0,  1,  0],
                        [p1, p2, 1]], dtype=np.float32)
