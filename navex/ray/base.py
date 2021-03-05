@@ -252,9 +252,6 @@ def sample(config, sampled=None):
     return sampled
 
 
-
-
-
 class MySkOptSearch(SkOptSearch):
 
     def setup_skopt(self):

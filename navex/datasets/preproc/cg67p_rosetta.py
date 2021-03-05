@@ -142,7 +142,7 @@ def main():
             os.unlink(tmp_file + '.IMG')
             n_ok += 1 if ok else 0
             tot += 1
-            pbar.set_postfix({'ok': '%.1f%%' % (100*n_ok/tot)})
+            pbar.set_postfix({'ok': '%.1f%%' % (100*n_ok/tot)}, refresh=False)
 
     ftp.close()
 

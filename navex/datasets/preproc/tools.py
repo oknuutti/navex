@@ -179,7 +179,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
             with open(pairs_path, 'a') as fh:
                 fh.write('%d %d %.2f %.4f\n' % (id_i, id_j, angle, ratio))
 
-        pbar.set_postfix({'added': add_count, 'ratio': add_count/(tot + 1)})
+        pbar.set_postfix({'added': add_count, 'ratio': add_count/(tot + 1)}, refresh=False)
 
 
 def gen_aflow_script():

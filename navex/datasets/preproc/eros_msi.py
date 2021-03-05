@@ -109,7 +109,7 @@ def main():
         with open(progress_path, 'a') as fh:
             fh.write(archive + '\n')
 
-        pbar.set_postfix({'added': '%.1f%%' % (100 * n_add/tot), 'images ok': '%.1f%%' % (100 * n_ok/tot)})
+        pbar.set_postfix({'added': '%.1f%%' % (100 * n_add/tot), 'images ok': '%.1f%%' % (100 * n_ok/tot)}, refresh=False)
 
     create_image_pairs(args.dst, index, args.pairs, args.dst, args.aflow, args.img_max, fov,
                        args.min_angle, args.max_angle, args.min_matches, read_meta=True, start=args.start,
