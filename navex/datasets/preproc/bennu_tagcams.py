@@ -1,4 +1,5 @@
 import argparse
+import json
 import math
 import os
 import re
@@ -153,21 +154,25 @@ def parse_bennu_metadata(path):
 
     with DisableLogger():
         meta = keys_to_lower(pds4.read(path + '.xml').label.to_dict())
-    mm = meta['product_observational']['observation_area']['mission_area']
-    mms = mm['orex:spatial']
 
-    # TODO: check if correct
-    trg_nca = float(mms['orex:bennana'])
-    trg_ra = float(mms['orex:bennu_ra'])
-    trg_dec = float(mms['orex:bennu_dec'])
-    trg_ori_q = ypr_to_q(math.radians(trg_dec), math.radians(trg_ra), -math.radians(trg_nca))
+    try:
+        mm = meta['product_observational']['observation_area']['mission_area']
+        mms = mm['orex:spatial']
 
-    # TODO: check if need '-' or not
-    sc_sun_pos_v = -np.array([mms['orex:sunbeamx'], mms['orex:sunbeamy'], mms['orex:sunbeamz']]).astype(np.float32)
+        # TODO: check if correct
+        trg_nca = float(mms['orex:bennana'])
+        trg_ra = float(mms['orex:bennu_ra'])
+        trg_dec = float(mms['orex:bennu_dec'])
+        trg_ori_q = ypr_to_q(math.radians(trg_dec), math.radians(trg_ra), -math.radians(trg_nca))
 
-    mmi = mm['orex:tagcams_instrument_attributes']
-    sc_ori_q = np.quaternion(*np.array([mmi['orex:quaternion0'], mmi['orex:quaternion1'],
-                              mmi['orex:quaternion2'], mmi['orex:quaternion3']]).astype(np.float32))
+        # TODO: check if need '-' or not
+        sc_sun_pos_v = -np.array([mms['orex:sunbeamx'], mms['orex:sunbeamy'], mms['orex:sunbeamz']]).astype(np.float32)
+
+        mmi = mm['orex:tagcams_instrument_attributes']
+        sc_ori_q = np.quaternion(*np.array([mmi['orex:quaternion0'], mmi['orex:quaternion1'],
+                                  mmi['orex:quaternion2'], mmi['orex:quaternion3']]).astype(np.float32))
+    except KeyError as e:
+        raise Exception('KeyError for %s! Meta:\n%s' % (path, json.dumps(meta, sort_keys=True, indent=4),)) from e
 
     # bennu data had this, would need to use spice, I suppose
     sc_trg_pos_v = None
