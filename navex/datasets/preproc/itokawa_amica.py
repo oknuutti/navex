@@ -7,7 +7,7 @@ import logging
 from tqdm import tqdm
 import numpy as np
 
-from navex.datasets.preproc.tools import read_raw_img, write_data, safe_split, create_image_pairs
+from navex.datasets.preproc.tools import read_raw_img, write_data, safe_split, create_image_pairs, check_img
 from navex.datasets.tools import ImageDB, find_files
 
 
@@ -63,8 +63,11 @@ def raw_itokawa():
                         shutil.copyfileobj(fh_in, fh_out)
 
             img, data, metastr, metadata = read_itokawa_img(path + '.lbl')
-            write_data(os.path.join(args.dst, fname[:-4]), img, data, metastr)
-            rows.append((i, fname[:-4] + '.png') + safe_split(metadata['sc_ori'], True))
+
+            ok = check_img(img, lo_q=0.05, hi_q=0.98)
+            if ok:
+                write_data(os.path.join(args.dst, fname[:-4]), img, data, metastr)
+                rows.append((i, fname[:-4] + '.png') + safe_split(metadata['sc_ori'], True))
 
             if extracted:
                 os.unlink(path + '.img')

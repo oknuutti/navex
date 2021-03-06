@@ -24,6 +24,7 @@ from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
 from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files
+from navex.experiments.parser import nested_filter
 
 
 def create_image_pairs_script():
@@ -562,6 +563,10 @@ class NearestKernelNDInterpolator(NearestNDInterpolator):
 
         yi = np.sum(yt[idxs] * w, axis=1)
         return yi
+
+
+def keys_to_lower(d):
+    return nested_filter(d, lambda x: True, lambda x: x, lambda x: x.lower())
 
 
 class DisableLogger:

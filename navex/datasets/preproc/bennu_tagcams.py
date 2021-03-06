@@ -15,10 +15,12 @@ import pds4_tools as pds4
 
 from navex.datasets.tools import ImageDB, find_files, find_files_recurse
 from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img, get_file, \
-    ypr_to_q, DisableLogger
+    ypr_to_q, DisableLogger, keys_to_lower
 
 
 def main():
+    DEBUG = True
+
     parser = argparse.ArgumentParser('Download and process data from OSIRIS-REx TAGCAMs about Bennu')
     parser.add_argument('--src', default="https://sbnarchive.psi.edu/pds4/orex/downloads_tagcams/",
                         help="path with the data")
@@ -62,7 +64,7 @@ def main():
         'sample_collection',
     ]
 
-    if 0:
+    if DEBUG:
         phases = ['orbit_r']
 
     archives = [a['href']
@@ -81,8 +83,9 @@ def main():
 
         # extract archive
         extract_path = os.path.join(args.dst, 'tmp')
-        with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_path)
+        if not DEBUG:
+            with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_path)
 
         # process files one by one
         arch_files = find_files_recurse(extract_path, ext='.fits')
@@ -94,8 +97,9 @@ def main():
             n_ok += 1 if ok else 0
 
         # remove extracted dir and downloaded archive
-        shutil.rmtree(extract_path)
-        os.unlink(archive_path)
+        if not DEBUG:
+            shutil.rmtree(extract_path)
+            os.unlink(archive_path)
 
         with open(progress_path, 'a') as fh:
             fh.write(archive + '\n')
@@ -148,8 +152,8 @@ def parse_bennu_metadata(path):
     path, _ = os.path.splitext(path)
 
     with DisableLogger():
-        meta = pds4.read(path + '.xml').label.to_dict()
-    mm = meta['Product_Observational']['Observation_Area']['Mission_Area']
+        meta = keys_to_lower(pds4.read(path + '.xml').label.to_dict())
+    mm = meta['product_observational']['observation_area']['mission_area']
     mms = mm['orex:Spatial']
 
     # TODO: check if correct
@@ -161,7 +165,7 @@ def parse_bennu_metadata(path):
     # TODO: check if need '-' or not
     sc_sun_pos_v = -np.array([mms['orex:sunbeamx'], mms['orex:sunbeamy'], mms['orex:sunbeamz']]).astype(np.float32)
 
-    mmi = mm['orex:TAGCAMS_Instrument_Attributes']
+    mmi = mm['orex:tagcams_instrument_attributes']
     sc_ori_q = np.quaternion(*np.array([mmi['orex:quaternion0'], mmi['orex:quaternion1'],
                               mmi['orex:quaternion2'], mmi['orex:quaternion3']]).astype(np.float32))
 

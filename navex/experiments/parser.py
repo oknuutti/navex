@@ -1,8 +1,6 @@
 import copy
 from argparse import ArgumentParser, Namespace
 
-import yaml
-
 from ..models import MODELS
 
 
@@ -13,6 +11,7 @@ class ExperimentConfigParser(ArgumentParser):
                           help='path to experiment config file')
         self.config_file_param = config_file_param
         self.groups = {}
+        import yaml
 
         if definition is not None:
             with open(definition, 'r') as fh:
@@ -49,6 +48,7 @@ class ExperimentConfigParser(ArgumentParser):
             self.definition = None
 
     def parse_args(self, args=None, namespace=None):
+        import yaml
         raw_args = super(ExperimentConfigParser, self).parse_args(args=args, namespace=namespace)
 
         def hyp_constr(l, s, n):
@@ -200,17 +200,18 @@ def nested_update(orig, new):
     _upd_subtree(orig, new)
 
 
-def nested_filter(tree, test_fn, mod_fn):
-    def _filter_subtree(o, n, test_fn, mod_fn):
+def nested_filter(tree, test_fn, mod_fn, mod_k_fn=lambda x: x):
+    def _filter_subtree(o, n, test_fn, mod_fn, mod_k_fn):
         for k, v in o.items():
+            k = mod_k_fn(k)
             if isinstance(v, dict):
                 if k not in n:
                     n[k] = {}
-                _filter_subtree(v, n[k], test_fn, mod_fn)
+                _filter_subtree(v, n[k], test_fn, mod_fn, mod_k_fn)
             elif test_fn(v):
                 n[k] = mod_fn(v)
     new_tree = {}
-    _filter_subtree(tree, new_tree, test_fn, mod_fn)
+    _filter_subtree(tree, new_tree, test_fn, mod_fn, mod_k_fn)
     return new_tree
 
 

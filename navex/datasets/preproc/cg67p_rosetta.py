@@ -123,7 +123,7 @@ def main():
             ok = not np.any([metadata[k] is None for k in ('sc_ori', 'sc_sun_pos', 'sc_trg_pos')])
 
             if ok and args.check_img:
-                ok = check_img(img)
+                ok = check_img(img, lo_q=0.05, hi_q=0.99 if args.has_geom else 0.98)
 
             if ok:
                 write_data(tmp_file, img, data, metastr, xyzd=True)
