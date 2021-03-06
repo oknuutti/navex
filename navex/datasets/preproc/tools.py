@@ -7,10 +7,10 @@ import re
 import time
 from collections import OrderedDict, Counter
 import urllib
+from typing import Callable
+import json
+import logging
 
-# uses separate data_io conda env!
-# create using:
-#   conda create -n data_io -c conda-forge "python=>3.8" pip opencv matplotlib gdal geos tqdm scipy pvl quaternion requests bs4
 from osgeo import gdal
 import pvl
 
@@ -280,19 +280,28 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
     data = np.stack(band_data, axis=2)
 
     # scale and reduce depth to 8-bits
-    top_v = np.quantile(data[:, :, 0], 0.9999)
-    if gamma == 1:
-        img = np.clip((0.95 * 255 / top_v) * data[:, :, 0] + 0.5, 0, 255).astype(np.uint8)
-    else:
-        img = (255 * np.clip((0.95 / top_v) * data[:, :, 0], 0, 1) ** (1 / gamma)).astype(np.uint8)
+    bot_v, top_v = np.quantile(data[:, :, 0], (0.0005, 0.9999))
+    top_v = math.ceil(top_v * 1.2)
+    img = (data[:, :, 0] - bot_v) / (top_v - bot_v)
+    if gamma != 1:
+        img = np.clip(img, 0, 1) ** (1 / gamma)
+    img = np.clip(255 * img + 0.5, 0, 255).astype(np.uint8)
 
     handle = None
-    if not metadata_type:
-        metastr, metadata, m_disp_dir = [None] * 3
-    elif metadata_type.lower() == 'nasa':
-        metastr, metadata, m_disp_dir = parse_metadata_nasa(path, return_str=True)
+    if isinstance(metadata_type, Callable):
+        allmeta, metadata, m_disp_dir = metadata_type(path)
+    elif not metadata_type:
+        allmeta, metadata, m_disp_dir = {}, None, None
     else:
-        metastr, metadata, m_disp_dir = parse_metadata(path, q_wxyz, return_str=True)
+        allmeta, metadata, m_disp_dir = parse_metadata(path, q_wxyz)
+
+    allmeta['image_processing'] = {
+        'forward': 'img = np.clip(((raw_img - bg) / max_val) ** (1 / gamma) + 0.5, 0, 255).astype(np.uint8)',
+        'backward': 'raw_img = max_val * img ** gamma + bg',
+        'bg': bot_v,
+        'max_val': top_v - bot_v,
+        'gamma': gamma,
+    }
 
     # arrange data so that display direction is (down, right)
     disp_dir = m_disp_dir or disp_dir
@@ -305,21 +314,8 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
         img = np.fliplr(img)
         data = np.fliplr(data)
 
-    return img, data[:, :, 1:], metastr, metadata
-
-
-def parse_metadata_nasa(path, return_str=False):
-    # return metadata in J2000 frame
-    meta = pvl.load(path)
-
-    sc_ori_q = meta['INST_QA'], meta['INST_QX'], meta['INST_QY'], meta['INST_QZ']
-    sc_sun_pos_v = None
-    trg_ori_q = None
-    sc_trg_pos_v = None     # TODO: neither bennu or eros data had this
-
-    meta_str = pvl.dumps(meta, pvl.encoder.PVLEncoder()) if return_str else None
-    metadata = {'sc_ori': sc_ori_q, 'sc_sun_pos': sc_sun_pos_v, 'trg_ori': trg_ori_q, 'sc_trg_pos': sc_trg_pos_v}
-    return (meta_str, metadata, None) if return_str else (metadata, None)
+    meta_str = json.dumps(allmeta, sort_keys=True, indent=4)
+    return img, data[:, :, 1:], meta_str, metadata
 
 
 def parse_metadata(path, q_wxyz=True, return_str=False):
@@ -444,14 +440,15 @@ def safe_split(x, is_q):
     return (*x[:3],) if not is_q else (x.w, x.x, x.y, x.z)
 
 
-def check_img(img, lo_q=0.05, hi_q=0.98, lim=50, min_side=256, max_hi=None):
-    lo, hi = np.quantile(img, (lo_q, hi_q))
-    return hi - lo >= lim and np.min(img.shape) >= min_side and (max_hi is None or hi <= max_hi)
+def check_img(img, lo_q=0.05, hi_q=0.98, lim=50, min_side=256, sat_q=None):
+    lo, hi, *sat = np.quantile(img, (lo_q, hi_q) + (tuple() if sat_q is None else (sat_q,)))
+    maxval = np.max(img)
+    return hi - lo >= lim and np.min(img.shape) >= min_side and (len(sat) == 0 or sat[0] < maxval)
 
 
 def write_data(path, img, data, metastr=None, xyzd=False):
     cv2.imwrite(path + '.png', img, (cv2.IMWRITE_PNG_COMPRESSION, 9))
-    if data.size > 0:
+    if data is not None and data.size > 0:
         cv2.imwrite(path + '.xyz.exr', data[:, :, :3], (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
         if data.shape[2] > 3:
             cv2.imwrite(path + ('.d.exr' if xyzd else '.s.exr'), data[:, :, 3:],
@@ -565,6 +562,13 @@ class NearestKernelNDInterpolator(NearestNDInterpolator):
 
         yi = np.sum(yt[idxs] * w, axis=1)
         return yi
+
+
+class DisableLogger:
+    def __enter__(self):
+       logging.disable(logging.CRITICAL)
+    def __exit__(self, exit_type, exit_value, exit_traceback):
+       logging.disable(logging.NOTSET)
 
 
 if __name__ == '__main__':

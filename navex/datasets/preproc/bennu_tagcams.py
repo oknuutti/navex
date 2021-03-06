@@ -1,13 +1,8 @@
 import argparse
-import ftplib
 import math
 import os
 import re
 import shutil
-import random
-import tarfile
-import time
-import gzip
 import logging
 import zipfile
 
@@ -16,9 +11,11 @@ from bs4 import BeautifulSoup
 
 from tqdm import tqdm
 import numpy as np
+import pds4_tools as pds4
 
 from navex.datasets.tools import ImageDB, find_files, find_files_recurse
-from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img, get_file
+from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img, get_file, \
+    ypr_to_q, DisableLogger
 
 
 def main():
@@ -31,19 +28,7 @@ def main():
     parser.add_argument('--start', type=float, default=0.0, help="where to start processing [0-1]")
     parser.add_argument('--end', type=float, default=1.0, help="where to stop processing [0-1]")
 
-    parser.add_argument('--pairs', default='pairs.txt', help="pairing file to create in root")
-    parser.add_argument('--aflow', default='aflow', help="subfolder where the aflow files are generated")
-    parser.add_argument('--check-img', type=int, default=0, help="try to screen out bad images")
-    parser.add_argument('--img-max', type=int, default=3, help="how many times same images can be repated in pairs")
-    parser.add_argument('--min-angle', type=float, default=0,
-                        help="min angle (deg) on the unit sphere for pair creation")
-    parser.add_argument('--max-angle', type=float, default=0,
-                        help="max angle (deg) on the unit sphere for pair creation")
-    parser.add_argument('--min-matches', type=int, default=10000,
-                        help="min pixel matches in order to approve generated pair")
-
     args = parser.parse_args()
-
     logging.basicConfig(level=logging.INFO)
 
     os.makedirs(args.dst, exist_ok=True)
@@ -77,7 +62,7 @@ def main():
         'sample_collection',
     ]
 
-    if 1:
+    if 0:
         phases = ['orbit_r']
 
     archives = [a['href']
@@ -109,14 +94,13 @@ def main():
             n_ok += 1 if ok else 0
 
         # remove extracted dir and downloaded archive
-        ## shutil.rmtree(extract_path)
-        ## os.unlink(archive_path)
+        shutil.rmtree(extract_path)
+        os.unlink(archive_path)
 
         with open(progress_path, 'a') as fh:
             fh.write(archive + '\n')
 
         pbar.set_postfix({'added': '%.1f%%' % (100 * n_add/tot), 'images ok': '%.1f%%' % (100 * n_ok/tot)}, refresh=False)
-
 
 
 def process_file(src_path, dst_path, id, index, args):
@@ -128,25 +112,25 @@ def process_file(src_path, dst_path, id, index, args):
         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
 
         img, metadata, metastr = read_bennu_img(src_path + ext)
-        ok = check_img(img, lo_q=0.01, hi_q=0.90, max_hi=250)
+        ok = check_img(img, lo_q=0.05, hi_q=0.99, sat_q=0.999)
 
         added = False
         if ok:
             rand = np.random.uniform(0, 1)
-            index.add(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
+            index.set(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
                        'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
                        'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
                       [(id, dst_file, rand)
                       + safe_split(metadata['sc_ori'], True)
                       + safe_split(metadata['sc_sun_pos'], False)
-                      + safe_split(metadata['trg_ori'], False)])
+                      + safe_split(metadata['trg_ori'], True)])
 
             if args.start <= rand < args.end:
-                write_data(dst_path[:-4], img, metastr=metastr)
+                write_data(dst_path[:-4], img, None, metastr=metastr)
                 added = True
 
-        ## os.unlink(src_path + '.xml')
-        ## os.unlink(src_path + '.fits')
+        os.unlink(src_path + '.xml')
+        os.unlink(src_path + '.fits')
         return added, ok
     return True, True
 
@@ -154,9 +138,38 @@ def process_file(src_path, dst_path, id, index, args):
 def read_bennu_img(path):
     # this eros data doesn't have any interesting metadata, would need to use the spice kernels
     img, _, metastr, metadata = read_raw_img(path, (1,), disp_dir=('up', 'right'),
-                                             metadata_type='nasa', gamma=1.8, q_wxyz=True)
+                                             metadata_type=parse_bennu_metadata, gamma=1.8, q_wxyz=True)
 
-    return img, metastr, metadata
+    return img, metadata, metastr
+
+
+def parse_bennu_metadata(path):
+    # return metadata in J2000 frame
+    path, _ = os.path.splitext(path)
+
+    with DisableLogger():
+        meta = pds4.read(path + '.xml').label.to_dict()
+    mm = meta['Product_Observational']['Observation_Area']['Mission_Area']
+    mms = mm['orex:Spatial']
+
+    # TODO: check if correct
+    trg_nca = float(mms['orex:bennana'])
+    trg_ra = float(mms['orex:bennu_ra'])
+    trg_dec = float(mms['orex:bennu_dec'])
+    trg_ori_q = ypr_to_q(math.radians(trg_dec), math.radians(trg_ra), -math.radians(trg_nca))
+
+    # TODO: check if need '-' or not
+    sc_sun_pos_v = -np.array([mms['orex:sunbeamx'], mms['orex:sunbeamy'], mms['orex:sunbeamz']]).astype(np.float32)
+
+    mmi = mm['orex:TAGCAMS_Instrument_Attributes']
+    sc_ori_q = np.quaternion(*np.array([mmi['orex:quaternion0'], mmi['orex:quaternion1'],
+                              mmi['orex:quaternion2'], mmi['orex:quaternion3']]).astype(np.float32))
+
+    # bennu data had this, would need to use spice, I suppose
+    sc_trg_pos_v = None
+
+    metadata = {'sc_ori': sc_ori_q, 'sc_sun_pos': sc_sun_pos_v, 'trg_ori': trg_ori_q, 'sc_trg_pos': sc_trg_pos_v}
+    return meta, metadata, None
 
 
 if __name__ == '__main__':
