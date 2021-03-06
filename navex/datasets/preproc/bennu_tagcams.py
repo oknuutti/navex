@@ -19,7 +19,7 @@ from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_
 
 
 def main():
-    DEBUG = True
+    DEBUG = False
 
     parser = argparse.ArgumentParser('Download and process data from OSIRIS-REx TAGCAMs about Bennu')
     parser.add_argument('--src', default="https://sbnarchive.psi.edu/pds4/orex/downloads_tagcams/",
@@ -154,7 +154,7 @@ def parse_bennu_metadata(path):
     with DisableLogger():
         meta = keys_to_lower(pds4.read(path + '.xml').label.to_dict())
     mm = meta['product_observational']['observation_area']['mission_area']
-    mms = mm['orex:Spatial']
+    mms = mm['orex:spatial']
 
     # TODO: check if correct
     trg_nca = float(mms['orex:bennana'])
