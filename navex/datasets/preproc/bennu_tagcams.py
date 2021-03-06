@@ -168,7 +168,10 @@ def parse_bennu_metadata(path):
         # TODO: check if need '-' or not
         sc_sun_pos_v = -np.array([mms['orex:sunbeamx'], mms['orex:sunbeamy'], mms['orex:sunbeamz']]).astype(np.float32)
 
-        mmi = mm['orex:tagcams_instrument_attributes']
+        if 'orex:tagcams_instrument_attributes' in mm:
+            mmi = mm['orex:tagcams_instrument_attributes']
+        else:
+            mmi = mm['orex:tcm_instrument_attributes']
         sc_ori_q = np.quaternion(*np.array([mmi['orex:quaternion0'], mmi['orex:quaternion1'],
                                   mmi['orex:quaternion2'], mmi['orex:quaternion3']]).astype(np.float32))
     except KeyError as e:
