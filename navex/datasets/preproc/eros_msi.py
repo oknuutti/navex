@@ -20,7 +20,7 @@ from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_
 
 
 def main():
-    parser = argparse.ArgumentParser('Download and process data from Rosetta about C-G/67P')
+    parser = argparse.ArgumentParser('Download and process data from NEAR MSI about Eros')
     # parser.add_argument('--host', default='psa.esac.esa.int',
     #                     help="ftp host from which to fetch the data")
     parser.add_argument('--src', default="https://sbnarchive.psi.edu/pds4/near/nearmsi_shapebackplane_downloads/",
@@ -158,7 +158,7 @@ def process_file(src_path, dst_path, id, index, args):
 
 def read_eros_img(path):
     # this eros data doesn't have any interesting metadata, would need to use the spice kernels
-    img, data, _, _ = read_raw_img(path, (1, 2, 3, 4, 11, 12), skip_meta=True,
+    img, data, _, _ = read_raw_img(path, (1, 2, 3, 4, 11, 12), metadata_type=None,
                                                 disp_dir=('down', 'right'), gamma=1.8, q_wxyz=False)
 
     # crop out sides, which seem to be empty / have some severe artifacts/problems

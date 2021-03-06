@@ -39,11 +39,14 @@ class PairedIdentityTransform:
 
 
 class PhotometricTransform:
-    def __init__(self, transform):
+    def __init__(self, transform, single=False):
         self.transform = transform
+        self.single = single
 
-    def __call__(self, images, aflow):
-        return tuple(map(self.transform, images)), aflow
+    def __call__(self, images, aflow=None):
+        if aflow is None:
+            images, aflow = images
+        return self.transform(images) if self.single else tuple(map(self.transform, images)), aflow
 
 
 class ComposedTransforms:
@@ -451,6 +454,18 @@ class RandomExposure:
         return format_string
 
 
+class Clamp:
+    def __init__(self, min, max):
+        self.min = min
+        self.max = max
+
+    def __call__(self, img):
+        return torch.clamp(img, self.min, self.max)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(min={0}, max={1})'.format(self.min, self.max)
+
+
 class GaussianNoise:
     def __init__(self, sd):
         self.sd = sd
@@ -462,16 +477,20 @@ class GaussianNoise:
         return self.__class__.__name__ + '(sd={0})'.format(self.sd)
 
 
-class Clamp:
-    def __init__(self, min, max):
-        self.min = min
-        self.max = max
+class UniformNoise:
+    def __init__(self, ampl):
+        self.ampl = ampl
 
     def __call__(self, img):
-        return torch.clamp(img, self.min, self.max)
+        if isinstance(img, torch.Tensor):
+            return img + self.ampl * torch.rand_like(img) - 0.5*self.ampl
+        else:
+            img = np.array(img, dtype=np.float32)
+            img = np.clip(img + np.random.uniform(0.5 - self.ampl / 2, 0.5 + self.ampl / 2, img.shape), 0, 255)
+            return PIL.Image.fromarray(img.astype(np.uint8))
 
     def __repr__(self):
-        return self.__class__.__name__ + '(min={0}, max={1})'.format(self.min, self.max)
+        return self.__class__.__name__ + '(ampl={0})'.format(self.ampl)
 
 
 class RandomDarkNoise:

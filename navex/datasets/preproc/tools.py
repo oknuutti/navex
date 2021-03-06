@@ -264,7 +264,7 @@ def show_all_pairs(aflow_path, img_path, image_db):
 
 
 def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0, disp_dir=None,
-                 skip_meta=False, q_wxyz=True):
+                 metadata_type='esa/jaxa', q_wxyz=True):
     handle = gdal.Open(path, gdal.GA_ReadOnly)
     w, h, n = handle.RasterXSize, handle.RasterYSize, handle.RasterCount
 
@@ -280,17 +280,19 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
     data = np.stack(band_data, axis=2)
 
     # scale and reduce depth to 8-bits
-    top_v = np.quantile(data[:, :, 0], 0.999)
+    top_v = np.quantile(data[:, :, 0], 0.9999)
     if gamma == 1:
         img = np.clip((0.95 * 255 / top_v) * data[:, :, 0] + 0.5, 0, 255).astype(np.uint8)
     else:
         img = (255 * np.clip((0.95 / top_v) * data[:, :, 0], 0, 1) ** (1 / gamma)).astype(np.uint8)
 
     handle = None
-    if not skip_meta:
-        metastr, metadata, m_disp_dir = parse_metadata(path, q_wxyz, return_str=True)
-    else:
+    if not metadata_type:
         metastr, metadata, m_disp_dir = [None] * 3
+    elif metadata_type.lower() == 'nasa':
+        metastr, metadata, m_disp_dir = parse_metadata_nasa(path, return_str=True)
+    else:
+        metastr, metadata, m_disp_dir = parse_metadata(path, q_wxyz, return_str=True)
 
     # arrange data so that display direction is (down, right)
     disp_dir = m_disp_dir or disp_dir
@@ -304,6 +306,20 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
         data = np.fliplr(data)
 
     return img, data[:, :, 1:], metastr, metadata
+
+
+def parse_metadata_nasa(path, return_str=False):
+    # return metadata in J2000 frame
+    meta = pvl.load(path)
+
+    sc_ori_q = meta['INST_QA'], meta['INST_QX'], meta['INST_QY'], meta['INST_QZ']
+    sc_sun_pos_v = None
+    trg_ori_q = None
+    sc_trg_pos_v = None     # TODO: neither bennu or eros data had this
+
+    meta_str = pvl.dumps(meta, pvl.encoder.PVLEncoder()) if return_str else None
+    metadata = {'sc_ori': sc_ori_q, 'sc_sun_pos': sc_sun_pos_v, 'trg_ori': trg_ori_q, 'sc_trg_pos': sc_trg_pos_v}
+    return (meta_str, metadata, None) if return_str else (metadata, None)
 
 
 def parse_metadata(path, q_wxyz=True, return_str=False):
@@ -428,9 +444,9 @@ def safe_split(x, is_q):
     return (*x[:3],) if not is_q else (x.w, x.x, x.y, x.z)
 
 
-def check_img(img, lo_q=0.05, hi_q=0.98, lim=50, min_side=256):
+def check_img(img, lo_q=0.05, hi_q=0.98, lim=50, min_side=256, max_hi=None):
     lo, hi = np.quantile(img, (lo_q, hi_q))
-    return hi - lo >= lim and np.min(img.shape) >= min_side
+    return hi - lo >= lim and np.min(img.shape) >= min_side and (max_hi is None or hi <= max_hi)
 
 
 def write_data(path, img, data, metastr=None, xyzd=False):
