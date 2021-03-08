@@ -40,7 +40,6 @@ def main():
     parser.add_argument('--has-lbl', type=int, default=-1, help="src has separate lbl files")
     parser.add_argument('--has-geom', type=int, default=-1, help="img data has geometry backplanes")
     parser.add_argument('--fov', type=float, help="horizontal field of view in degrees")
-    parser.add_argument('--check-img', type=int, default=0, help="try to screen out bad images")
     parser.add_argument('--img-max', type=int, default=3, help="how many times same images can be repated in pairs")
     parser.add_argument('--min-angle', type=float, default=0,
                         help="min angle (deg) on the unit sphere for pair creation")
@@ -48,6 +47,7 @@ def main():
                         help="max angle (deg) on the unit sphere for pair creation")
     parser.add_argument('--min-matches', type=int, default=10000,
                         help="min pixel matches in order to approve generated pair")
+    parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
 
@@ -110,36 +110,37 @@ def main():
                     assert i < 9, 'Failed to download %s 10 times due to %s, giving up' % (src_file, e)
                     logging.warning('Got exception %s while downloading %s' % (e, src_file))
                     logging.warning('Trying again in 10s (#%d)' % (i+1,))
-                    time.sleep(10)
                     ftp.close()
-                    ftp = ftplib.FTP(args.host)
-                    ftp.login()
+                    time.sleep(10)
+                    try:
+                        ftp = ftplib.FTP(args.host)
+                        ftp.login()
+                    except:
+                        pass
 
-            img, data, metastr, metadata = read_cg67p_img(tmp_file + ('.LBL' if args.has_lbl else '.IMG'),
+            img, data, metadata, metastr = read_cg67p_img(tmp_file + ('.LBL' if args.has_lbl else '.IMG'),
                                                           args.has_geom)
             if args.has_lbl:
                 os.unlink(tmp_file + '.LBL')
 
             ok = not np.any([metadata[k] is None for k in ('sc_ori', 'sc_sun_pos', 'sc_trg_pos')])
+            ok = ok and metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.05
+            ok = ok and check_img(img)
 
-            if ok and args.check_img:
-                ok = check_img(img, lo_q=0.05, hi_q=0.99 if args.has_geom else 0.98)
+            rand = np.random.uniform(0, 1) if ok else -1
+            index.set(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
+                       'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
+                       'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
+                      [(id, dst_file, rand)
+                      + safe_split(metadata['sc_ori'], True)
+                      + safe_split(metadata['sc_sun_pos'], False)
+                      + safe_split(metadata['sc_trg_pos'], False)])
 
-            if ok:
-                write_data(tmp_file, img, data, metastr, xyzd=True)
+            if ok or args.debug:
+                write_data(tmp_file + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=True)
 
-            if ok:
-                index.set(('id', 'file', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
-                           'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
-                           'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
-                          [(id, dst_file)
-                          + safe_split(metadata['sc_ori'], True)
-                          + safe_split(metadata['sc_sun_pos'], False)
-                          + safe_split(metadata['sc_trg_pos'], False)])
-            else:
-                index.delete(id)
-
-            os.unlink(tmp_file + '.IMG')
+            if not args.debug:
+                os.unlink(tmp_file + '.IMG')
             n_ok += 1 if ok else 0
             tot += 1
             pbar.set_postfix({'ok': '%.1f%%' % (100*n_ok/tot)}, refresh=False)
@@ -178,7 +179,7 @@ def scan_ftp(ftp, path, filter, files, depth=0):
 def read_cg67p_img(path, has_geom):
     pds3_obj_to_band_hack(path)
 
-    img, data, metastr, metadata = read_raw_img(path, (1, 7, 8, 9, 2) if has_geom else (1,),
+    img, data, metadata, metastr = read_raw_img(path, (1, 7, 8, 9, 2) if has_geom else (1,),
                                                 disp_dir=('down', 'left') if has_geom else ('up', 'right'),
                                                 gamma=1.8, q_wxyz=False)
 
@@ -186,7 +187,7 @@ def read_cg67p_img(path, has_geom):
     # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat
     data[data == 0] = np.nan
 
-    return img, data, metastr, metadata
+    return img, data, metadata, metastr
 
 
 def pds3_obj_to_band_hack(path):

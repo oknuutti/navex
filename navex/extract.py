@@ -37,6 +37,9 @@ def main():
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
 
+    if args.tag[:1] == '_':
+        args.model_type = 'r2d2'
+
     device = "cuda:0" if args.gpu else "cpu"
 
     if args.model_type == 'r2d2':

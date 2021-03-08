@@ -39,6 +39,7 @@ def raw_itokawa():
                         help="max angle (deg) on the unit sphere for pair creation")
     parser.add_argument('--min-matches', type=int, default=10000,
                         help="min pixel matches in order to approve generated pair")
+    parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
 
@@ -52,7 +53,8 @@ def raw_itokawa():
 
         files = find_files(args.src, ext='.lbl', relative=True)
         rows = []
-        for i, fname in enumerate(tqdm(files)):
+        pbar, n_ok, tot = tqdm(files), 0, 0
+        for i, fname in enumerate(pbar):
             path = os.path.join(args.src, fname[:-4])
             extracted = False
 
@@ -62,18 +64,25 @@ def raw_itokawa():
                     with open(path + '.img', 'wb') as fh_out:
                         shutil.copyfileobj(fh_in, fh_out)
 
-            img, data, metastr, metadata = read_itokawa_img(path + '.lbl')
+            img, data, metadata, metastr = read_itokawa_img(path + '.lbl')
 
-            ok = check_img(img, lo_q=0.05, hi_q=0.98)
-            if ok:
-                write_data(os.path.join(args.dst, fname[:-4]), img, data, metastr)
-                rows.append((i, fname[:-4] + '.png') + safe_split(metadata['sc_ori'], True))
+            ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.05
+            ok = ok and check_img(img, fg_q=150)
+            rand = np.random.uniform(0, 1) if ok else -1
+            rows.append((i, fname[:-4] + '.png', rand) + safe_split(metadata['sc_ori'], True))
+
+            if ok or args.debug:
+                write_data(os.path.join(args.dst, fname[:-4]) + ('' if ok else ' - FAILED'), img, data, metastr)
 
             if extracted:
                 os.unlink(path + '.img')
 
+            tot += 1
+            n_ok += 1 if ok else 0
+            pbar.set_postfix({'images ok': '%.1f%%' % (100 * n_ok/tot)}, refresh=False)
+
         index = ImageDB(index_path, truncate=True)
-        index.add(('id', 'file', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz'), rows)
+        index.add(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz'), rows)
     else:
         index = ImageDB(index_path)
 
@@ -84,7 +93,7 @@ def raw_itokawa():
 
 
 def read_itokawa_img(path):
-    img, data, metastr, metadata = read_raw_img(path, (1, 2, 3, 4, 11, 12), disp_dir=('up', 'right'), q_wxyz=True)
+    img, data, metadata, metastr = read_raw_img(path, (1, 2, 3, 4, 11, 12), disp_dir=('up', 'right'), q_wxyz=True)
 
     # select only pixel value and x, y, z; calculate pixel size by taking max of px
     # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat
@@ -92,7 +101,7 @@ def read_itokawa_img(path):
     data = np.concatenate((data[:, :, 0:3], px_size), axis=2)
     data[data <= -1e30] = np.nan
 
-    return img, data, metastr, metadata
+    return img, data, metadata, metastr
 
 
 if __name__ == '__main__':

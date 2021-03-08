@@ -152,7 +152,7 @@ class SynthesizedPairDataset(VisionDataset):
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
             RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
                              min_size=min_size, fill_value=fv),
-            PhotometricTransform(UniformNoise(ampl=25), single=True),
+#            PhotometricTransform(UniformNoise(ampl=25), single=True),
 #            RandomTiltWrapper(magnitude=0.5),
         ])
 

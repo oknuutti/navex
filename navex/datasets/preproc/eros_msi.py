@@ -40,7 +40,6 @@ def main():
     # parser.add_argument('--has-lbl', type=int, default=-1, help="src has separate lbl files")
     # parser.add_argument('--has-geom', type=int, default=-1, help="img data has geometry backplanes")
     # parser.add_argument('--fov', type=float, help="horizontal field of view in degrees")
-    parser.add_argument('--check-img', type=int, default=0, help="try to screen out bad images")
     parser.add_argument('--img-max', type=int, default=3, help="how many times same images can be repated in pairs")
     parser.add_argument('--min-angle', type=float, default=0,
                         help="min angle (deg) on the unit sphere for pair creation")
@@ -48,6 +47,7 @@ def main():
                         help="max angle (deg) on the unit sphere for pair creation")
     parser.add_argument('--min-matches', type=int, default=10000,
                         help="min pixel matches in order to approve generated pair")
+    parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
 
@@ -104,7 +104,8 @@ def main():
 
         # remove extracted dir and downloaded archive
         shutil.rmtree(extract_path)
-        os.unlink(archive_path)
+        if not args.debug:
+            os.unlink(archive_path)  # remove .tar.gz
 
         with open(progress_path, 'a') as fh:
             fh.write(archive + '\n')
@@ -132,25 +133,22 @@ def process_file(src_path, dst_path, id, index, args):
                 with open(src_path + '.fit', 'wb') as fh_out:
                     shutil.copyfileobj(fh_in, fh_out)
 
-        img, data = read_eros_img(src_path + '.fit')
+        img, data, metadata, metastr = read_eros_img(src_path + '.fit')
 
         os.unlink(src_path + '.xml')
         os.unlink(src_path + '.fit.gz')
         if extracted:
             os.unlink(src_path + '.fit')
 
-        ok = True
-        if args.check_img:
-            ok = check_img(img, lo_q=0.01, hi_q=0.90)
+        ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.03
+        ok = ok and check_img(img)
+        rand = np.random.uniform(0, 1) if ok else -1
+        index.add(('id', 'file', 'rand'), [(id, dst_file, rand)])
 
         added = False
-        if ok:
-            rand = np.random.uniform(0, 1)
-            index.add(('id', 'file', 'rand'), [(id, dst_file, rand)])
-
-            if args.start <= rand < args.end:
-                write_data(dst_path[:-4], img, data, xyzd=False)
-                added = True
+        if args.start <= rand < args.end or args.debug:
+            write_data(dst_path[:-4] + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=False)
+            added = True
 
         return added, ok
     return True, True
@@ -158,8 +156,9 @@ def process_file(src_path, dst_path, id, index, args):
 
 def read_eros_img(path):
     # this eros data doesn't have any interesting metadata, would need to use the spice kernels
-    img, data, _, _ = read_raw_img(path, (1, 2, 3, 4, 11, 12), metadata_type=None,
-                                                disp_dir=('down', 'right'), gamma=1.8, q_wxyz=False)
+    img, data, metadata, metastr = read_raw_img(path, (1, 2, 3, 4, 11, 12), metadata_type=None,
+                                                crop=(None, None, 15, -14), disp_dir=('down', 'right'),
+                                                gamma=1.8, q_wxyz=False)
 
     # crop out sides, which seem to be empty / have some severe artifacts/problems
     img = img[:, 15:-14]
@@ -171,7 +170,7 @@ def read_eros_img(path):
     data = np.concatenate((data[:, :, 0:3], px_size), axis=2)
     data[data <= -1e30] = np.nan    # TODO: debug this
 
-    return img, data
+    return img, data, metadata, metastr
 
 
 if __name__ == '__main__':

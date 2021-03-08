@@ -20,8 +20,6 @@ from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_
 
 
 def main():
-    DEBUG = False
-
     parser = argparse.ArgumentParser('Download and process data from OSIRIS-REx TAGCAMs about Bennu')
     parser.add_argument('--src', default="https://sbnarchive.psi.edu/pds4/orex/downloads_tagcams/",
                         help="path with the data")
@@ -30,6 +28,7 @@ def main():
                         help="index file name in the output folder")
     parser.add_argument('--start', type=float, default=0.0, help="where to start processing [0-1]")
     parser.add_argument('--end', type=float, default=1.0, help="where to stop processing [0-1]")
+    parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
@@ -58,14 +57,13 @@ def main():
         'orbit_b',
         'orbit_c',
         'orbit_r',
-        'preliminary_survey',
         'recon',
         'recon_b',
         'recon_c',
         'sample_collection',
     ]
 
-    if DEBUG:
+    if args.debug:
         phases = ['orbit_r']
 
     archives = [a['href']
@@ -84,7 +82,7 @@ def main():
 
         # extract archive
         extract_path = os.path.join(args.dst, 'tmp')
-        if not DEBUG:
+        if not args.debug:
             with zipfile.ZipFile(archive_path, 'r') as zip_ref:
                 zip_ref.extractall(extract_path)
 
@@ -98,7 +96,7 @@ def main():
             n_ok += 1 if ok else 0
 
         # remove extracted dir and downloaded archive
-        if not DEBUG:
+        if not args.debug:
             shutil.rmtree(extract_path)
             os.unlink(archive_path)
 
@@ -117,22 +115,23 @@ def process_file(src_path, dst_path, id, index, args):
         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
 
         img, metadata, metastr = read_bennu_img(src_path + ext)
-        ok = check_img(img, lo_q=0.05, hi_q=0.99, sat_q=0.999)
+        ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.05
+        ok = ok and check_img(img)
+
+        # TODO: refactor code so that queries index and skips processing if don't match start & stop
+        rand = np.random.uniform(0, 1) if ok else -1
+        index.set(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
+                   'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
+                   'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
+                  [(id, dst_file, rand)
+                  + safe_split(metadata['sc_ori'], True)
+                  + safe_split(metadata['sc_sun_pos'], False)
+                  + safe_split(metadata['trg_ori'], True)])
 
         added = False
-        if ok:
-            rand = np.random.uniform(0, 1)
-            index.set(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
-                       'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
-                       'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
-                      [(id, dst_file, rand)
-                      + safe_split(metadata['sc_ori'], True)
-                      + safe_split(metadata['sc_sun_pos'], False)
-                      + safe_split(metadata['trg_ori'], True)])
-
-            if args.start <= rand < args.end:
-                write_data(dst_path[:-4], img, None, metastr=metastr)
-                added = True
+        if args.start <= rand < args.end or args.debug:
+            write_data(dst_path[:-4] + ('' if ok else ' - FAILED'), img, None, metastr=metastr)
+            added = True
 
         os.unlink(src_path + '.xml')
         os.unlink(src_path + '.fits')
@@ -142,7 +141,7 @@ def process_file(src_path, dst_path, id, index, args):
 
 def read_bennu_img(path):
     # this eros data doesn't have any interesting metadata, would need to use the spice kernels
-    img, _, metastr, metadata = read_raw_img(path, (1,), disp_dir=('up', 'right'),
+    img, _, metadata, metastr = read_raw_img(path, (1,), disp_dir=('up', 'right'),
                                              metadata_type=parse_bennu_metadata, gamma=1.8, q_wxyz=True)
 
     return img, metadata, metastr

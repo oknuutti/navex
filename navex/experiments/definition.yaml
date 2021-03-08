@@ -347,8 +347,9 @@ loss:
       help: ""
 
     max_neg_b:
+      alt: ['--max-neg-imgs']
       type: int
-      help: ""
+      help: "maximum number of images from the same batch that is used for negative sample mining"
 
     maxpool_pos:
       help: ""

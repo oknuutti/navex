@@ -3,6 +3,7 @@ import math
 import os
 import argparse
 import logging
+import datetime
 import re
 import time
 from collections import OrderedDict, Counter
@@ -265,7 +266,7 @@ def show_all_pairs(aflow_path, img_path, image_db):
 
 
 def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0, disp_dir=None,
-                 metadata_type='esa/jaxa', q_wxyz=True):
+                 metadata_type='esa/jaxa', q_wxyz=True, crop=None):
     handle = gdal.Open(path, gdal.GA_ReadOnly)
     w, h, n = handle.RasterXSize, handle.RasterYSize, handle.RasterCount
 
@@ -280,9 +281,12 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
         band_data.append(data)
     data = np.stack(band_data, axis=2)
 
+    if crop is not None:
+        data = data[crop[0]:crop[1], crop[2]:crop[3], :]
+
     # scale and reduce depth to 8-bits
     bot_v, top_v = np.quantile(data[:, :, 0], (0.0005, 0.9999))
-    top_v = math.ceil(top_v * 1.2)
+    top_v = top_v * 1.2
     img = (data[:, :, 0] - bot_v) / (top_v - bot_v)
     if gamma != 1:
         img = np.clip(img, 0, 1) ** (1 / gamma)
@@ -292,17 +296,20 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
     if isinstance(metadata_type, Callable):
         allmeta, metadata, m_disp_dir = metadata_type(path)
     elif not metadata_type:
-        allmeta, metadata, m_disp_dir = {}, None, None
+        allmeta, metadata, m_disp_dir = {}, {}, None
     else:
         allmeta, metadata, m_disp_dir = parse_metadata(path, q_wxyz)
 
-    allmeta['image_processing'] = {
+    ele = {
         'forward': 'img = np.clip(((raw_img - bg) / max_val) ** (1 / gamma) + 0.5, 0, 255).astype(np.uint8)',
         'backward': 'raw_img = max_val * img ** gamma + bg',
         'bg': bot_v,
         'max_val': top_v - bot_v,
         'gamma': gamma,
+        'possibly_corrupted_lines': np.sum(np.mean(data[:, :, 0] == 0, axis=1) > 0.95),
     }
+    allmeta['image_processing'] = ele
+    metadata['image_processing'] = ele
 
     # arrange data so that display direction is (down, right)
     disp_dir = m_disp_dir or disp_dir
@@ -315,11 +322,18 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
         img = np.fliplr(img)
         data = np.fliplr(data)
 
-    meta_str = json.dumps(allmeta, sort_keys=True, indent=4)
-    return img, data[:, :, 1:], meta_str, metadata
+    def default(o):
+        if isinstance(o, (datetime.date, datetime.datetime)):
+            return o.isoformat()
+        if hasattr(o, 'tolist'):
+            return o.tolist()
+        raise TypeError('Can\'t serialize type %s' % (o.__class__,))
+
+    meta_str = json.dumps(allmeta, sort_keys=True, indent=4, default=default)
+    return img, data[:, :, 1:], metadata, meta_str
 
 
-def parse_metadata(path, q_wxyz=True, return_str=False):
+def parse_metadata(path, q_wxyz=True):
     # return metadata in J2000 frame
     meta = pvl.load(path)
 
@@ -350,9 +364,8 @@ def parse_metadata(path, q_wxyz=True, return_str=False):
             and isinstance(sd, str) and sd.lower() in ('left', 'right'):
         disp_dir = ld, sd
 
-    meta_str = pvl.dumps(meta, pvl.encoder.PVLEncoder()) if return_str else None
     metadata = {'sc_ori': sc_ori_q, 'sc_sun_pos': sc_sun_pos_v, 'trg_ori': trg_ori_q, 'sc_trg_pos': sc_trg_pos_v}
-    return (meta_str, metadata, disp_dir) if return_str else (metadata, disp_dir)
+    return meta, metadata, disp_dir
 
 
 def metadata_coord_frame(meta, coord_frame_keys, unit, q_wxyz=True):
@@ -441,10 +454,16 @@ def safe_split(x, is_q):
     return (*x[:3],) if not is_q else (x.w, x.x, x.y, x.z)
 
 
-def check_img(img, lo_q=0.05, hi_q=0.98, lim=50, min_side=256, sat_q=None):
-    lo, hi, *sat = np.quantile(img, (lo_q, hi_q) + (tuple() if sat_q is None else (sat_q,)))
-    maxval = np.max(img)
-    return hi - lo >= lim and np.min(img.shape) >= min_side and (len(sat) == 0 or sat[0] < maxval)
+def check_img(img, bg_q=0.04, fg_q=200, sat_q=None, fg_lim=50, sat_lim=5, min_side=256):
+    if fg_q > 1:
+        # fg_q is instead the diameter of a half-circle in px
+        fg_q = 1 - 0.5 * np.pi * (fg_q/2)**2 / np.prod(img.shape[:2])
+
+    if sat_q is None:
+        sat_q = (1 - (1 - fg_q) * 0.02)
+
+    bg, fg, sat = np.quantile(img, (bg_q, fg_q, sat_q))
+    return np.min(img.shape) >= min_side and fg - bg >= fg_lim and sat - fg > sat_lim
 
 
 def write_data(path, img, data, metastr=None, xyzd=False):
