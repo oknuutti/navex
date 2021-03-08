@@ -113,6 +113,10 @@ def main():
                     logging.warning('Got exception %s while downloading %s' % (e, src_file))
                     logging.warning('Trying again in 10s (#%d)' % (i+1,))
                     ftp.close()
+                    if os.path.exists(tmp_file + '.LBL'):
+                        os.unlink(tmp_file + '.LBL')
+                    if os.path.exists(tmp_file + '.IMG'):
+                        os.unlink(tmp_file + '.IMG')
                     time.sleep(10)
                     try:
                         ftp = ftplib.FTP(args.host)
