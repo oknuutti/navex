@@ -454,16 +454,13 @@ def safe_split(x, is_q):
     return (*x[:3],) if not is_q else (x.w, x.x, x.y, x.z)
 
 
-def check_img(img, bg_q=0.04, fg_q=200, sat_q=None, fg_lim=50, sat_lim=5, min_side=256):
+def check_img(img, bg_q=0.04, fg_q=240, sat_lo_q=0.998, sat_hi_q=0.9999, fg_lim=50, sat_lim=5, min_side=256):
     if fg_q > 1:
         # fg_q is instead the diameter of a half-circle in px
         fg_q = 1 - 0.5 * np.pi * (fg_q/2)**2 / np.prod(img.shape[:2])
 
-    if sat_q is None:
-        sat_q = (1 - (1 - fg_q) * 0.02)
-
-    bg, fg, sat = np.quantile(img, (bg_q, fg_q, sat_q))
-    return np.min(img.shape) >= min_side and fg - bg >= fg_lim and sat - fg > sat_lim
+    bg, fg, sat_lo ,sat_hi = np.quantile(img, (bg_q, fg_q, sat_lo_q, sat_hi_q))
+    return np.min(img.shape) >= min_side and fg - bg >= fg_lim and sat_hi - sat_lo > sat_lim
 
 
 def write_data(path, img, data, metastr=None, xyzd=False):

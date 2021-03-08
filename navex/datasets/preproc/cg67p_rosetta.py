@@ -101,10 +101,12 @@ def main():
             for i in range(10):
                 try:
                     if args.has_lbl:
-                        with open(tmp_file + '.LBL', 'wb') as fh:
-                            ftp.retrbinary("RETR " + '/'.join(src_file)[:-4] + '.LBL', fh.write)
-                    with open(tmp_file + '.IMG', 'wb') as fh:
-                        ftp.retrbinary("RETR " + '/'.join(src_file), fh.write)
+                        if not os.path.exists(tmp_file + '.LBL'):
+                            with open(tmp_file + '.LBL', 'wb') as fh:
+                                ftp.retrbinary("RETR " + '/'.join(src_file)[:-4] + '.LBL', fh.write)
+                    if not os.path.exists(tmp_file + '.IMG'):
+                        with open(tmp_file + '.IMG', 'wb') as fh:
+                            ftp.retrbinary("RETR " + '/'.join(src_file), fh.write)
                     break
                 except Exception as e:
                     assert i < 9, 'Failed to download %s 10 times due to %s, giving up' % (src_file, e)
@@ -125,7 +127,7 @@ def main():
 
             ok = not np.any([metadata[k] is None for k in ('sc_ori', 'sc_sun_pos', 'sc_trg_pos')])
             ok = ok and metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.05
-            ok = ok and check_img(img)
+            ok = ok and check_img(img, fg_q=0.98)
 
             rand = np.random.uniform(0, 1) if ok else -1
             index.set(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',

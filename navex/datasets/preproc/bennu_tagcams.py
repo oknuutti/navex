@@ -116,7 +116,7 @@ def process_file(src_path, dst_path, id, index, args):
 
         img, metadata, metastr = read_bennu_img(src_path + ext)
         ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.05
-        ok = ok and check_img(img)
+        ok = ok and check_img(img, fg_q=0.99)
 
         # TODO: refactor code so that queries index and skips processing if don't match start & stop
         rand = np.random.uniform(0, 1) if ok else -1
