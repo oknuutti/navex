@@ -475,8 +475,7 @@ def write_data(path, img, data, metastr=None, xyzd=False):
             fh.write(metastr)
 
 
-def get_file(url, path):
-    max_retries = 6
+def get_file(url, path, max_retries=6):
     sleep_time = 3
     ok = False
     last_err = None
@@ -485,7 +484,7 @@ def get_file(url, path):
             urllib.request.urlretrieve(url, path)
             ok = True
             break
-        except urllib.error.ContentTooShortError as e:
+        except (urllib.error.ContentTooShortError, urllib.error.URLError) as e:
             last_err = e
             time.sleep(sleep_time)
 

@@ -84,7 +84,7 @@ def main():
     for archive in pbar:
         archive_url = args.src + '/' + archive
         archive_path = os.path.join(args.dst, archive)
-        if not os.path.exists(archive_path):
+        if not os.path.exists(archive_path) or not args.debug:
             get_file(archive_url, archive_path)
 
         # extract archive

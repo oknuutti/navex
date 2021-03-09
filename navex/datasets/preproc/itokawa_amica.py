@@ -56,26 +56,21 @@ def raw_itokawa():
         pbar, n_ok, tot = tqdm(files), 0, 0
         for i, fname in enumerate(pbar):
             path = os.path.join(args.src, fname[:-4])
-            extracted = False
 
-            if not os.path.exists(path + '.img'):
-                extracted = True
-                with gzip.open(path + '.img.gz', 'rb') as fh_in:
-                    with open(path + '.img', 'wb') as fh_out:
-                        shutil.copyfileobj(fh_in, fh_out)
+            with gzip.open(path + '.img.gz', 'rb') as fh_in:
+                with open(path + '.img', 'wb') as fh_out:
+                    shutil.copyfileobj(fh_in, fh_out)
 
             img, data, metadata, metastr = read_itokawa_img(path + '.lbl')
 
-            ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.05
-            ok = ok and check_img(img, fg_q=150)
+            ok = check_img(img, fg_q=150, sat_lo_q=0.995)
             rand = np.random.uniform(0, 1) if ok else -1
             rows.append((i, fname[:-4] + '.png', rand) + safe_split(metadata['sc_ori'], True))
 
             if ok or args.debug:
                 write_data(os.path.join(args.dst, fname[:-4]) + ('' if ok else ' - FAILED'), img, data, metastr)
 
-            if extracted:
-                os.unlink(path + '.img')
+            os.unlink(path + '.img')
 
             tot += 1
             n_ok += 1 if ok else 0

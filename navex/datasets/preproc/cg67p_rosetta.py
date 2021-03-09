@@ -101,10 +101,10 @@ def main():
             for i in range(10):
                 try:
                     if args.has_lbl:
-                        if not os.path.exists(tmp_file + '.LBL'):
+                        if not os.path.exists(tmp_file + '.LBL') or not args.debug:
                             with open(tmp_file + '.LBL', 'wb') as fh:
                                 ftp.retrbinary("RETR " + '/'.join(src_file)[:-4] + '.LBL', fh.write)
-                    if not os.path.exists(tmp_file + '.IMG'):
+                    if not os.path.exists(tmp_file + '.IMG') or not args.debug:
                         with open(tmp_file + '.IMG', 'wb') as fh:
                             ftp.retrbinary("RETR " + '/'.join(src_file), fh.write)
                     break
