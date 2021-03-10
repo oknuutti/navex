@@ -266,7 +266,7 @@ class PairRandomCrop:
                 "sc1: %s, sc2: %s, curr_sc: %s, trg_sc: %s"
                 ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
 
-        if debug or 1:
+        if debug:
             show_pair(c_img1, c_img2, c_aflow, pts=8)
             min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
             max_i, max_j = np.nanmax(c_aflow, axis=(0, 1))
