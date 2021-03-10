@@ -84,18 +84,18 @@ optimizer:
   learning_rate: !h_float 1e-3
   weight_decay: !h_float 1e-6
   split_params: 0
-  eps: !h_float 1e-7
+  eps: !h_float 1e-8
 
 data:
-  max_rot: !h_float 8.0     # in degrees, synth pair warp related
-  max_shear: !h_float 0.2    # synth pair warp related
-  max_proj: !h_float 0.4     # synth pair warp related
+  max_rot: !h_float 0.0     # in degrees, synth pair warp related
+  max_shear: !h_float 0.0    # synth pair warp related
+  max_proj: !h_float 0.5     # synth pair warp related
   noise_max: !h_float 0.02
-  rnd_gain: !h_float 1.1
+  rnd_gain: !h_float 1.5
   image_size: !h_int 224
   path: 'data'
   npy: 'false'
-  trn_ratio: 0.8
+  trn_ratio: 0.9
   val_ratio: 0.1
-  tst_ratio: 0.1
+  tst_ratio: 0.0
   workers: 5

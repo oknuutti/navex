@@ -211,10 +211,10 @@ class PairRandomCrop:
 
         # determine current scale of img2 relative to img1 based on aflow
         xy1 = np.stack(np.meshgrid(range(m), range(n)), axis=2).reshape((-1, 2))
-        ic1, jc1 = np.mean(xy1[c_mask.flatten(), :], axis=0)
-        sc1 = np.sqrt(np.mean(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
-        ic2, jc2 = np.nanmean(c_aflow, axis=(0, 1))
-        sc2 = np.sqrt(np.nanmean(np.sum((c_aflow - np.array((ic2, jc2)))**2, axis=2)))
+        ic1, jc1 = np.median(xy1[c_mask.flatten(), :], axis=0)
+        sc1 = np.sqrt(np.median(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
+        ic2, jc2 = np.nanmedian(c_aflow, axis=(0, 1))
+        sc2 = np.sqrt(np.nanmedian(np.sum((c_aflow - np.array((ic2, jc2)))**2, axis=2)))
         curr_sc = np.clip(sc2 / sc1, 1/5, 5)  # limit to reasonable original scale range between the image pair
 
         # determine target scale based on current scale, self.max_sc_diff, and self.random_sc_diff
@@ -266,7 +266,7 @@ class PairRandomCrop:
                 "sc1: %s, sc2: %s, curr_sc: %s, trg_sc: %s"
                 ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
 
-        if debug:
+        if debug or 1:
             show_pair(c_img1, c_img2, c_aflow, pts=8)
             min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
             max_i, max_j = np.nanmax(c_aflow, axis=(0, 1))
