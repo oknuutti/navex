@@ -20,7 +20,7 @@ from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, C
     RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
     PairRandomHorizontalFlip, Clamp, UniformNoise
 
-from .tools import find_files_recurse
+from .tools import find_files_recurse, load_aflow, ImageDB, find_files
 
 from .. import RND_SEED
 
@@ -36,19 +36,25 @@ class DataLoadingException(Exception):
 
 
 class ImagePairDataset(VisionDataset):
-    def __init__(self, root, aflow_loader, image_loader=default_loader, transforms=None):
+    def __init__(self, root, aflow_loader=load_aflow, image_loader=default_loader, transforms=None):
         super(ImagePairDataset, self).__init__(root, transforms=transforms)
         self.aflow_loader = aflow_loader
         self.image_loader = image_loader
+
+        dbfile = os.path.join(self.root, 'dataset_all.sqlite')
+        self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
         self.samples = self._load_samples()
 
     def __getitem__(self, idx):
-        (img1_pth, img2_pth), aflow_pth = self.samples[idx]
+        (img1_pth, img2_pth), aflow_pth, *idxs = self.samples[idx]
 
         try:
             img1 = self.image_loader(img1_pth)
             img2 = self.image_loader(img2_pth)
             aflow = self.aflow_loader(aflow_pth, img1.size, img2.size)
+
+            if self.index is not None and len(idxs) > 0:
+                (img1, img2), aflow = self._regularization(idxs, (img1, img2), aflow)
 
             if self.transforms is not None:
                 (img1, img2), aflow = self.transforms((img1, img2), aflow)
@@ -63,7 +69,24 @@ class ImagePairDataset(VisionDataset):
         return len(self.samples)
 
     def _load_samples(self):
-        raise NotImplemented()
+        index = dict(self.index.get_all(('id', 'file')))
+        aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png', relative=True)
+
+        get_id = lambda f, i: int(f.split('.')[0].split('_')[i])
+        imgs = [(os.path.join(self.root, index[get_id(f, 0)]), os.path.join(self.root, index[get_id(f, 1)]))
+                for f in aflow]
+        idxs = [(get_id(f, 0), get_id(f, 1)) for f in aflow]
+
+        samples = zip(imgs, aflow, idxs)
+        return samples
+
+    def _regularization(self, idxs, imgs, aflow):
+        i, j = idxs
+        img1, img2 = imgs
+
+        # TODO: query self.index for relevant params, transform img1, img2 accordingly
+
+        return (img1, img2), aflow
 
 
 class PairIndexFileLoader:
@@ -214,7 +237,7 @@ class AugmentedPairDatasetMixin:
             PairRandomHorizontalFlip(),
             GeneralTransform(tr.ToTensor()),
 #            PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),
-            PhotometricTransform(UniformNoise(25)),
+            PhotometricTransform(UniformNoise(0.1)),
             # TODO: config access to all color jitter params, NOTE: 0.1 hue jitter might remove rgb vs gray advantage
             PhotometricTransform(tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1))
                 if self.rgb else PhotometricTransform(RandomExposure(*self.rnd_gain)),
@@ -263,7 +286,7 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                 tr.RandomCrop(self.image_size),
                 tr.ToTensor(),
                 tr.RandomHorizontalFlip(),
-                PhotometricTransform(UniformNoise(25)),
+                PhotometricTransform(UniformNoise(0.1)),
 #                RandomDarkNoise(0, self.noise_max, 0.3, 3),
                 # TODO: config access to all color jitter params
                 tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1)
