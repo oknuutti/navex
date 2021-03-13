@@ -23,15 +23,18 @@ class AsteroidalTrial(TerrestrialTrial):
             if 0:
                 ds.append(ErosPairDataset(self.data_conf['path'], **common, **dconf))
             if 0:
-                ds.append(SynthBennuPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
-            if 1:
+                ds.append(SynthBennuPairDataset(self.data_conf['path'], **common, **dconf))
+            if 1 and 0:
                 ds.append(BennuSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
-            if 1:
-                ds.append(CG67pNavcamSynthPairDataset(self.data_conf['path'], **common, **dconf))
+            if 1 and 0:
+                ds.append(CG67pNavcamSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
             if 0:
-                ds.append(CG67pOsinacPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
+                ds.append(CG67pOsinacPairDataset(self.data_conf['path'], **common, **dconf))
+            if 0 or 1:
+                ds.append(ItokawaPairDataset(self.data_conf['path'], **common, **dconf))
+
             if 0:
-                tst_set = ItokawaPairDataset(self.data_conf['path'], **common, **sconf, **dconf)
+                tst_set = ItokawaPairDataset(self.data_conf['path'], **common, **dconf)
             else:
                 tst_set = None
 

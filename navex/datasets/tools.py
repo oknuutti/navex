@@ -101,6 +101,31 @@ def spherical2cartesian(lat, lon, r):
     return np.array([x, y, z])
 
 
+def vector_projection(a, b):
+    return a.dot(b) / b.dot(b) * b
+
+
+def vector_rejection(a, b):
+    return a - vector_projection(a, b)
+
+
+def angle_between_v(v1, v2):
+    # Notice: only returns angles between 0 and 180 deg
+
+    try:
+        v1 = np.reshape(v1, (1, -1))
+        v2 = np.reshape(v2, (-1, 1))
+
+        n1 = v1 / np.linalg.norm(v1)
+        n2 = v2 / np.linalg.norm(v2)
+
+        cos_angle = n1.dot(n2)
+    except TypeError as e:
+        raise Exception('Bad vectors:\n\tv1: %s\n\tv2: %s' % (v1, v2)) from e
+
+    return math.acos(np.clip(cos_angle, -1, 1))
+
+
 class ImageDB:
     def __init__(self, db_file: str, truncate: bool = False):
         self._conn = sqlite3.connect(db_file)
