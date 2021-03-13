@@ -20,7 +20,7 @@ class AsteroidalTrial(TerrestrialTrial):
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})
 
             ds = []
-            if 1:
+            if 0:
                 ds.append(ErosPairDataset(self.data_conf['path'], **common, **dconf))
             if 0:
                 ds.append(SynthBennuPairDataset(self.data_conf['path'], **common, **sconf, **dconf))

@@ -5,14 +5,18 @@ import numpy as np
 
 from r2d2.datasets.aachen import AachenPairs_OpticalFlow
 
-from navex.datasets.base import ImagePairDataset, DataLoadingException, AugmentedPairDatasetMixin, SynthesizedPairDataset, \
-    AugmentedDatasetMixin, BasicDataset
+from navex.datasets.base import ImagePairDataset, DataLoadingException, AugmentedPairDatasetMixin, \
+    SynthesizedPairDataset, \
+    BasicDataset, RandomSeed
 from navex.datasets.tools import find_files, unit_aflow
+from navex.datasets.transforms import RandomTiltWrapper2
 
 
 class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedPairDatasetMixin):
-    def __init__(self, root='data', folder='aachen', noise_max=0.25, rnd_gain=(0.5, 3), image_size=512, max_sc=2 ** (1 / 4),
-                 eval=False, rgb=False, npy=False):
+    def __init__(self, root='data', folder='aachen', noise_max=0.1, rnd_gain=(0.5, 2), image_size=512,
+                 max_sc=2 ** (1 / 4), eval=False, rgb=False, npy=False):
+
+        noise_max = 0   # TODO: remove
 
         root = os.path.join(root, folder)
         AachenPairs_OpticalFlow.__init__(self, root, rgb=rgb, npy=npy)
@@ -38,15 +42,25 @@ class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, Augmented
 
 
 class AachenStyleTransferPairDataset(ImagePairDataset, AugmentedPairDatasetMixin):
-    def __init__(self, root='data', folder='aachen', noise_max=0.20, rnd_gain=(0.5, 2), image_size=512,
-                 eval=False, rgb=False, npy=False):
+    def __init__(self, root='data', folder='aachen', noise_max=0.1, rnd_gain=(0.5, 2), image_size=512,
+                 max_sc=1.0, eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                           max_sc=1.0, eval=eval, rgb=rgb, blind_crop=True)
+                                           max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)
 
         ImagePairDataset.__init__(self, os.path.join(root, folder), self.identity_aflow, transforms=self.transforms)
+        self.pre_transf = RandomTiltWrapper2(magnitude=0.5)
         self.npy = npy
+
+    def preprocess(self, idx, imgs, aflow):
+        eval = getattr(self, 'eval', False)
+        if eval:
+            with RandomSeed(idx):
+                imgs, aflow = self.pre_transf(imgs, aflow)
+        else:
+            imgs, aflow = self.pre_transf(imgs, aflow)
+        return imgs, aflow
 
     @staticmethod
     def identity_aflow(path, img1_size, img2_size):
@@ -68,8 +82,8 @@ class AachenStyleTransferPairDataset(ImagePairDataset, AugmentedPairDatasetMixin
 
 
 class AachenSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin):
-    def __init__(self, root='data', folder='aachen', max_tr=0, max_rot=math.radians(15), max_shear=0.2, max_proj=0.8,
-                 noise_max=0.20, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4),
+    def __init__(self, root='data', folder='aachen', max_tr=0, max_rot=math.radians(8), max_shear=0.2, max_proj=0.4,
+                 noise_max=0.1, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4),
                  eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
         self.npy = npy

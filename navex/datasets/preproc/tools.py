@@ -24,7 +24,7 @@ from scipy.cluster.vq import kmeans
 from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
-from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files
+from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, q_times_v
 from navex.experiments.parser import nested_filter
 
 
@@ -428,24 +428,6 @@ def metadata_value(meta, possible_keys, unit=''):
         dst_values = None
 
     return dst_values[0] if is_scalar else dst_values
-
-
-def ypr_to_q(dec, ra, cna):
-    if dec is None or ra is None or cna is None:
-        return None
-
-    # intrinsic euler rotations z-y'-x'', first right ascencion, then declination, and last celestial north angle
-    return (
-            np.quaternion(math.cos(ra / 2), 0, 0, math.sin(ra / 2))
-            * np.quaternion(math.cos(-dec / 2), 0, math.sin(-dec / 2), 0)
-            * np.quaternion(math.cos(-cna / 2), math.sin(-cna / 2), 0, 0)
-    )
-
-
-def q_times_v(q, v):
-    qv = np.quaternion(0, *v)
-    qv2 = q * qv * q.conj()
-    return np.array([qv2.x, qv2.y, qv2.z])
 
 
 def safe_split(x, is_q):

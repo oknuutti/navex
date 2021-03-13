@@ -1,9 +1,11 @@
+import math
 import os
 import random
 import sqlite3
 from typing import Tuple, Union, List
 
 import numpy as np
+import quaternion
 import matplotlib.pyplot as plt
 import cv2
 
@@ -70,6 +72,33 @@ def show_pair(img1, img2, aflow, file1='', file2='', pts=8):
         axs[1].set_title(file2)
 
     plt.show()
+
+
+def ypr_to_q(dec, ra, cna):
+    if dec is None or ra is None or cna is None:
+        return None
+
+    # intrinsic euler rotations z-y'-x'', first right ascencion, then declination, and last celestial north angle
+    return (
+            np.quaternion(math.cos(ra / 2), 0, 0, math.sin(ra / 2))
+            * np.quaternion(math.cos(-dec / 2), 0, math.sin(-dec / 2), 0)
+            * np.quaternion(math.cos(-cna / 2), math.sin(-cna / 2), 0, 0)
+    )
+
+
+def q_times_v(q, v):
+    qv = np.quaternion(0, *v)
+    qv2 = q * qv * q.conj()
+    return np.array([qv2.x, qv2.y, qv2.z])
+
+
+def spherical2cartesian(lat, lon, r):
+    theta = math.pi / 2 - lat
+    phi = lon
+    x = r * math.sin(theta) * math.cos(phi)
+    y = r * math.sin(theta) * math.sin(phi)
+    z = r * math.cos(theta)
+    return np.array([x, y, z])
 
 
 class ImageDB:

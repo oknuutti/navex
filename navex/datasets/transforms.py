@@ -39,14 +39,18 @@ class PairedIdentityTransform:
 
 
 class PhotometricTransform:
-    def __init__(self, transform, single=False):
+    def __init__(self, transform, single=False, skip_1st=False):
         self.transform = transform
         self.single = single
+        self.skip_1st = skip_1st
 
     def __call__(self, images, aflow=None):
         if aflow is None:
             images, aflow = images
-        return self.transform(images) if self.single else tuple(map(self.transform, images)), aflow
+        return (self.transform(images) if self.single else (
+                   (images[0], *map(self.transform, images[1:])) if self.skip_1st else
+                   tuple(map(self.transform, images))
+               )), aflow
 
 
 class ComposedTransforms:
@@ -209,7 +213,7 @@ class PairRandomCrop:
         c_img1 = img1.crop((i1, j1, i1+m, j1+n))
         c_mask = mask[j1:j1+m, i1:i1+n]
 
-        # determine current scale of img2 relative to img1 based on aflow
+        # determine current scale of cropped img2 relative to cropped img1 based on aflow
         xy1 = np.stack(np.meshgrid(range(m), range(n)), axis=2).reshape((-1, 2))
         ic1, jc1 = np.median(xy1[c_mask.flatten(), :], axis=0)
         sc1 = np.sqrt(np.median(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
@@ -431,6 +435,25 @@ class RandomTiltWrapper(RandomTilt):
         return scaled_and_distorted_image['img'], aflow
 
 
+class RandomTiltWrapper2(RandomTiltWrapper):
+    def __call__(self, imgs, aflow):
+        img1, img2 = imgs
+        scaled_and_distorted_image = \
+            super(RandomTiltWrapper, self).__call__(dict(img=img2, persp=(1, 0, 0, 0, 1, 0, 0, 0)))
+
+        img2 = scaled_and_distorted_image['img']
+        w1, h1 = img1.size
+        w2, h2 = img2.size
+        trf = scaled_and_distorted_image['persp']
+        aflow = persp_apply(trf, aflow.reshape((-1, 2)))
+
+        aflow[np.any(aflow < 0, axis=1), :] = np.nan
+        aflow[np.logical_or(aflow[:, 0] > w2 - 1, aflow[:, 1] > h2 - 1), :] = np.nan
+        aflow = aflow.reshape((h1, w1, 2))
+
+        return (img1, img2), aflow
+
+
 class RandomExposure:
     def __init__(self, min_gain, max_gain):
         self.min_gain = min_gain
@@ -496,7 +519,7 @@ class UniformNoise:
 class RandomDarkNoise:
     # simulates dark current image sensor noise at different exposure levels
 
-    def __init__(self, min_level, max_level, gain=0.1, pow=3):
+    def __init__(self, min_level, max_level, gain=0.008, pow=3):
         self.min_level = min_level
         self.max_level = max_level
         self.gain = gain

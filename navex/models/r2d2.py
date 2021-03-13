@@ -98,7 +98,7 @@ class R2D2(BasePoint):
             x = F.softplus(ux)
             return x / (1 + x)
         elif ux.shape[1] == 2:
-            return F.softmax(ux, dim=1)[:, :1, :, :]
+            return F.softmax(ux, dim=1)[:, 1:2, :, :]   # was long time ":1" instead of "1:2" in own implementation
 
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)

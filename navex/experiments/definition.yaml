@@ -62,7 +62,7 @@ training:
 
   trial:
     alt: ['--trial']
-    choices: ['terr', 'terrst']
+    choices: ['terr', 'terrst', 'ast', 'astst']
     help: "which trial to run"
 
   name:
@@ -262,61 +262,61 @@ loss:
   __group__: 1
 
   teacher:
-    trial: ["terrst"]
+    trial: ["terrst", "astst"]
     alt: ["--teacher"]
     help: "path to the teacher model"
 
   des_loss:
-    trial: ["terrst"]
+    trial: ["terrst", "astst"]
     alt: ["--des-loss"]
     choices: ['L1', 'L2']
     help: "loss function to use for descriptors"
 
   des_w:
-    trial: ["terrst"]
+    trial: ["terrst", "astst"]
     type: float
     help: "weight for descriptor head output loss"
 
   det_w:
-    trial: ["terrst"]
+    trial: ["terrst", "astst"]
     type: float
     help: "weight for detection head output loss"
 
   qlt_w:
-    trial: ["terrst"]
+    trial: ["terrst", "astst"]
     type: float
     help: "weight for quality head output loss"
 
   wdt:
-    trial: ["terr"]
+    trial: ["terr", "ast"]
     type: float
     help: "weight for peakiness and cosim losses"
 
   wap:
-    trial: ["terr"]
+    trial: ["terr", "ast"]
     type: float
     help: "weight for expected ap loss"
 
   det_n:
-    trial: ["terr"]
+    trial: ["terr", "ast"]
     alt: ['--det-n']
     type: int
     help: "size of kernel for detector losses"
 
   base:
-    trial: ["terr"]
+    trial: ["terr", "ast"]
     alt: ['--base-ap']
     type: float
     help: "expected average precision for ap loss"
 
   nq:
-    trial: ["terr"]
+    trial: ["terr", "ast"]
     type: int
     help: ""
 
   sampler:
     __group__: 1
-    trial: ["terr"]
+    trial: ["terr", "ast"]
 
     ngh:
       type: int
@@ -412,13 +412,13 @@ data:
     help: "random gain is sampled uniformly between [1/G, G] and applied to training images after adding noise"
 
   student_noise_sd:
-    trial: ["terrst"]
+    trial: ["terrst", "astst"]
     alt: ['--st-noise-sd']
     type: float
     help: "Gaussian noise sd applied to student given training images"
 
   student_rnd_gain:
-    trial: ["terrst"]
+    trial: ["terrst", "astst"]
     alt: ['--st-rnd-gain']
     type: float
     help: "random gain is sampled uniformly between [1/G, G] and applied to student training images before adding noise"

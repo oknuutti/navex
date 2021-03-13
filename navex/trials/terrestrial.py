@@ -88,7 +88,7 @@ class TerrestrialTrial(TrialBase):
     def _get_datasets(self, rgb):
         if self._tr_data is None:
             npy = json.loads(self.data_conf['npy'])
-            common = dict(eval=False, rgb=rgb, npy=npy)
+            common = dict(max_sc=1.0, eval=False, rgb=rgb, npy=npy)     # TODO: remove max_sc
             dconf = {k: v for k, v in self.data_conf.items() if k in ('noise_max', 'rnd_gain', 'image_size')}
             sconf = {k: v for k, v in self.data_conf.items() if k in ('max_rot', 'max_shear', 'max_proj')}
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})

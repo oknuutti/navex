@@ -2,8 +2,6 @@ import bisect
 import math
 import os
 import random
-import sqlite3
-from typing import Any, Dict, Tuple, Union, List
 
 import numpy as np
 import PIL
@@ -20,7 +18,7 @@ from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, C
     RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
     PairRandomHorizontalFlip, Clamp, UniformNoise
 
-from .tools import find_files_recurse, load_aflow, ImageDB, find_files
+from .tools import find_files_recurse, load_aflow
 
 from .. import RND_SEED
 
@@ -40,21 +38,17 @@ class ImagePairDataset(VisionDataset):
         super(ImagePairDataset, self).__init__(root, transforms=transforms)
         self.aflow_loader = aflow_loader
         self.image_loader = image_loader
-
-        dbfile = os.path.join(self.root, 'dataset_all.sqlite')
-        self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
         self.samples = self._load_samples()
 
     def __getitem__(self, idx):
-        (img1_pth, img2_pth), aflow_pth, *idxs = self.samples[idx]
+        (img1_pth, img2_pth), aflow_pth = self.samples[idx]
 
         try:
             img1 = self.image_loader(img1_pth)
             img2 = self.image_loader(img2_pth)
             aflow = self.aflow_loader(aflow_pth, img1.size, img2.size)
 
-            if self.index is not None and len(idxs) > 0:
-                (img1, img2), aflow = self._regularization(idxs, (img1, img2), aflow)
+            (img1, img2), aflow = self.preprocess(idx, (img1, img2), aflow)
 
             if self.transforms is not None:
                 (img1, img2), aflow = self.transforms((img1, img2), aflow)
@@ -69,24 +63,10 @@ class ImagePairDataset(VisionDataset):
         return len(self.samples)
 
     def _load_samples(self):
-        index = dict(self.index.get_all(('id', 'file')))
-        aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png', relative=True)
+        raise NotImplemented()
 
-        get_id = lambda f, i: int(f.split('.')[0].split('_')[i])
-        imgs = [(os.path.join(self.root, index[get_id(f, 0)]), os.path.join(self.root, index[get_id(f, 1)]))
-                for f in aflow]
-        idxs = [(get_id(f, 0), get_id(f, 1)) for f in aflow]
-
-        samples = zip(imgs, aflow, idxs)
-        return samples
-
-    def _regularization(self, idxs, imgs, aflow):
-        i, j = idxs
-        img1, img2 = imgs
-
-        # TODO: query self.index for relevant params, transform img1, img2 accordingly
-
-        return (img1, img2), aflow
+    def preprocess(self, idx, imgs, aflow):
+        return imgs, aflow
 
 
 class PairIndexFileLoader:
@@ -173,10 +153,9 @@ class SynthesizedPairDataset(VisionDataset):
         fv = np.nan
         self.warping_transforms = tr.Compose([
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
-            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
-                             min_size=min_size, fill_value=fv),
-#            PhotometricTransform(UniformNoise(ampl=25), single=True),
-#            RandomTiltWrapper(magnitude=0.5),
+#            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
+#                             min_size=min_size, fill_value=fv),        # TODO: uncomment
+            RandomTiltWrapper(magnitude=0.5),                           # TODO: comment
         ])
 
         self.image_loader = image_loader
@@ -187,6 +166,7 @@ class SynthesizedPairDataset(VisionDataset):
 
         try:
             img1 = self.image_loader(img_pth)
+            mask = self.valid_area(img1)
 
             eval = getattr(self, 'eval', False)
             if eval:
@@ -195,6 +175,9 @@ class SynthesizedPairDataset(VisionDataset):
             else:
                 img2, aflow = self.warping_transforms(img1)
 
+            aflow = aflow.reshape((-1, 2))
+            aflow[np.logical_not(mask).flatten(), :] = np.nan
+            aflow = aflow.reshape((*mask.shape, 2))
             if self.transforms is not None:
                 (img1, img2), aflow = self.transforms((img1, img2), aflow)
 
@@ -203,6 +186,9 @@ class SynthesizedPairDataset(VisionDataset):
                                        (self.__class__, idx, self.samples[idx],)) from e
 
         return (img1, img2), aflow
+
+    def valid_area(self, img):
+        return np.ones(np.flip(img.size), dtype=bool)
 
     def __len__(self):
         return len(self.samples)
@@ -215,7 +201,7 @@ class AugmentedPairDatasetMixin:
     TR_NORM_RGB = tr.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     TR_NORM_MONO = tr.Normalize(mean=[0.449], std=[0.226])
 
-    def __init__(self, noise_max=0.25, rnd_gain=(0.5, 3), image_size=512, max_sc=2**(1/4), blind_crop=False,
+    def __init__(self, noise_max=0.1, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4), blind_crop=False,
                  resize_max_size=1024, resize_max_sc=2.0, eval=False, rgb=False):
         self.noise_max = noise_max
         self.rnd_gain = rnd_gain if isinstance(rnd_gain, (tuple, list)) else (1 / rnd_gain, rnd_gain)
@@ -234,13 +220,13 @@ class AugmentedPairDatasetMixin:
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
             PairRandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
             PairRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
-            PairRandomHorizontalFlip(),
+            # PairRandomHorizontalFlip(),       # TODO: uncomment
             GeneralTransform(tr.ToTensor()),
-#            PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.3, 3)),
-            PhotometricTransform(UniformNoise(0.1)),
+            PhotometricTransform(UniformNoise(self.noise_max), skip_1st=True),    # TODO: comment
+            # PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.008, 3)),  # TODO: uncomment
             # TODO: config access to all color jitter params, NOTE: 0.1 hue jitter might remove rgb vs gray advantage
-            PhotometricTransform(tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1))
-                if self.rgb else PhotometricTransform(RandomExposure(*self.rnd_gain)),
+            PhotometricTransform(tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1), skip_1st=True)
+                if self.rgb else PhotometricTransform(RandomExposure(*self.rnd_gain), skip_1st=True),
             PhotometricTransform(Clamp(0, 1)),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
@@ -286,8 +272,8 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                 tr.RandomCrop(self.image_size),
                 tr.ToTensor(),
                 tr.RandomHorizontalFlip(),
-                PhotometricTransform(UniformNoise(0.1)),
-#                RandomDarkNoise(0, self.noise_max, 0.3, 3),
+                # PhotometricTransform(UniformNoise(0.1)),
+                RandomDarkNoise(0, self.noise_max, 0.008, 3),
                 # TODO: config access to all color jitter params
                 tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1)
                     if self.rgb else RandomExposure(*self.rnd_gain),
