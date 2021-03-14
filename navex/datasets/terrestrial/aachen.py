@@ -16,8 +16,6 @@ class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, Augmented
     def __init__(self, root='data', folder='aachen', noise_max=0.1, rnd_gain=(0.5, 2), image_size=512,
                  max_sc=2 ** (1 / 4), eval=False, rgb=False, npy=False):
 
-        noise_max = 0   # TODO: remove
-
         root = os.path.join(root, folder)
         AachenPairs_OpticalFlow.__init__(self, root, rgb=rgb, npy=npy)
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,

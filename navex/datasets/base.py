@@ -153,9 +153,9 @@ class SynthesizedPairDataset(VisionDataset):
         fv = np.nan
         self.warping_transforms = tr.Compose([
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
-#            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
-#                             min_size=min_size, fill_value=fv),        # TODO: uncomment
-            RandomTiltWrapper(magnitude=0.5),                           # TODO: comment
+            RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
+                             min_size=min_size, fill_value=fv),
+#            RandomTiltWrapper(magnitude=0.5),
         ])
 
         self.image_loader = image_loader
@@ -220,7 +220,7 @@ class AugmentedPairDatasetMixin:
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
             PairRandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
             PairRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
-            # PairRandomHorizontalFlip(),       # TODO: uncomment
+            PairRandomHorizontalFlip(),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(UniformNoise(self.noise_max), skip_1st=True),    # TODO: comment
             # PhotometricTransform(RandomDarkNoise(0, self.noise_max, 0.008, 3)),  # TODO: uncomment

@@ -386,6 +386,11 @@ optimizer:
 data:
   __group__: 1
 
+  max_sc:
+    alt: ['--max-sc']
+    type: float
+    help: "maximum scale difference between training images"
+
   max_rot:
     alt: ['--max-rot']
     type: float
