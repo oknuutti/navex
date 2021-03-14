@@ -94,13 +94,13 @@ class TerrestrialTrial(TrialBase):
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})
 
             ds = []
-            if 0:
+            if 1:
                 ds.append(AachenFlowPairDataset(self.data_conf['path'], **common, **dconf))
-            if 0:
+            if 1:
                 ds.append(WebImageSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
             if 1:
                 ds.append(AachenStyleTransferPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
-            if 0:
+            if 1:
                 ds.append(AachenSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
 
             fullset = AugmentedConcatDataset(ds)
