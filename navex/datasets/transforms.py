@@ -270,7 +270,7 @@ class PairRandomCrop:
                 "sc1: %s, sc2: %s, curr_sc: %s, trg_sc: %s"
                 ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
 
-        if debug:
+        if debug or 1:
             show_pair(c_img1, c_img2, c_aflow, pts=8)
             min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
             max_i, max_j = np.nanmax(c_aflow, axis=(0, 1))
@@ -354,12 +354,13 @@ class RandomHomography:
         H = He.dot(Ha).dot(Hp)
         return H
 
-    def __call__(self, img):
+    def __call__(self, img, aflow=None):
         # from https://stackoverflow.com/questions/16682965/how-to-generaterandomtransform-with-opencv
-        #  - NOTE: not certain if actually correct
         w, h = img.size
-        aflow_shape = (h, w, 2)
-        uh_aflow = np.concatenate((unit_aflow(w, h), np.ones((*aflow_shape[:2], 1), dtype=np.float32)), axis=2)
+        if aflow is None:
+            aflow = unit_aflow(w, h)
+        aflow_shape = aflow.shape
+        uh_aflow = np.concatenate((aflow, np.ones((*aflow_shape[:2], 1), dtype=np.float32)), axis=2)
 
         ok = False
         bad_h = 0
@@ -410,10 +411,17 @@ class RandomHomography:
             w_aflow = (w_aflow - np.array((x0, y0), dtype=w_aflow.dtype)).reshape((-1, 2))
             w_aflow[np.any(w_aflow < 0, axis=1), :] = np.nan
             w_aflow[np.logical_or(w_aflow[:, 0] > img_arr.shape[1] - 1, w_aflow[:, 1] > img_arr.shape[0] - 1), :] = np.nan
-            w_aflow = w_aflow.reshape((h, w, 2))
+            w_aflow = w_aflow.reshape(aflow_shape)
 
         w_img = PIL.Image.fromarray(img_arr.astype(np.uint8))
         return w_img if self.image_only else (w_img, w_aflow)
+
+
+class RandomHomography2(RandomHomography):
+    def __call__(self, imgs, aflow):
+        img1, img2 = imgs
+        img2, aflow = super(RandomHomography2, self).__call__(img2, aflow=aflow)
+        return (img1, img2), aflow
 
 
 class RandomTiltWrapper(RandomTilt):

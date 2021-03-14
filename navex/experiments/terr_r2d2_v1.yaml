@@ -90,7 +90,7 @@ data:
   max_sc:  !h_float 1.091    # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
   max_rot: !h_float 0.0      # in degrees, synth pair warp related
   max_shear: !h_float 0.0    # synth pair warp related
-  max_proj: !h_float 0.5     # synth pair warp related
+  max_proj: !h_float 0.6     # synth pair warp related
   noise_max: !h_float 0.1    # 0.02 => 0.75 when changed gain from 0.3 => 0.008; now 0.1 is similar to uniform ampl=0.1
   rnd_gain: !h_float 1.2
   image_size: !h_int 224

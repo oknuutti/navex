@@ -9,7 +9,7 @@ from navex.datasets.base import ImagePairDataset, DataLoadingException, Augmente
     SynthesizedPairDataset, \
     BasicDataset, RandomSeed
 from navex.datasets.tools import find_files, unit_aflow
-from navex.datasets.transforms import RandomTiltWrapper2
+from navex.datasets.transforms import RandomTiltWrapper2, RandomHomography2
 
 
 class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedPairDatasetMixin):
@@ -40,15 +40,18 @@ class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, Augmented
 
 
 class AachenStyleTransferPairDataset(ImagePairDataset, AugmentedPairDatasetMixin):
-    def __init__(self, root='data', folder='aachen', noise_max=0.1, rnd_gain=(0.5, 2), image_size=512,
-                 max_sc=1.0, eval=False, rgb=False, npy=False):
+    def __init__(self, root='data', folder='aachen', noise_max=0.1, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/8),
+                 max_tr=0, max_rot=math.radians(8), max_shear=0.2, max_proj=0.4, eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                            max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)
 
         ImagePairDataset.__init__(self, os.path.join(root, folder), self.identity_aflow, transforms=self.transforms)
-        self.pre_transf = RandomTiltWrapper2(magnitude=0.5)
+
+        # self.pre_transf = RandomTiltWrapper2(magnitude=0.5)
+        self.pre_transf = RandomHomography2(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
+                                            min_size=image_size//2)
         self.npy = npy
 
     def preprocess(self, idx, imgs, aflow):
