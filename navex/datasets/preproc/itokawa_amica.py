@@ -1,3 +1,4 @@
+import math
 import os
 import gzip
 import shutil
@@ -6,9 +7,12 @@ import logging
 
 from tqdm import tqdm
 import numpy as np
+import quaternion
 
-from navex.datasets.preproc.tools import read_raw_img, write_data, safe_split, create_image_pairs, check_img
-from navex.datasets.tools import ImageDB, find_files
+from navex.datasets.preproc.tools import read_raw_img, write_data, safe_split, create_image_pairs, check_img, \
+    relative_pose
+from navex.datasets.tools import ImageDB, find_files, Camera, q_times_v, angle_between_v, spherical2cartesian, eul_to_q, \
+    plot_vectors
 
 
 def raw_itokawa():
@@ -42,6 +46,12 @@ def raw_itokawa():
     parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
+    cam = Camera(resolution=(1024, 1024), center=(511.5, 511.5), pixel_size=1.2e-5, focal_length=0.1208, f_num=8.0)
+    north_ra, north_dec = math.radians(90.53), math.radians(-66.30)
+    ref_north_v = spherical2cartesian(north_dec, north_ra, 1)
+#    meta2icrf_q = quaternion.one
+#    meta2icrf_q = eul_to_q((-np.pi/2,), 'y')
+#    meta2icrf_q = eul_to_q((np.pi, -np.pi/2), 'yz')
 
     logging.basicConfig(level=logging.INFO)
 
@@ -53,6 +63,7 @@ def raw_itokawa():
 
         files = find_files(args.src, ext='.lbl', relative=True)
         rows = []
+        # north = []
         pbar, n_ok, tot = tqdm(files), 0, 0
         for i, fname in enumerate(pbar):
             path = os.path.join(args.src, fname[:-4])
@@ -62,10 +73,30 @@ def raw_itokawa():
                     shutil.copyfileobj(fh_in, fh_out)
 
             img, data, metadata, metastr = read_itokawa_img(path + '.lbl')
+            # if metadata['sc_ori']:
+            #     metadata['sc_ori'] = metadata['sc_ori'] * meta2icrf_q
+
+            cam_sc_trg_pos, cam_sc_trg_ori = relative_pose(data[:, :, :3], cam)
+            for _ in range(2):
+                sc_ori = metadata['sc_ori'] or quaternion.one
+                sc_trg_pos = q_times_v(sc_ori, cam_sc_trg_pos)     # to icrf
+                trg_ori = sc_ori * cam_sc_trg_ori  # TODO: verify, how?
+                est_north_v = q_times_v(trg_ori, np.array([0, 0, 1]))
+                rot_axis_err = math.degrees(angle_between_v(est_north_v, ref_north_v))
+                if rot_axis_err > 15 and False:
+                    # idea is to check if have erroneous sc_ori from image metadata
+                    # TODO: fix rotations, now the north pole vector rotates slowly around the x-axis
+                    #  - However, there's currently no impact from bad sc_ori as the relative orientation
+                    #    is used for image rotation
+                    metadata['sc_ori'] = None
+                else:
+                    # north.append(est_north_v)
+                    break
 
             ok = check_img(img, fg_q=150, sat_lo_q=0.995)
             rand = np.random.uniform(0, 1) if ok else -1
-            rows.append((i, fname[:-4] + '.png', rand) + safe_split(metadata['sc_ori'], True))
+            rows.append((i, fname[:-4] + '.png', rand) + safe_split(metadata['sc_ori'], True)
+                        + safe_split(sc_trg_pos, False) + safe_split(trg_ori, True))
 
             if ok or args.debug:
                 write_data(os.path.join(args.dst, fname[:-4]) + ('' if ok else ' - FAILED'), img, data, metastr)
@@ -76,8 +107,10 @@ def raw_itokawa():
             n_ok += 1 if ok else 0
             pbar.set_postfix({'images ok': '%.1f%%' % (100 * n_ok/tot)}, refresh=False)
 
+        # plot_vectors(np.stack(north))
         index = ImageDB(index_path, truncate=True)
-        index.add(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz'), rows)
+        index.add(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
+                   'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'), rows)
     else:
         index = ImageDB(index_path)
 

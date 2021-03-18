@@ -240,7 +240,7 @@ def calc_aflow(xyzs0, xyzs1):
     h0, w0 = xyzs0.shape[:2]
     h1, w1 = xyzs1.shape[:2]
 
-    img_xy1 = unit_aflow(h1, w1)
+    img_xy1 = unit_aflow(w1, h1)
     img_xy1 = (img_xy1[:, :, 0] + 1j * img_xy1[:, :, 1]).flatten().astype(np.complex64)
 
     # prepare x, doesnt support nans
@@ -253,6 +253,21 @@ def calc_aflow(xyzs0, xyzs1):
     aflow = np.stack((np.real(aflow[:, :]), np.imag(aflow[:, :])), axis=2).astype(np.float32)
 
     return aflow
+
+
+def relative_pose(trg_xyz, cam):
+    h, w, _ = trg_xyz.shape
+    trg_xyz = trg_xyz.reshape((-1, 3))
+    I = np.where(np.logical_not(np.isnan(trg_xyz[:, 0])))[0]
+    I = I[np.linspace(0, len(I), 100, endpoint=False).astype(int)]
+    grid = unit_aflow(w, h).reshape((-1, 2))
+
+    # opencv cam frame: axis +z, up -y
+    ok, rvec, tvec = cv2.solvePnP(trg_xyz[I, :], grid[I, :], cam.matrix, cam.dist_coefs)
+
+    sc_trg_ori = quaternion.from_rotation_vector(rvec.flatten())
+    sc_trg_pos = tvec.flatten()
+    return sc_trg_pos, sc_trg_ori
 
 
 def show_all_pairs(aflow_path, img_path, image_db):

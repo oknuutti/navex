@@ -2,7 +2,7 @@ import math
 import os
 import random
 import sqlite3
-from typing import Tuple, Union, List
+from typing import Tuple, Union, List, Iterable
 
 import numpy as np
 import quaternion
@@ -52,8 +52,9 @@ def save_aflow(fname, aflow):
     cv2.imwrite(fname, aflow_int, (cv2.IMWRITE_PNG_COMPRESSION, 9))
 
 
-def load_aflow(fname):
+def load_aflow(fname, img1_size=None, img2_size=None):
     aflow = cv2.imread(fname, cv2.IMREAD_UNCHANGED).astype(np.float32)
+    aflow = aflow[:, :, :2]
     aflow[np.isclose(aflow, 2**16 - 1)] = np.nan
     return aflow / 8
 
@@ -86,6 +87,19 @@ def ypr_to_q(dec, ra, cna):
     )
 
 
+def eul_to_q(angles, order='xyz', reverse=False):
+    assert len(angles) == len(order), 'len(angles) != len(order)'
+    q = quaternion.one
+    idx = {'x': 0, 'y': 1, 'z': 2}
+    for angle, axis in zip(angles, order):
+        w = math.cos(angle / 2)
+        v = [0, 0, 0]
+        v[idx[axis]] = math.sin(angle / 2)
+        dq = np.quaternion(w, *v)
+        q = (dq * q) if reverse else (q * dq)
+    return q
+
+
 def q_times_v(q, v):
     qv = np.quaternion(0, *v)
     qv2 = q * qv * q.conj()
@@ -101,6 +115,45 @@ def spherical2cartesian(lat, lon, r):
     return np.array([x, y, z])
 
 
+def cartesian2spherical(x, y, z):
+    r = math.sqrt(x ** 2 + y ** 2 + z ** 2)
+    theta = math.acos(z / r)
+    phi = math.atan2(y, x)
+    lat = math.pi / 2 - theta
+    lon = phi
+    return np.array([lat, lon, r])
+
+
+def plot_vectors(pts3d, scatter=True, conseq=True, neg_z=True):
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+
+    fig = plt.figure()
+    ax = Axes3D(fig)
+
+    if scatter:
+        ax.scatter(pts3d[:, 0], pts3d[:, 1], pts3d[:, 2])
+    else:
+        if conseq:
+            ax.set_prop_cycle('color', map(lambda c: '%f' % c, np.linspace(1, 0, len(pts3d))))
+        for i, v1 in enumerate(pts3d):
+            if v1 is not None:
+                ax.plot((0, v1[0]), (0, v1[1]), (0, v1[2]))
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
+    ax.set_zlim(-1, 1)
+
+    if neg_z:
+        ax.view_init(90, -90)
+    else:
+        ax.view_init(-90, -90)
+    plt.show()
+
+
 def vector_projection(a, b):
     return a.dot(b) / b.dot(b) * b
 
@@ -109,21 +162,48 @@ def vector_rejection(a, b):
     return a - vector_projection(a, b)
 
 
-def angle_between_v(v1, v2):
-    # Notice: only returns angles between 0 and 180 deg
+def angle_between_v(v1, v2, direction=False):
+    # Notice: only returns angles between 0 and 180 deg if direction == False
 
     try:
-        v1 = np.reshape(v1, (1, -1))
-        v2 = np.reshape(v2, (-1, 1))
+        v1 = v1.flatten()
+        v2 = v2.flatten()
 
         n1 = v1 / np.linalg.norm(v1)
         n2 = v2 / np.linalg.norm(v2)
 
-        cos_angle = n1.dot(n2)
+        if direction is not False:
+            c = np.cross(n1, n2)
+            d = c.dot(direction)
+            s_angle = np.linalg.norm(c) * (-1 if d < 0 else 1)
+        else:
+            s_angle = n1.dot(n2)
     except TypeError as e:
         raise Exception('Bad vectors:\n\tv1: %s\n\tv2: %s' % (v1, v2)) from e
 
-    return math.acos(np.clip(cos_angle, -1, 1))
+    return (math.asin if direction is not False else math.acos)(np.clip(s_angle, -1, 1))
+
+
+class Camera:
+    def __init__(self, matrix=None, resolution=None, pixel_size=None, focal_length=None,
+                 center=None, f_num=None, dist_coefs=None):
+        self.resolution = resolution
+        self.pixel_size = pixel_size
+        self.focal_length = focal_length
+        self.center = center
+        self.f_num = f_num
+        self.matrix = matrix
+        self.dist_coefs = dist_coefs
+        if self.matrix is None:
+            # camera borehole +z axis, up -y axis
+            cx, cy = (resolution[0] / 2, resolution[1] / 2) if center is None else center
+            fl_w, fl_h = focal_length if isinstance(focal_length, Iterable) else [focal_length] * 2
+            fl_w, fl_h = fl_w/pixel_size, fl_h/pixel_size
+            self.matrix = np.array([[fl_w, 0, cx],
+                                    [0, fl_h, cy],
+                                    [0, 0, 1]], dtype=float)
+        if self.dist_coefs is None:
+            self.dist_coefs = np.array([0, 0, 0, 0])
 
 
 class ImageDB:
@@ -184,10 +264,10 @@ class ImageDB:
             for i in range(len(values)):
                 values[i] = values[i] + (random.uniform(0, 1),)
 
-        self._cursor.execute(
-            "INSERT INTO images (" + ','.join(fields) + ") VALUES " +
-            ",".join([("('" + "','".join([str(v) for v in row]) + "')") for row in values])
-        )
+        query = ("INSERT INTO images (" + ','.join(fields) + ") VALUES " +
+                 ",".join([("(" + ",".join([('null' if v is None else ("'%s'" % v)) for v in row]) + ")")
+                 for row in values]))
+        self._cursor.execute(query)
         self._conn.commit()
 
     def delete(self, id):
@@ -205,7 +285,8 @@ class ImageDB:
 
         self._cursor.execute(
             "INSERT INTO images (" + ','.join(fields) + ") VALUES " +
-            ",".join([("('" + "','".join([str(v) for v in row]) + "')") for row in values]) +
+            ",".join([("(" + ",".join(['null' if v is None else ("'%s'" % str(v)) for v in row]) + ")")
+                      for row in values]) +
             "ON CONFLICT(id) DO UPDATE SET " +
             ",\n".join(['%s = excluded.%s' % (f, f) for f in fields if f not in ('id', 'rand')])
         )
@@ -218,10 +299,11 @@ class ImageDB:
         return row
 
     def get_all(self, fields: Union[Tuple[str, ...], List[str]],
-                cond: str = None, start: float = 0, end: float = 1) -> List[Tuple]:
-        r = self._cursor.execute(
-            "SELECT " + ','.join(fields) +
-            " FROM images WHERE rand >= %f AND rand < %f%s" % (start, end, '' if cond is None else ' AND %s' % cond))
+                cond: str = None, start: float = 0, end: float = 1, ordered=True) -> List[Tuple]:
+        query = ("SELECT " + ','.join(fields) +
+                " FROM images WHERE rand >= %f AND rand < %f%s" % (start, end, '' if cond is None else ' AND %s' % cond) +
+                (" ORDER BY rand" if ordered else ""))
+        r = self._cursor.execute(query)
         rows = r.fetchall()
         return rows
 

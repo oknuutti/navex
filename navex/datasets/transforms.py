@@ -132,17 +132,18 @@ class PairRandomHorizontalFlip:
 
 class PairRandomCrop:
     def __init__(self, shape, random=True, max_sc_diff=None, random_sc_diff=True, fill_value=None,
-                 blind_crop=False, interp_method=PIL.Image.BILINEAR):
+                 margin=16, blind_crop=False, interp_method=PIL.Image.BILINEAR):
         self.shape = (shape, shape) if isinstance(shape, int) else shape       # yx i.e. similar to aflow.shape
         self.random = random
         self.max_sc_diff = max_sc_diff
         self.random_sc_diff = random_sc_diff
         self.fill_value = 0 if fill_value is None else (np.array(fill_value) * 255).reshape((1, 1, -1)).astype('uint8')
+        self.margin = margin
         self.blind_crop = blind_crop  # don't try to validate cropping location, good for certain datasets
         self.interp_method = interp_method
 
     def most_ok_in_window(self, mask, sc=4):
-        n, m = np.array(self.shape) // sc
+        n, m = (np.array(self.shape) - self.margin * 2) // sc
         c = 1 / m / n
         mask_sc = cv2.resize(mask.astype(np.float32), None, fx=1/sc, fy=1/sc, interpolation=cv2.INTER_AREA)
 
@@ -157,8 +158,8 @@ class PairRandomCrop:
         rnd_idx = np.argmax(a > np.random.uniform(0, a[-1]))
         bst_idx = np.argmax(res.flatten())
 
-        rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc
-        bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc
+        rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc + self.margin
+        bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc + self.margin
         return bst_idxs, rnd_idxs
 
     def __call__(self, imgs, aflow, debug=False):
@@ -270,7 +271,7 @@ class PairRandomCrop:
                 "sc1: %s, sc2: %s, curr_sc: %s, trg_sc: %s"
                 ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
 
-        if debug:
+        if debug or 0:
             show_pair(c_img1, c_img2, c_aflow, pts=8)
             min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
             max_i, max_j = np.nanmax(c_aflow, axis=(0, 1))
@@ -303,8 +304,8 @@ class PairRandomCrop:
 
 
 class PairCenterCrop(PairRandomCrop):
-    def __init__(self, shape, max_sc_diff=None, fill_value=None, blind_crop=False):
-        super(PairCenterCrop, self).__init__(shape, random=0, max_sc_diff=max_sc_diff,
+    def __init__(self, shape, margin, max_sc_diff=None, fill_value=None, blind_crop=False):
+        super(PairCenterCrop, self).__init__(shape, random=0, margin=margin, max_sc_diff=max_sc_diff,
                                              random_sc_diff=False, blind_crop=blind_crop, fill_value=fill_value)
 
     def __call__(self, imgs, aflow):

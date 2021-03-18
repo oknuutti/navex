@@ -4,131 +4,135 @@ from typing import Callable, List, Optional
 from torch import nn, Tensor
 import torch.nn.functional as F
 
-from torchvision.models.mobilenet import _make_divisible
-
 from .base import BasePoint, initialize_weights
 
 
-# from torchvision.models.mobilenetv3 import InvertedResidual, InvertedResidualConfig, SqueezeExcitation
-# - as of 2021-02-02, not yet available through conda channel (part of version 0.9, only 0.82 available)
-# - copied from
-#   - https://github.com/pytorch/vision/blob/master/torchvision/models/mobilenetv2.py
-#   - https://github.com/pytorch/vision/blob/master/torchvision/models/mobilenetv3.py
-# =>
+try:
+    from torchvision.models.mobilenetv3 import InvertedResidual, InvertedResidualConfig, SqueezeExcitation
 
-class ConvBNActivation(nn.Sequential):
-    def __init__(
-        self,
-        in_planes: int,
-        out_planes: int,
-        kernel_size: int = 3,
-        stride: int = 1,
-        groups: int = 1,
-        norm_layer: Optional[Callable[..., nn.Module]] = None,
-        activation_layer: Optional[Callable[..., nn.Module]] = None,
-        dilation: int = 1,
-    ) -> None:
-        padding = (kernel_size - 1) // 2 * dilation
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
-        if activation_layer is None:
-            activation_layer = nn.ReLU6
+except:
+    from torchvision.models.mobilenet import _make_divisible
+    
+    # from torchvision.models.mobilenetv3 import InvertedResidual, InvertedResidualConfig, SqueezeExcitation
+    # - as of 2021-02-02, not yet available through conda channel (part of version 0.9, only 0.82 available)
+    # - copied from
+    #   - https://github.com/pytorch/vision/blob/master/torchvision/models/mobilenetv2.py
+    #   - https://github.com/pytorch/vision/blob/master/torchvision/models/mobilenetv3.py
+    # =>
 
-        if False and kernel_size == 5:
-            # This part was modified as I wanted to test what the impact would be of splitting 5x5 conv to two 3x3 convs
-            conv_layer = nn.Sequential(
-                nn.Conv2d(in_planes, in_planes,  3, stride, 1, dilation=dilation, groups=groups, bias=False),
-                nn.Conv2d(in_planes, out_planes, 3,      1, 1, dilation=dilation, groups=groups, bias=False),
-            )
-        else:
-            conv_layer = nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding,
-                                   dilation=dilation, groups=groups, bias=False)
+    class ConvBNActivation(nn.Sequential):
+        def __init__(
+            self,
+            in_planes: int,
+            out_planes: int,
+            kernel_size: int = 3,
+            stride: int = 1,
+            groups: int = 1,
+            norm_layer: Optional[Callable[..., nn.Module]] = None,
+            activation_layer: Optional[Callable[..., nn.Module]] = None,
+            dilation: int = 1,
+        ) -> None:
+            padding = (kernel_size - 1) // 2 * dilation
+            if norm_layer is None:
+                norm_layer = nn.BatchNorm2d
+            if activation_layer is None:
+                activation_layer = nn.ReLU6
 
-        super(ConvBNActivation, self).__init__(conv_layer, norm_layer(out_planes), activation_layer(inplace=True))
-        self.out_channels = out_planes
+            if False and kernel_size == 5:
+                # This part was modified as I wanted to test what the impact would be of splitting 5x5 conv to two 3x3 convs
+                conv_layer = nn.Sequential(
+                    nn.Conv2d(in_planes, in_planes,  3, stride, 1, dilation=dilation, groups=groups, bias=False),
+                    nn.Conv2d(in_planes, out_planes, 3,      1, 1, dilation=dilation, groups=groups, bias=False),
+                )
+            else:
+                conv_layer = nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding,
+                                       dilation=dilation, groups=groups, bias=False)
 
-
-class SqueezeExcitation(nn.Module):
-
-    def __init__(self, input_channels: int, squeeze_factor: int = 4):
-        super().__init__()
-        squeeze_channels = _make_divisible(input_channels // squeeze_factor, 8)
-        self.fc1 = nn.Conv2d(input_channels, squeeze_channels, 1)
-        self.relu = nn.ReLU(inplace=True)
-        self.fc2 = nn.Conv2d(squeeze_channels, input_channels, 1)
-
-    def _scale(self, input: Tensor, inplace: bool) -> Tensor:
-        scale = F.adaptive_avg_pool2d(input, 1)
-        scale = self.fc1(scale)
-        scale = self.relu(scale)
-        scale = self.fc2(scale)
-        return F.hardsigmoid(scale, inplace=inplace)
-
-    def forward(self, input: Tensor) -> Tensor:
-        scale = self._scale(input, True)
-        return scale * input
+            super(ConvBNActivation, self).__init__(conv_layer, norm_layer(out_planes), activation_layer(inplace=True))
+            self.out_channels = out_planes
 
 
-class InvertedResidualConfig:
+    class SqueezeExcitation(nn.Module):
 
-    def __init__(self, input_channels: int, kernel: int, expanded_channels: int, out_channels: int, use_se: bool,
-                 activation: str, stride: int, dilation: int, width_mult: float):
-        self.input_channels = self.adjust_channels(input_channels, width_mult)
-        self.kernel = kernel
-        self.expanded_channels = self.adjust_channels(expanded_channels, width_mult)
-        self.out_channels = self.adjust_channels(out_channels, width_mult)
-        self.use_se = use_se
-        self.use_hs = activation == "HS"
-        self.stride = stride
-        self.dilation = dilation
+        def __init__(self, input_channels: int, squeeze_factor: int = 4):
+            super().__init__()
+            squeeze_channels = _make_divisible(input_channels // squeeze_factor, 8)
+            self.fc1 = nn.Conv2d(input_channels, squeeze_channels, 1)
+            self.relu = nn.ReLU(inplace=True)
+            self.fc2 = nn.Conv2d(squeeze_channels, input_channels, 1)
 
-    @staticmethod
-    def adjust_channels(channels: int, width_mult: float):
-        return _make_divisible(channels * width_mult, 8)
+        def _scale(self, input: Tensor, inplace: bool) -> Tensor:
+            scale = F.adaptive_avg_pool2d(input, 1)
+            scale = self.fc1(scale)
+            scale = self.relu(scale)
+            scale = self.fc2(scale)
+            return F.hardsigmoid(scale, inplace=inplace)
+
+        def forward(self, input: Tensor) -> Tensor:
+            scale = self._scale(input, True)
+            return scale * input
 
 
-class InvertedResidual(nn.Module):
+    class InvertedResidualConfig:
 
-    def __init__(self, cnf: InvertedResidualConfig, norm_layer: Callable[..., nn.Module],
-                 se_layer: Callable[..., nn.Module] = SqueezeExcitation):
-        super().__init__()
-        if not (1 <= cnf.stride <= 2):
-            raise ValueError('illegal stride value')
+        def __init__(self, input_channels: int, kernel: int, expanded_channels: int, out_channels: int, use_se: bool,
+                     activation: str, stride: int, dilation: int, width_mult: float):
+            self.input_channels = self.adjust_channels(input_channels, width_mult)
+            self.kernel = kernel
+            self.expanded_channels = self.adjust_channels(expanded_channels, width_mult)
+            self.out_channels = self.adjust_channels(out_channels, width_mult)
+            self.use_se = use_se
+            self.use_hs = activation == "HS"
+            self.stride = stride
+            self.dilation = dilation
 
-        self.use_res_connect = cnf.stride == 1 and cnf.input_channels == cnf.out_channels
+        @staticmethod
+        def adjust_channels(channels: int, width_mult: float):
+            return _make_divisible(channels * width_mult, 8)
 
-        layers: List[nn.Module] = []
-        activation_layer = nn.Hardswish if cnf.use_hs else nn.ReLU
 
-        # expand
-        if cnf.expanded_channels != cnf.input_channels:
-            layers.append(ConvBNActivation(cnf.input_channels, cnf.expanded_channels, kernel_size=1,
+    class InvertedResidual(nn.Module):
+
+        def __init__(self, cnf: InvertedResidualConfig, norm_layer: Callable[..., nn.Module],
+                     se_layer: Callable[..., nn.Module] = SqueezeExcitation):
+            super().__init__()
+            if not (1 <= cnf.stride <= 2):
+                raise ValueError('illegal stride value')
+
+            self.use_res_connect = cnf.stride == 1 and cnf.input_channels == cnf.out_channels
+
+            layers: List[nn.Module] = []
+            activation_layer = nn.Hardswish if cnf.use_hs else nn.ReLU
+
+            # expand
+            if cnf.expanded_channels != cnf.input_channels:
+                layers.append(ConvBNActivation(cnf.input_channels, cnf.expanded_channels, kernel_size=1,
+                                               norm_layer=norm_layer, activation_layer=activation_layer))
+
+            # depthwise
+            stride = 1 if cnf.dilation > 1 else cnf.stride
+            layers.append(ConvBNActivation(cnf.expanded_channels, cnf.expanded_channels, kernel_size=cnf.kernel,
+                                           stride=stride, dilation=cnf.dilation, groups=cnf.expanded_channels,
                                            norm_layer=norm_layer, activation_layer=activation_layer))
+            if cnf.use_se:
+                layers.append(se_layer(cnf.expanded_channels))
 
-        # depthwise
-        stride = 1 if cnf.dilation > 1 else cnf.stride
-        layers.append(ConvBNActivation(cnf.expanded_channels, cnf.expanded_channels, kernel_size=cnf.kernel,
-                                       stride=stride, dilation=cnf.dilation, groups=cnf.expanded_channels,
-                                       norm_layer=norm_layer, activation_layer=activation_layer))
-        if cnf.use_se:
-            layers.append(se_layer(cnf.expanded_channels))
+            # project
+            layers.append(ConvBNActivation(cnf.expanded_channels, cnf.out_channels, kernel_size=1, norm_layer=norm_layer,
+                                           activation_layer=nn.Identity))
 
-        # project
-        layers.append(ConvBNActivation(cnf.expanded_channels, cnf.out_channels, kernel_size=1, norm_layer=norm_layer,
-                                       activation_layer=nn.Identity))
+            self.block = nn.Sequential(*layers)
+            self.out_channels = cnf.out_channels
+            self._is_cn = cnf.stride > 1
 
-        self.block = nn.Sequential(*layers)
-        self.out_channels = cnf.out_channels
-        self._is_cn = cnf.stride > 1
+        def forward(self, input: Tensor) -> Tensor:
+            result = self.block(input)
+            if self.use_res_connect:
+                result += input
+            return result
 
-    def forward(self, input: Tensor) -> Tensor:
-        result = self.block(input)
-        if self.use_res_connect:
-            result += input
-        return result
-
-# <=
-# copied part ends
+    # <=
+    # copied part ends
 
 
 class InvertedPartialResidual(InvertedResidual):

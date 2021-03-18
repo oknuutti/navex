@@ -14,12 +14,12 @@ from navex.datasets.transforms import RandomTiltWrapper2, RandomHomography2
 
 class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, AugmentedPairDatasetMixin):
     def __init__(self, root='data', folder='aachen', noise_max=0.1, rnd_gain=(0.5, 2), image_size=512,
-                 max_sc=2 ** (1 / 4), eval=False, rgb=False, npy=False):
+                 max_sc=2 ** (1 / 4), margin=16, eval=False, rgb=False, npy=False):
 
         root = os.path.join(root, folder)
         AachenPairs_OpticalFlow.__init__(self, root, rgb=rgb, npy=npy)
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                           max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=False)
+                                           max_sc=max_sc, margin=margin, eval=eval, rgb=rgb, blind_crop=False)
         ImagePairDataset.__init__(self, root, None, transforms=self.transforms)
 
     def _load_samples(self):
@@ -41,11 +41,12 @@ class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, Augmented
 
 class AachenStyleTransferPairDataset(ImagePairDataset, AugmentedPairDatasetMixin):
     def __init__(self, root='data', folder='aachen', noise_max=0.1, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/8),
-                 max_tr=0, max_rot=math.radians(8), max_shear=0.2, max_proj=0.4, eval=False, rgb=False, npy=False):
+                 max_tr=0, max_rot=math.radians(8), max_shear=0.2, max_proj=0.4, margin=16,
+                 eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                           max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)
+                                           max_sc=max_sc, margin=margin, eval=eval, rgb=rgb, blind_crop=True)
 
         ImagePairDataset.__init__(self, os.path.join(root, folder), self.identity_aflow, transforms=self.transforms)
 
@@ -84,13 +85,13 @@ class AachenStyleTransferPairDataset(ImagePairDataset, AugmentedPairDatasetMixin
 
 class AachenSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin):
     def __init__(self, root='data', folder='aachen', max_tr=0, max_rot=math.radians(8), max_shear=0.2, max_proj=0.4,
-                 noise_max=0.1, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4),
+                 noise_max=0.1, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4), margin=16,
                  eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
         self.npy = npy
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                           max_sc=max_sc, eval=eval, rgb=rgb, blind_crop=True)
+                                           max_sc=max_sc, margin=margin, eval=eval, rgb=rgb, blind_crop=True)
 
         SynthesizedPairDataset.__init__(self, os.path.join(root, folder, 'images_upright', 'db'), max_tr=max_tr,
                                         max_rot=max_rot, max_shear=max_shear, max_proj=max_proj, min_size=image_size//2,

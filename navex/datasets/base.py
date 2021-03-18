@@ -202,7 +202,7 @@ class AugmentedPairDatasetMixin:
     TR_NORM_MONO = tr.Normalize(mean=[0.449], std=[0.226])
 
     def __init__(self, noise_max=0.1, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4), blind_crop=False,
-                 resize_max_size=1024, resize_max_sc=2.0, eval=False, rgb=False):
+                 margin=16, resize_max_size=1024, resize_max_sc=2.0, fill_value=None, eval=False, rgb=False):
         self.noise_max = noise_max
         self.rnd_gain = rnd_gain if isinstance(rnd_gain, (tuple, list)) else (1 / rnd_gain, rnd_gain)
         self.image_size = image_size
@@ -210,16 +210,20 @@ class AugmentedPairDatasetMixin:
         self.blind_crop = blind_crop
         self.eval = eval
         self.rgb = rgb
+        self.margin = margin
         self.resize_max_size = resize_max_size
         self.resize_max_sc = resize_max_sc
-        self.fill_value = AugmentedPairDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedPairDatasetMixin.TR_NORM_MONO.mean
+        self.fill_value = fill_value
+        if fill_value is None:
+            self.fill_value = AugmentedPairDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedPairDatasetMixin.TR_NORM_MONO.mean
         self._init_transf()
 
     def _init_transf(self):
         self._train_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
             PairRandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
-            PairRandomCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
+            PairRandomCrop(self.image_size, margin=self.margin, max_sc_diff=self.max_sc, blind_crop=self.blind_crop,
+                           fill_value=self.fill_value),
             PairRandomHorizontalFlip(),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(UniformNoise(self.noise_max), skip_1st=True),    # TODO: comment
@@ -233,7 +237,8 @@ class AugmentedPairDatasetMixin:
         self._eval_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
             PairScaleToRange(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
-            PairCenterCrop(self.image_size, max_sc_diff=self.max_sc, blind_crop=self.blind_crop, fill_value=self.fill_value),
+            PairCenterCrop(self.image_size, margin=self.margin, max_sc_diff=self.max_sc, blind_crop=self.blind_crop,
+                           fill_value=self.fill_value),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(Clamp(0, 1)),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),

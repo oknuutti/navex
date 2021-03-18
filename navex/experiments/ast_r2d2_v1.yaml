@@ -97,6 +97,6 @@ data:
   path: 'data'
   npy: 'false'
   trn_ratio: 0.85
-  val_ratio: 0.14
-  tst_ratio: 0.01
+  val_ratio: 0.15
+  tst_ratio: 0.00
   workers: 5

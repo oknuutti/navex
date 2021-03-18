@@ -7,31 +7,42 @@ import cv2
 
 from navex.datasets.base import ImagePairDataset, SynthesizedPairDataset
 from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
-    unit_aflow
+    unit_aflow, show_pair
 
 
 class AsteroidImagePairDataset(ImagePairDataset):
-    def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, **kwargs):
+    def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, cam_axis=(1, 0, 0), cam_up=(0, 0, 1), **kwargs):
         self.indices, self.index = None, None
 
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
+        self.cam_axis, self.cam_up = np.array(cam_axis), np.array(cam_up)
         self.trg_north_ra, self.trg_north_dec = trg_north_ra, trg_north_dec
         if self.trg_north_ra is None or self.trg_north_dec is None:
             # fall back on ecliptic north, in equatorial ICRF system:
             self.trg_north_ra, self.trg_north_dec = math.radians(270), math.radians(66.56)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['index']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        dbfile = os.path.join(self.root, 'dataset_all.sqlite')
+        self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
+
     def _load_samples(self):
         dbfile = os.path.join(self.root, 'dataset_all.sqlite')
         self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
 
-        index = dict(self.index.get_all(('id', 'file')))
-        aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png', relative=True)
+        index = dict(self.index.get_all(('id', 'file'), cond='sc_qw IS NOT NULL AND sc_qw <> "None"'))
+        aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png')
 
-        get_id = lambda f, i: int(f.split('.')[0].split('_')[i])
-        imgs = [(os.path.join(self.root, index[get_id(f, 0)]), os.path.join(self.root, index[get_id(f, 1)]))
-                for f in aflow]
+        get_id = lambda f, i: int(f.split(os.path.sep)[-1].split('.')[0].split('_')[i])
+        aflow = [f for f in aflow if get_id(f, 0) in index and get_id(f, 1) in index]
         self.indices = [(get_id(f, 0), get_id(f, 1)) for f in aflow]
+        imgs = [(os.path.join(self.root, index[i]), os.path.join(self.root, index[j])) for i, j in self.indices]
 
         samples = list(zip(imgs, aflow))
         return samples
@@ -53,35 +64,37 @@ class AsteroidImagePairDataset(ImagePairDataset):
         proc_imgs = []
         for i, img in zip(self.indices[idx], imgs):
             # rotate based on sc_q
-            sc_q1 = np.quaternion(*self.index.get(i, ('sc_qw', 'sc_qx', 'sc_qy', 'sc_qz')))
-            sc_north = q_times_v(sc_q1.conj(), north_v)
+            q_arr = self.index.get(i, ('sc_qw', 'sc_qx', 'sc_qy', 'sc_qz'))
+            sc_q = np.quaternion(*q_arr)
+            sc_north = q_times_v(sc_q.conj(), north_v)
 
             # project to image plane
-            img_north = vector_rejection(sc_north, np.array([1, 0, 0]))
+            img_north = vector_rejection(sc_north, self.cam_axis)
 
-            # calculate angle between projected north vector and image up
-            angle = angle_between_v(np.array([0, 0, 1]), img_north)
+            # calculate angle between projected north vector and image up  # TODO: correct sign on angle?
+            angle = -angle_between_v(self.cam_up, img_north, direction=self.cam_axis)
 
             # rotate image based on this angle
-            img = img.rotate(math.degrees(angle), expand=True, fillcolor=(0, 0, 0))
+            img = img.rotate(-math.degrees(angle), expand=True, fillcolor=(0, 0, 0))
             proc_imgs.append((np.array([[math.cos(angle), -math.sin(angle)],
-                                        [math.sin(angle),  math.cos(angle)]]), img))
+                                        [math.sin(angle),  math.cos(angle)]], dtype=np.float32), img))
 
         # rotate aflow content so that points to new rotated img2
-        oh1, ow1 = aflow.shape[:2]
-        r_aflow = aflow.reshape((-1, 2)).dot(proc_imgs[1][0].T).reshape((oh1, ow1, 2))
-        min_xy = np.min(aflow, axis=(0, 1))
-        aflow = r_aflow - min_xy.reshape((1, 1, 2))
+        (ow1, oh1), (ow2, oh2) = imgs[0].size, imgs[1].size
+        (nw1, nh1), (nw2, nh2) = proc_imgs[0][1].size, proc_imgs[1][1].size
+        r_aflow = aflow - np.array([[[ow2/2, oh2/2]]], dtype=np.float32)
+        r_aflow = r_aflow.reshape((-1, 2)).dot(proc_imgs[1][0].T).reshape((oh1, ow1, 2))
+        r_aflow = r_aflow + np.array([[[nw2/2, nh2/2]]], dtype=np.float32)
 
         # rotate aflow indices same way as img1 was rotated
-        ifun = interp.RegularGridInterpolator((np.arange(oh1), np.arange(ow1)), aflow, method="nearest",
-                                              bounds_error=False, fill_value=np.nan)
+        ifun = interp.RegularGridInterpolator((np.arange(-oh1/2, oh1/2), np.arange(-ow1/2, ow1/2)), r_aflow,
+                                              method="nearest", bounds_error=False, fill_value=np.nan)
 
-        nw1, nh1 = proc_imgs[0][1].size
-        grid = unit_aflow(nw1, nh1) - np.array([[[(nw1 - ow1)/2, (nh1 - nw1)/2]]])
-        grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0].T)).reshape((nh1, nw1, 2))
+        grid = unit_aflow(nw1, nh1) - np.array([[[nw1/2, nh1/2]]])
+        grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0]).T).reshape((nh1, nw1, 2))
         n_aflow = ifun(np.flip(grid, axis=2))
 
+        show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10)
         return [t[1] for t in proc_imgs], n_aflow
 
 
