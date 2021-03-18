@@ -143,12 +143,12 @@ class PairRandomCrop:
         self.interp_method = interp_method
 
     def most_ok_in_window(self, mask, sc=4):
-        n, m = (np.array(self.shape) - self.margin * 2) // sc
-        c = 1 / m / n
-        mask_sc = cv2.resize(mask.astype(np.float32), None, fx=1/sc, fy=1/sc, interpolation=cv2.INTER_AREA)
+        b = self.margin
+        n, m = (np.array(self.shape) - b * 2) // sc
+        mask_sc = cv2.resize(mask[b:-b, b:-b].astype(np.float32), None, fx=1/sc, fy=1/sc, interpolation=cv2.INTER_AREA)
 
         res = cv2.filter2D(mask_sc, ddepth=cv2.CV_32F, anchor=(0, 0),
-                           kernel=np.ones((n, m), dtype='float32') * c,
+                           kernel=np.ones((n, m), dtype='float32') * (1 / m / n),
                            borderType=cv2.BORDER_ISOLATED)
         res[res.shape[0] - n:, :] = 0
         res[:, res.shape[1] - m:] = 0
