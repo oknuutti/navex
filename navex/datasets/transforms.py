@@ -158,8 +158,8 @@ class PairRandomCrop:
         rnd_idx = np.argmax(a > np.random.uniform(0, a[-1]))
         bst_idx = np.argmax(res.flatten())
 
-        rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc + self.margin
-        bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc + self.margin
+        rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc
+        bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc
         return bst_idxs, rnd_idxs
 
     def __call__(self, imgs, aflow, debug=False):
