@@ -12,7 +12,7 @@ try:
 
 except:
     from torchvision.models.mobilenet import _make_divisible
-    
+
     # from torchvision.models.mobilenetv3 import InvertedResidual, InvertedResidualConfig, SqueezeExcitation
     # - as of 2021-02-02, not yet available through conda channel (part of version 0.9, only 0.82 available)
     # - copied from
