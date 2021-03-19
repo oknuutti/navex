@@ -24,7 +24,8 @@ from scipy.cluster.vq import kmeans
 from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
-from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, q_times_v
+from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
+    q_times_v, angle_between_v, eul_to_q
 from navex.experiments.parser import nested_filter
 
 
@@ -443,6 +444,27 @@ def metadata_value(meta, possible_keys, unit=''):
         dst_values = None
 
     return dst_values[0] if is_scalar else dst_values
+
+
+def calc_target_pose(xyz, cam, sc_ori, ref_north_v):
+    cam_sc_trg_pos, cam_sc_trg_ori = relative_pose(xyz, cam)
+    for _ in range(2):
+        _sc_ori = sc_ori or quaternion.one
+        sc_trg_pos = q_times_v(_sc_ori, cam_sc_trg_pos)  # to icrf
+        trg_ori = _sc_ori * cam_sc_trg_ori  # TODO: verify, how?
+        est_north_v = q_times_v(trg_ori, np.array([0, 0, 1]))
+        rot_axis_err = math.degrees(angle_between_v(est_north_v, ref_north_v))
+        if rot_axis_err > 15 and False:
+            # idea is to check if have erroneous sc_ori from image metadata
+            # TODO: fix rotations, now the north pole vector rotates slowly around the x-axis (itokawa)
+            #  - However, there's currently no impact from bad sc_ori as the relative orientation
+            #    is used for image rotation
+            sc_ori = None
+        else:
+            # north.append(est_north_v)
+            break
+
+    return sc_ori, sc_trg_pos, trg_ori
 
 
 def safe_split(x, is_q):

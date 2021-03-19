@@ -171,17 +171,33 @@ def angle_between_v(v1, v2, direction=False):
 
         n1 = v1 / np.linalg.norm(v1)
         n2 = v2 / np.linalg.norm(v2)
+        ca = n1.dot(n2)
 
         if direction is not False:
             c = np.cross(n1, n2)
             d = c.dot(direction)
-            s_angle = np.linalg.norm(c) * (-1 if d < 0 else 1)
+            ra = math.asin(np.clip(np.linalg.norm(c), -1, 1))
+
+            if ca > 0 and d > 0:
+                # 1st quadrant
+                angle = ra
+            elif ca < 0 and d > 0:
+                # 2nd quadrant
+                angle = np.pi - ra
+            elif ca < 0 and d < 0:
+                # 3rd quadrant
+                angle = -np.pi + ra
+            elif ca > 0 and d < 0:
+                # 4th quadrant
+                angle = -ra
+            else:
+                assert False, 'invalid logic'
         else:
-            s_angle = n1.dot(n2)
+            angle = math.acos(np.clip(ca, -1, 1))
     except TypeError as e:
         raise Exception('Bad vectors:\n\tv1: %s\n\tv2: %s' % (v1, v2)) from e
 
-    return (math.asin if direction is not False else math.acos)(np.clip(s_angle, -1, 1))
+    return angle
 
 
 class Camera:
@@ -196,7 +212,7 @@ class Camera:
         self.dist_coefs = dist_coefs
         if self.matrix is None:
             # camera borehole +z axis, up -y axis
-            cx, cy = (resolution[0] / 2, resolution[1] / 2) if center is None else center
+            cx, cy = (resolution[0] / 2 - 0.5, resolution[1] / 2 - 0.5) if center is None else center
             fl_w, fl_h = focal_length if isinstance(focal_length, Iterable) else [focal_length] * 2
             fl_w, fl_h = fl_w/pixel_size, fl_h/pixel_size
             self.matrix = np.array([[fl_w, 0, cx],

@@ -2,6 +2,7 @@ import os
 import math
 
 import numpy as np
+import quaternion
 import scipy.interpolate as interp
 import cv2
 
@@ -11,7 +12,7 @@ from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_tim
 
 
 class AsteroidImagePairDataset(ImagePairDataset):
-    def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, cam_axis=(1, 0, 0), cam_up=(0, 0, 1), **kwargs):
+    def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, cam_axis=(0, 0, 1), cam_up=(0, -1, 0), **kwargs):
         self.indices, self.index = None, None
 
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
@@ -62,11 +63,17 @@ class AsteroidImagePairDataset(ImagePairDataset):
         north_v = spherical2cartesian(self.trg_north_dec, self.trg_north_ra, 1)
 
         proc_imgs = []
-        for i, img in zip(self.indices[idx], imgs):
-            # rotate based on sc_q
-            q_arr = self.index.get(i, ('sc_qw', 'sc_qx', 'sc_qy', 'sc_qz'))
-            sc_q = np.quaternion(*q_arr)
-            sc_north = q_times_v(sc_q.conj(), north_v)
+        for j, (i, img) in enumerate(zip(self.indices[idx], imgs)):
+            # rotate based on sc_q and trg_q if both exist, else fallback on sc_q and north_v
+            q_arr = self.index.get(i, ('sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'))
+            sc_q = quaternion.one if q_arr[0] is None or q_arr[0] == 'None' else np.quaternion(*q_arr[:4])
+            trg_q = None if q_arr[4] is None or q_arr[4] == 'None' else np.quaternion(*q_arr[4:])
+            if trg_q is None:
+                sc_north = q_times_v(sc_q.conj(), north_v)
+                print('%s: no trg_q!' % self.samples[idx][0][j])
+            else:
+                # assuming model frame +z is towards the north pole
+                sc_north = q_times_v(sc_q.conj() * trg_q, np.array([0, 0, 1]))
 
             # project to image plane
             img_north = vector_rejection(sc_north, self.cam_axis)
@@ -94,7 +101,8 @@ class AsteroidImagePairDataset(ImagePairDataset):
         grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0]).T).reshape((nh1, nw1, 2))
         n_aflow = ifun(np.flip(grid, axis=2))
 
-        show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10)
+        show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10, file1=self.samples[idx][0][0],
+                                                               file2=self.samples[idx][0][1])
         return [t[1] for t in proc_imgs], n_aflow
 
 

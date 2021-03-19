@@ -10,7 +10,7 @@ import numpy as np
 import quaternion
 
 from navex.datasets.preproc.tools import read_raw_img, write_data, safe_split, create_image_pairs, check_img, \
-    relative_pose
+    relative_pose, calc_target_pose
 from navex.datasets.tools import ImageDB, find_files, Camera, q_times_v, angle_between_v, spherical2cartesian, eul_to_q, \
     plot_vectors
 
@@ -46,12 +46,20 @@ def raw_itokawa():
     parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
-    cam = Camera(resolution=(1024, 1024), center=(511.5, 511.5), pixel_size=1.2e-5, focal_length=0.1208, f_num=8.0)
+
+    # axis ra & dec from https://science.sciencemag.org/content/312/5778/1347.abstract
+    #   - north_ra=math.radians(90.53), north_dec=math.radians(-66.30)
+    # frames:
+    #   - https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/hayhost.cat
+    #   - https://naif.jpl.nasa.gov/pub/naif/pds/data/hay-a-spice-6-v1.0/haysp_1000/data/ik/amica31.ti
+
+    cam = Camera(resolution=(1024, 1024), center=(511.5, 511.5), pixel_size=12e-6, focal_length=0.1208, f_num=8.0)
     north_ra, north_dec = math.radians(90.53), math.radians(-66.30)
     ref_north_v = spherical2cartesian(north_dec, north_ra, 1)
 #    meta2icrf_q = quaternion.one
 #    meta2icrf_q = eul_to_q((-np.pi/2,), 'y')
 #    meta2icrf_q = eul_to_q((np.pi, -np.pi/2), 'yz')
+#    meta2icrf_q = eul_to_q((np.pi, np.pi/2, np.pi), 'zyz')
 
     logging.basicConfig(level=logging.INFO)
 
@@ -73,25 +81,13 @@ def raw_itokawa():
                     shutil.copyfileobj(fh_in, fh_out)
 
             img, data, metadata, metastr = read_itokawa_img(path + '.lbl')
-            # if metadata['sc_ori']:
-            #     metadata['sc_ori'] = metadata['sc_ori'] * meta2icrf_q
 
-            cam_sc_trg_pos, cam_sc_trg_ori = relative_pose(data[:, :, :3], cam)
-            for _ in range(2):
-                sc_ori = metadata['sc_ori'] or quaternion.one
-                sc_trg_pos = q_times_v(sc_ori, cam_sc_trg_pos)     # to icrf
-                trg_ori = sc_ori * cam_sc_trg_ori  # TODO: verify, how?
-                est_north_v = q_times_v(trg_ori, np.array([0, 0, 1]))
-                rot_axis_err = math.degrees(angle_between_v(est_north_v, ref_north_v))
-                if rot_axis_err > 15 and False:
-                    # idea is to check if have erroneous sc_ori from image metadata
-                    # TODO: fix rotations, now the north pole vector rotates slowly around the x-axis
-                    #  - However, there's currently no impact from bad sc_ori as the relative orientation
-                    #    is used for image rotation
-                    metadata['sc_ori'] = None
-                else:
-                    # north.append(est_north_v)
-                    break
+            # TODO: figure out a transformation from sc_ori frame to icrf
+            # if metadata['sc_ori']:
+            #     metadata['sc_ori'] = meta2icrf_q.conj() * metadata['sc_ori'] * meta2icrf_q
+
+            metadata['sc_ori'], sc_trg_pos, trg_ori = \
+                    calc_target_pose(data[:, :, :3], cam, metadata['sc_ori'], ref_north_v)
 
             ok = check_img(img, fg_q=150, sat_lo_q=0.995)
             rand = np.random.uniform(0, 1) if ok else -1

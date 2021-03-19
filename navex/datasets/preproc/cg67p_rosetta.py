@@ -1,5 +1,6 @@
 import argparse
 import ftplib
+import math
 import os
 import re
 import shutil
@@ -9,15 +10,19 @@ import logging
 from tqdm import tqdm
 import numpy as np
 
-from navex.datasets.tools import ImageDB
-from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img
+from navex.datasets.tools import ImageDB, Camera, spherical2cartesian
+from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img, \
+    calc_target_pose
 
 INSTR = {
     'navcam': {'src': '/pub/mirror/INTERNATIONAL-ROSETTA-MISSION/NAVCAM', 'regex': r'^RO-C-NAVCAM-2-.*?-V1.1$',
-               'deep_path': 'DATA/CAM1', 'has_lbl': True,  'has_geom': False, 'fov': 5},
+               'deep_path': 'DATA/CAM1', 'has_lbl': True,  'has_geom': False, 'fov': 5, 'cam': None},
     'osinac': {'src': '/pub/mirror/INTERNATIONAL-ROSETTA-MISSION/OSINAC', 'regex': r'^RO-C-OSINAC-5-.*',
-               'deep_path': 'DATA/IMG',  'has_lbl': False, 'has_geom': True,  'fov': 2.21},
+               'deep_path': 'DATA/IMG',  'has_lbl': False, 'has_geom': True,  'fov': 2.21,
+               'cam': Camera(resolution=(2048, 2048), center=(1023.5, 1023.5),
+                             pixel_size=13.5e-6, focal_length=0.717322, f_num=8.0)},
 }
+# https://naif.jpl.nasa.gov/pub/naif/pds/data/ro_rl-e_m_a_c-spice-6-v1.0/rossp_1000/DATA/IK/ROS_OSIRIS_V15.TI
 
 
 def main():
@@ -63,6 +68,11 @@ def main():
         args.has_lbl = INSTR[args.instr]['has_lbl']
     if args.has_geom == -1:
         args.has_geom = INSTR[args.instr]['has_geom']
+
+    cam = INSTR[args.instr]['cam']
+    north_ra, north_dec = math.radians(69.3), math.radians(64.1)
+    ref_north_v = spherical2cartesian(north_dec, north_ra, 1)
+    # axis ra & dec from http://www.esa.int/ESA_Multimedia/Images/2015/01/Comet_vital_statistics
 
     logging.basicConfig(level=logging.INFO)
 
@@ -126,6 +136,17 @@ def main():
 
             img, data, metadata, metastr = read_cg67p_img(tmp_file + ('.LBL' if args.has_lbl else '.IMG'),
                                                           args.has_geom)
+
+            # TODO: figure out a transformation from sc_ori frame to icrf
+            # if metadata['sc_ori']:
+            #     metadata['sc_ori'] = meta2icrf_q.conj() * metadata['sc_ori'] * meta2icrf_q
+
+            if cam:
+                metadata['sc_ori'], sc_trg_pos, trg_ori = \
+                        calc_target_pose(data[:, :, :3], cam, metadata['sc_ori'], ref_north_v)
+            else:
+                trg_ori = None
+
             if args.has_lbl:
                 os.unlink(tmp_file + '.LBL')
 
@@ -136,11 +157,13 @@ def main():
             rand = np.random.uniform(0, 1) if ok else -1
             index.set(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
                        'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
-                       'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
+                       'sc_trg_x', 'sc_trg_y', 'sc_trg_z',
+                       'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
                       [(id, dst_file, rand)
                       + safe_split(metadata['sc_ori'], True)
                       + safe_split(metadata['sc_sun_pos'], False)
-                      + safe_split(metadata['sc_trg_pos'], False)])
+                      + safe_split(metadata['sc_trg_pos'], False)
+                      + safe_split(trg_ori, True)])
 
             if ok or args.debug:
                 write_data(tmp_file + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=True)

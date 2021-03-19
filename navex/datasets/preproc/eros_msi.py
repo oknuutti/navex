@@ -15,8 +15,20 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 import numpy as np
 
-from navex.datasets.tools import ImageDB, find_files, find_files_recurse
-from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img, get_file
+from navex.datasets.tools import ImageDB, find_files, find_files_recurse, Camera, spherical2cartesian
+from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img, get_file, \
+    calc_target_pose
+
+
+# cam params from
+#  - https://sbnarchive.psi.edu/pds4/near/nearmsi.shapebackplane/document/bundle_description.txt
+#  - https://sbnarchive.psi.edu/pds4/near/nearmsi.shapebackplane/document/near_msi_instrument.txt
+#  - https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1029/97JE01742
+#  - extra horizontal crop: img[:, 15:-14]
+# axis ra & dec from https://science.sciencemag.org/content/289/5487/2097/tab-figures-data
+CAM = Camera(resolution=(537-29, 412), center=((537 - 28) / 2 - 0.5 - 1, 412/2 - 0.5),
+             pixel_size=16e-6, focal_length=0.16735, f_num=[0.9, 3.85])
+REF_NORTH_V = spherical2cartesian(math.radians(11.38), math.radians(17.18), 1)
 
 
 def main():
@@ -135,6 +147,8 @@ def process_file(src_path, dst_path, id, index, args):
 
         img, data, metadata, metastr = read_eros_img(src_path + '.fit')
 
+        _, sc_trg_pos, trg_ori = calc_target_pose(data[:, :, :3], CAM, None, REF_NORTH_V)
+
         os.unlink(src_path + '.xml')
         os.unlink(src_path + '.fit.gz')
         if extracted:
@@ -143,7 +157,8 @@ def process_file(src_path, dst_path, id, index, args):
         ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.03
         ok = ok and check_img(img, fg_q=200)
         rand = np.random.uniform(0, 1) if ok else -1
-        index.add(('id', 'file', 'rand'), [(id, dst_file, rand)])
+        index.add(('id', 'file', 'rand', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
+                  [(id, dst_file, rand) + safe_split(sc_trg_pos, False) + safe_split(trg_ori, True)])
 
         added = False
         if args.start <= rand < args.end or args.debug:
@@ -168,7 +183,7 @@ def read_eros_img(path):
     # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat
     px_size = np.atleast_3d(np.max(data[:, :, 3:5], axis=2))
     data = np.concatenate((data[:, :, 0:3], px_size), axis=2)
-    data[data <= -1e30] = np.nan    # TODO: debug this
+    data[data <= -1e30] = np.nan
 
     return img, data, metadata, metastr
 

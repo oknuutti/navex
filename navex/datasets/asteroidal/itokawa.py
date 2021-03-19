@@ -16,12 +16,4 @@ class ItokawaPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
                                            blind_crop=True)
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           trg_north_ra=math.radians(90.53), trg_north_dec=math.radians(-66.30),
-                                          cam_axis=[0, 0, -1], cam_up=[-1, 0, 0])
-        # axis ra & dec from https://science.sciencemag.org/content/312/5778/1347.abstract
-        # frames:
-        #   - https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/hayhost.cat
-        #   - https://naif.jpl.nasa.gov/pub/naif/pds/data/hay-a-spice-6-v1.0/haysp_1000/data/ik/amica31.ti
-        #
-        # TODO: is it possible to determine trg body orientation in sc frame based on *.xyz.exr?
-        #   - itokawa sc ori is frequently erroneus?
-        #   - eros sc ori missing, would need to use spice otherwise
+                                          cam_axis=[0, 0, 1], cam_up=[0, -1, 0])
