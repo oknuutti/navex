@@ -141,18 +141,19 @@ def main():
             # if metadata['sc_ori']:
             #     metadata['sc_ori'] = meta2icrf_q.conj() * metadata['sc_ori'] * meta2icrf_q
 
-            if cam:
-                metadata['sc_ori'], sc_trg_pos, trg_ori = \
-                        calc_target_pose(data[:, :, :3], cam, metadata['sc_ori'], ref_north_v)
-            else:
-                trg_ori = None
-
             if args.has_lbl:
                 os.unlink(tmp_file + '.LBL')
 
             ok = not np.any([metadata[k] is None for k in ('sc_ori', 'sc_sun_pos', 'sc_trg_pos')])
             ok = ok and metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.05
+            ok = ok and (not cam or not np.all(np.isnan(data[:, :, :3])))
             ok = ok and check_img(img, fg_q=0.98)
+
+            if ok and cam:
+                metadata['sc_ori'], sc_trg_pos, trg_ori = \
+                        calc_target_pose(data[:, :, :3], cam, metadata['sc_ori'], ref_north_v)
+            else:
+                trg_ori = None
 
             rand = np.random.uniform(0, 1) if ok else -1
             index.set(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
