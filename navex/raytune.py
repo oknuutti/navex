@@ -304,7 +304,7 @@ class ScheduledWorkerNode:
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
              "NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=\"%s\" "
-             "$WRKDIR/navex/navex/ray/worker.sbatch") % (
+             "navex/ray/worker-%s.sbatch") % (
                 '' if type is None else ('-C %s' % type),
                 cpus or head.config['data']['workers'],
                 w_arg,
@@ -318,6 +318,7 @@ class ScheduledWorkerNode:
                 self.worker_ports_start,
                 self.worker_ports_start + self.max_workers + 1,
                 head.config['data']['path'],
+                'triton' if head.search_conf['host'] == 'triton.aalto.fi' else 'csc',
             )
         logging.debug('Executing command:\n%s' % cmd)
         out, err = ssh.exec(cmd)
