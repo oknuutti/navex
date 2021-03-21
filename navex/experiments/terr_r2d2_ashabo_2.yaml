@@ -87,9 +87,10 @@ optimizer:
   eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'
 
 data:
-  max_rot:   0.0   # in degrees, synth pair warp related
-  max_shear: 0.0   # synth pair warp related
-  max_proj:  0.5   # synth pair warp related
+  max_sc:    1.091  # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
+  max_rot:   0.0    # in degrees, synth pair warp related
+  max_shear: 0.0    # synth pair warp related
+  max_proj:  0.5    # synth pair warp related
   noise_max: !h_tune2_uniform '(0.08, 0.12), (0.00, 0.20)'
   rnd_gain:  !h_tune2_uniform '(1.1, 1.3), (1.0, 2.0)'
   image_size: 256
