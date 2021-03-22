@@ -4,7 +4,7 @@ search:
   mode: 'min'
   samples: 243
   nodes: 6
-  node_types: 'volta'
+  node_types: 'volta'   # volta for triton, type_gpu for csc
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
   node_type_cpus: '10'
