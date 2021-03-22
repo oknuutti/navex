@@ -61,6 +61,7 @@ class RayTuneHeadNode:
         self.healthy = True
         self.exception = None
         self.node_configs = None
+        self.maxmem = os.getenv('RAY_MAX_MEM', None)    # 8GB (8*1024**3)
 
     def start(self):
         """
@@ -71,6 +72,7 @@ class RayTuneHeadNode:
                                redis_password=self.redis_pwd,
                                node_manager_port=self.local_ports[2], object_manager_port=self.local_ports[3],
                                gcs_server_port=self.local_ports[4],
+                               memory=self.maxmem, object_store_memory=self.maxmem, redis_max_memory=self.maxmem,
                                raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
                                plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[6] if not self.local_linux else None,
                                include_dashboard=False, verbose=True, temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
