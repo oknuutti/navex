@@ -40,7 +40,7 @@ class Connection:
     def _init_forwarding(self):
         def forward():
             c = paramiko.SSHClient()
-#            c.load_system_host_keys()
+            c.load_system_host_keys()
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
             c.connect(self._proxy, username=self._username, key_filename=self._keyfile)
             Connection._forward_tunnel(self.local_forwarded_port, self.host, 22, c.get_transport(), timeout=None)
@@ -55,7 +55,7 @@ class Connection:
             else:
                 host, port = '127.0.0.1', self.local_forwarded_port
             c = paramiko.SSHClient()
-#            c.load_system_host_keys()
+            c.load_system_host_keys()
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message=r"Unknown \S+ host key")
