@@ -98,7 +98,7 @@ class RayTuneHeadNode:
 
         if self.local_linux:
             # no need tunneling, just execute commands locally
-            self.ssh = Connection(self.search_conf['host'])
+            self.ssh = Connection('localhost')
         else:
             # ssh reverse tunnels remote_port => local_port
             self.ssh = Connection(self.search_conf['host'], self.search_conf['username'],
