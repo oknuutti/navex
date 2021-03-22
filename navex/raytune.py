@@ -61,7 +61,7 @@ class RayTuneHeadNode:
         self.healthy = True
         self.exception = None
         self.node_configs = None
-        self.maxmem = os.getenv('RAY_MAX_MEM', None)    # 8GB (8*1024**3)
+        self.maxmem = int(os.getenv('RAY_MAX_MEM', '0')) or None    # e.g. 8GB: 8*1024**3
 
     def start(self):
         """

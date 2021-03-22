@@ -152,6 +152,7 @@ def main():
             if ok and cam:
                 metadata['sc_ori'], sc_trg_pos, trg_ori = \
                         calc_target_pose(data[:, :, :3], cam, metadata['sc_ori'], ref_north_v)
+                ok = sc_trg_pos is not None
             else:
                 trg_ori = None
 

@@ -447,7 +447,11 @@ def metadata_value(meta, possible_keys, unit=''):
 
 
 def calc_target_pose(xyz, cam, sc_ori, ref_north_v):
-    cam_sc_trg_pos, cam_sc_trg_ori = relative_pose(xyz, cam)
+    try:
+        cam_sc_trg_pos, cam_sc_trg_ori = relative_pose(xyz, cam)
+    except cv2.error as e:
+        logging.warning("can't calculate relative pose: %s" % e)
+        cam_sc_trg_pos, cam_sc_trg_ori = None, None
     for _ in range(2):
         _sc_ori = sc_ori or quaternion.one
         sc_trg_pos = q_times_v(_sc_ori, cam_sc_trg_pos)  # to icrf
