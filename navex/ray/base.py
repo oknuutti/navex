@@ -1,3 +1,5 @@
+import copyreg
+import io
 import json
 import math
 import os
@@ -253,7 +255,13 @@ class MySkOptSearch(SkOptSearch):
     def save(self, checkpoint_path: str):
         trials_object = (self._parameters, self._initial_points, self._skopt_opt)
         with open(checkpoint_path, "wb") as outputFile:
-            pickle.dump(trials_object, outputFile)
+            p = pickle.Pickler(outputFile)
+
+            # because somewhere in SkOptSearch there's a dict_keys object:
+            p.dispatch_table = copyreg.dispatch_table.copy()
+            p.dispatch_table[{}.keys().__class__] = lambda x: (list, (list(x),))
+
+            p.dump(trials_object)
 
     def restore(self, checkpoint_path: str):
         with open(checkpoint_path, "rb") as inputFile:
