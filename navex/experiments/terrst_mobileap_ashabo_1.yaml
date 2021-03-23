@@ -4,7 +4,7 @@ search:
   mode: 'min'
   samples: 243
   nodes: 6
-  node_types: 'volta'
+  node_types: 'volta'   # volta for triton, type_gpu for csc
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
   node_type_cpus: '6'
@@ -31,7 +31,7 @@ training:
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 10
+  early_stopping: 6
   reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
@@ -71,23 +71,24 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune2_loguniform    '(3e-4, 5e-4), (1e-4, 1e-3)'
-  weight_decay:  !h_tune2_loguniform    '(1e-6, 1e-5), (1e-6, 1e-3)'
+  learning_rate: !h_tune2_loguniform  '(8e-4, 12e-4), (1e-4, 1e-2)'
+  weight_decay:  !h_tune2_loguniform  '(8e-6, 12e-6), (1e-8, 1e-3)'
   split_params: 0
-  eps:           !h_tune2_choice        '[1e-7], [1e-8, 1e-7, 1e-6]'
+  eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'
 
 data:
-  max_rot:   8.0   # in degrees, synth pair warp related
-  max_shear: 0.2   # synth pair warp related
-  max_proj:  0.4   # synth pair warp related
-  noise_max: !h_tune2_uniform '(0.06, 0.08), (0.02, 0.20)'
-  rnd_gain: !h_tune2_uniform  '(1.4, 1.6), (1.1, 2.0)'
+  max_sc:    1.091  # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
+  max_rot:   0.0    # in degrees, synth pair warp related
+  max_shear: 0.0    # synth pair warp related
+  max_proj:  0.5    # synth pair warp related
+  noise_max: !h_tune2_uniform '(0.08, 0.12), (0.00, 0.20)'
+  rnd_gain:  !h_tune2_uniform '(1.15, 1.25), (1.0, 2.0)'
   student_rnd_gain: !h_tune2_uniform '(1.15, 1.25), (1.0, 1.5)'
-  student_noise_sd: !h_tune2_uniform '(0.04, 0.06), (0.01, 0.10)'
+  student_noise_sd: !h_tune2_uniform '(0.04, 0.06), (0.00, 0.10)'
   image_size: 224
   path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
-  trn_ratio: 0.8
-  val_ratio: 0.1
-  tst_ratio: 0.1
-  workers: 5
+  trn_ratio: 0.85
+  val_ratio: 0.14
+  tst_ratio: 0.01
+  workers: 6

@@ -295,16 +295,18 @@ class ImageDB:
             return
 
         assert 'id' in fields, '`id` field is required'
+        ignore_on_update = ('id',)
         if 'rand' not in fields:
             fields = fields + ('rand',)
             values = [(row + (random.uniform(0, 1),)) for row in values]
+            ignore_on_update = ignore_on_update + ('rand',)
 
         self._cursor.execute(
             "INSERT INTO images (" + ','.join(fields) + ") VALUES " +
             ",".join([("(" + ",".join(['null' if v is None else ("'%s'" % str(v)) for v in row]) + ")")
                       for row in values]) +
             "ON CONFLICT(id) DO UPDATE SET " +
-            ",\n".join(['%s = excluded.%s' % (f, f) for f in fields if f not in ('id', 'rand')])
+            ",\n".join(['%s = excluded.%s' % (f, f) for f in fields if f not in ignore_on_update])
         )
         self._conn.commit()
 
