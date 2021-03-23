@@ -107,6 +107,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
             ckpt = pl_load(os.path.join(checkpoint_dir, "checkpoint"),
                            map_location="cuda:0" if int(train_conf['gpu']) else "cpu")
             model = TrialWrapperBase._load_model_state(ckpt)
+            model.trial.update_conf(new_conf={'data.path': full_conf['data']['path']})
             trainer.current_epoch = ckpt["epoch"]
 
         if update_conf:
@@ -257,9 +258,10 @@ class MySkOptSearch(SkOptSearch):
         with open(checkpoint_path, "wb") as outputFile:
             p = pickle.Pickler(outputFile)
 
-            # because somewhere in SkOptSearch there's a dict_keys object:
+            # because somewhere in SkOptSearch there's dict_keys and dict_values objects:
             p.dispatch_table = copyreg.dispatch_table.copy()
             p.dispatch_table[{}.keys().__class__] = lambda x: (list, (list(x),))
+            p.dispatch_table[{}.values().__class__] = lambda x: (list, (list(x),))
 
             p.dump(trials_object)
 

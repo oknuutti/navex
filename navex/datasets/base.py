@@ -277,8 +277,8 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                 tr.RandomCrop(self.image_size),
                 tr.ToTensor(),
                 tr.RandomHorizontalFlip(),
-                # PhotometricTransform(UniformNoise(0.1)),
-                RandomDarkNoise(0, self.noise_max, 0.008, 3),
+                PhotometricTransform(UniformNoise(0.1)),
+                # RandomDarkNoise(0, self.noise_max, 0.008, 3),
                 # TODO: config access to all color jitter params
                 tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1)
                     if self.rgb else RandomExposure(*self.rnd_gain),

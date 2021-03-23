@@ -1,5 +1,6 @@
 import logging
 import argparse
+import sys
 import time
 import os
 import signal
@@ -170,8 +171,8 @@ def _register_signals():
         else:
             logging.warning('requeue failed...')
 
-        # shutdown worker node  # IS THIS GOOD?
-        ray.shutdown()
+        # worker node uses atexit to shut itself down gracefully
+        sys.exit()
 
     def term_handler(signum, frame):  # pragma: no-cover
         logging.info("bypassing sigterm")
