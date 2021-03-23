@@ -179,7 +179,7 @@ def main():
     ftp.close()
 
     if args.has_geom:
-        create_image_pairs(args.dst, args.index, args.pairs, args.dst, args.aflow, args.img_max, args.fov,
+        create_image_pairs(args.dst, index, args.pairs, args.dst, args.aflow, args.img_max, args.fov,
                            args.min_angle, args.max_angle, args.min_matches, read_meta=True, start=args.start,
                            end=args.end)
 
