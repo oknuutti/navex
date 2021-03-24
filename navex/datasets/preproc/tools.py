@@ -127,7 +127,10 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
 
     from scipy.spatial.ckdtree import cKDTree
     unit_vectors = np.array(unit_vectors).reshape((-1, 3))
-    tree = cKDTree(unit_vectors[np.logical_not(np.any(np.isnan(unit_vectors), axis=1)), :])
+    I = np.logical_not(np.any(np.isnan(unit_vectors), axis=1))
+    tree = cKDTree(unit_vectors[I, :])
+    idxs = np.stack((np.repeat(np.atleast_2d(np.arange(0, len(ids))).T, 4, axis=1),
+                     np.repeat(np.atleast_2d(np.arange(0, 4)), len(ids), axis=0)), axis=2).reshape((-1, 2))[I, :]
 
     if max_angle > 0:
         max_dist = 2 * math.sin(math.radians(max_angle) / 2)
@@ -155,9 +158,8 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
     pbar = tqdm(pairs, mininterval=5)
     add_count = 0
     for tot, (ii, jj) in enumerate(pbar):
-        i, j = ii // 4, jj // 4
+        (i, a), (j, b) = idxs[ii, :], idxs[jj, :]
         id_i, id_j = ids[i], ids[j]
-        a, b = ii % 4, jj % 4
         angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i][a] - unit_vectors[j][b]) / 2))
 
         if angle >= min_angle and id_i != id_j and (id_i, id_j) not in added_pairs and (
