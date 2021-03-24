@@ -7,7 +7,7 @@ search:
   node_types: 'volta'   # volta for triton, type_gpu for csc
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
-  node_type_cpus: '10'
+  node_type_cpus: '8'
   grace_period: 1       # for asha only
   reduction_factor: 3   # for asha only
   username: ''
@@ -99,4 +99,4 @@ data:
   trn_ratio: 0.85
   val_ratio: 0.14
   tst_ratio: 0.01
-  workers: 10
+  workers: 8

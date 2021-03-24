@@ -4,7 +4,7 @@
 #SBATCH --mem-per-cpu=2560M
 #SBATCH --ntasks=1
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:v100:1,nvme:100
+#SBATCH --gres=gpu:v100:1,nvme:10       # nvme in GB, adjust based on actual need
 #SBATCH --signal=SIGUSR1@90             # wall time auto-resubmit using Lightning
 
 ## copy image data to local drive
@@ -75,7 +75,8 @@ srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0
                                 --head-min-worker-port="$H_WPORT_S" --head-max-worker-port="$H_WPORT_E" \
                                 --object-manager-port="$OBJ_M_PORT" --node-manager-port="$NODE_M_PORT" \
                                 --metrics-export-port="$MEX_PORT" \
-                                --min-worker-port="$WPORT_S" --max-worker-port="$WPORT_E"
+                                --min-worker-port="$WPORT_S" --max-worker-port="$WPORT_E" \
+                                --maxmem=8000000000
 
 #                                --head-raylet-port=$H_RLET_PORT --head-object-store-port=$H_OBJ_S_PORT \
 

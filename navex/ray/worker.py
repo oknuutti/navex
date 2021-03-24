@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--metrics-export-port', type=int, help="metrics export port")
     parser.add_argument('--min-worker-port', type=int, help="min worker port")
     parser.add_argument('--max-worker-port', type=int, help="max worker port")
+    parser.add_argument('--maxmem', type=int, default=8*1000**3, help="max worker port")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s',
@@ -78,6 +79,7 @@ def main():
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
                         metrics_export_port=args.metrics_export_port,
+                        memory=args.maxmem, object_store_memory=args.maxmem, redis_max_memory=args.maxmem,
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True)
 
         logging.info('ray worker node started with details: %s' % ((
