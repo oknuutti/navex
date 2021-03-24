@@ -160,7 +160,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
     for tot, (ii, jj) in enumerate(pbar):
         (i, a), (j, b) = idxs[ii, :], idxs[jj, :]
         id_i, id_j = ids[i], ids[j]
-        angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i][a] - unit_vectors[j][b]) / 2))
+        angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i + a] - unit_vectors[j + b]) / 2))
 
         if angle >= min_angle and id_i != id_j and (id_i, id_j) not in added_pairs and (
                 image_count[id_i] < img_max or image_count[id_j] < img_max):
