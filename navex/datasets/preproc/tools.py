@@ -92,12 +92,12 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                 raise Exception('Failed to open file %s' % os.path.join(src_path, fname)) from e
 
             I = np.logical_not(np.any(np.isnan(xyz), axis=1))
+            vd, u = np.nan, np.ones((4, 3)) * np.nan
             if np.sum(I) > 0:
-                u, _ = kmeans(xyz[I, :], 4)
-                u /= np.atleast_2d(np.linalg.norm(u, axis=1)).T
-                vd = np.max(np.abs(u - np.mean(u, axis=0)))
-            else:
-                vd, u = np.nan, np.ones((12,)) * np.nan
+                ut, _ = kmeans(xyz[I, :], 4)
+                ut /= np.atleast_2d(np.linalg.norm(ut, axis=1)).T
+                vd = np.max(np.abs(ut - np.mean(ut, axis=0)))
+                u[:len(ut), :] = ut
 
             values = [(i, fname[:-8] + '.png', vd, *u.flatten())]
             if is_new:
@@ -126,8 +126,9 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
         return
 
     from scipy.spatial.ckdtree import cKDTree
-    unit_vectors = np.array(unit_vectors)
-    tree = cKDTree(unit_vectors.reshape((-1, 3)))
+    unit_vectors = np.array(unit_vectors).reshape((-1, 3))
+    tree = cKDTree(unit_vectors[np.logical_not(np.any(np.isnan(unit_vectors), axis=1)), :])
+
     if max_angle > 0:
         max_dist = 2 * math.sin(math.radians(max_angle) / 2)
     else:
