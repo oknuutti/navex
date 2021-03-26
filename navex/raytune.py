@@ -122,10 +122,13 @@ class RayTuneHeadNode:
             # wait for first worker to have started, there seems to be a bug in ray where the processing wont start
             started = False
             while not started:
+                time.sleep(10)
                 for w in self.workers:
                     if w.is_running(self.ssh):
                         started = True
                         break
+            # wait extra 5 min so that worker has had time to launch properly
+            time.sleep(60 * 5)
 
             # check if ray syncs the logs to local, if not, use ssh
             # ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
