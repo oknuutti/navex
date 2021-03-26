@@ -1,5 +1,6 @@
 search:
   method: 'asha-bo'
+  resume: ''
   metric: 'loss'
   mode: 'min'
   samples: 243

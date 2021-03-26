@@ -5,6 +5,11 @@ search:
     choices: ['asha', 'asha-bo', 'pbs']
     help: "hyperparameter search method to be used"
 
+  resume:
+    alt: ['--resume']
+    choices: ['', 'local', 'remote', 'prompt', 'errored_only']
+    default: ''
+
   metric:
     help: ""
 

@@ -2,6 +2,7 @@ import copyreg
 import io
 import json
 import math
+import socket
 import os
 import pickle
 import logging
@@ -36,13 +37,18 @@ from ..trials.terrestrial import TerrestrialTrial
 def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=False):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-    logging.info('inside execute_trial')
+    host = socket.gethostname()
+    ip = socket.gethostbyname(host)
+    job_id = os.getenv('SLURM_JOB_ID', '--')
+    data_dir = os.getenv('NAVEX_DATA', '--')   # '/tmp/navex'
+
+    logging.info(f'at execute_trial function, {host} ({ip}), job_id: {job_id}, data: {data_dir}')
 
     # override full configuration set with contents of hparams
     nested_update(full_conf, hparams)
 
     # set paths
-    full_conf['data']['path'] = os.getenv('NAVEX_DATA')   # '/tmp/navex'
+    full_conf['data']['path'] = data_dir
     full_conf['training']['output'] = tune.get_trial_dir()
     full_conf['training']['cache'] = os.path.join(full_conf['training']['output'], '..', 'cache')
     full_conf['model']['cache_dir'] = full_conf['training']['cache']
@@ -107,6 +113,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
             ckpt = pl_load(os.path.join(checkpoint_dir, "checkpoint"),
                            map_location="cuda:0" if int(train_conf['gpu']) else "cpu")
             model = TrialWrapperBase._load_model_state(ckpt)
+            model.trial._tr_data = None
             model.trial.update_conf(new_conf={'data.path': full_conf['data']['path']})
             trainer.current_epoch = ckpt["epoch"]
 
@@ -123,12 +130,27 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
     trn_dl = model.trial.build_training_data_loader()
     val_dl = model.trial.build_validation_data_loader()
 
-    logging.info('start training with trn data len=%d and val data len=%d' % (len(trn_dl), len(val_dl)))
-    try:
-        trainer.fit(model, trn_dl, val_dl)
-    except Exception as e:
-        logging.error('encountered error %s' % e)
-        raise e
+    logging.info('start training with trn data len=%d and val data len=%d (path: %s)' % (len(trn_dl), len(val_dl),
+                                                                                         model.trial.data_conf['path']))
+    t = datetime.now()
+    while True:
+        try:
+            trainer.fit(model, trn_dl, val_dl)
+        except (FileNotFoundError, IOError, OSError) as e:
+            tn = datetime.now()
+            if (tn - t).total_seconds() < 30:
+                logging.error('encountered file not found error %s' % e)
+                raise e
+            new_path = os.getenv('NAVEX_DATA', '--')
+            logging.warning('encountered file not found error %s, updating path to %s' % (e, new_path))
+            model.trial.update_conf(new_conf={'data.path': new_path})
+            model.trial._tr_data = None
+            trn_dl = model.trial.build_training_data_loader()
+            val_dl = model.trial.build_validation_data_loader()
+            t = tn
+        except Exception as e:
+            logging.error('encountered error %s' % e)
+            raise e
 
 
 def tune_asha(search_conf, hparams, full_conf):
@@ -187,8 +209,10 @@ def tune_asha(search_conf, hparams, full_conf):
         queue_trials=True,
         reuse_actors=False,     # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
         max_failures=20,
-        # checkpoint_freq=200,
-        # checkpoint_at_end=True,
+        resume=search_conf['resume'].upper() or False,
+#        local_dir=search_conf['results_path'] or None,     # defaults to ~/ray_results
+        # checkpoint_freq=200,      # if use functional api, this wont have any effect
+        # checkpoint_at_end=True,   # if use functional api, this wont have any effect
         keep_checkpoints_num=1,
 #        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,     # doesn't seem to work if not default
         progress_reporter=reporter,

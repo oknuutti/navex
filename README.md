@@ -10,12 +10,12 @@ conda create -n navex python=3.8 pip
 conda activate navex
 conda install pytorch torchvision cudatoolkit=11.0 -c pytorch
 conda install pytorch-lightning opencv paramiko quaternion scipy scikit-optimize -c conda-forge
-pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0
+pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0 ray==1.1.0 ray[tune]==1.1.0
 pip install -e ./r2d2
-pip install -U ray ray[tune]
-ray install-nightly
-pip install ray[tune]
 ```
+<!-- pip install -U ray ray[tune] -->
+<!-- ray install-nightly -->
+<!-- pip install ray[tune] -->
 
 or for Windows, [find most recent ray wheel](https://s3-us-west-2.amazonaws.com/ray-wheels/?prefix=latest/) and install like this:
 

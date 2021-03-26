@@ -1,5 +1,6 @@
 search:
   method: 'pbs'
+  resume: ''
   metric: 'loss'
   mode: 'min'
   samples: 6
