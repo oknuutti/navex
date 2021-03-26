@@ -7,7 +7,6 @@ search:
 
   resume:
     alt: ['--resume-search']
-    choices: ['', 'local', 'remote', 'prompt', 'errored_only']
     default: ''
 
   metric:

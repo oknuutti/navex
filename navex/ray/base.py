@@ -168,10 +168,18 @@ def tune_asha(search_conf, hparams, full_conf):
 
         initial = flatten_dict(initial, prevent_delimiter=True)
         key_order = list(flatten_dict(hparams, prevent_delimiter=True).keys())
-        start_config = [[initial[k].sample() for k in key_order if k in initial]
-                            for _ in range(max(1, search_conf['nodes']))]
+        if search_conf['resume']:
+            search_alg = MySkOptSearch()
+            search_alg.restore_from_dir(search_conf['resume'])
+            start_config = search_alg._skopt_opt.Xi
+            evaluated_rewards = search_alg._skopt_opt.yi
+        else:
+            start_config = [[initial[k].sample() for k in key_order if k in initial]
+                             for _ in range(max(1, search_conf['nodes']))]
+            evaluated_rewards = None
+
         search_alg = MySkOptSearch(metric=search_conf['metric'], mode=search_conf['mode'],
-                                   points_to_evaluate=start_config)
+                                   points_to_evaluate=start_config, evaluated_rewards=evaluated_rewards)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
     else:
         assert False, ('Invalid search method "%s", only random search (rs) '
@@ -209,8 +217,8 @@ def tune_asha(search_conf, hparams, full_conf):
         queue_trials=True,
         reuse_actors=False,     # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
         max_failures=20,
-        resume=search_conf['resume'].upper() or False,
-#        local_dir=search_conf['results_path'] or None,     # defaults to ~/ray_results
+#        resume=search_conf['resume'].upper() or False, # ray tune still has too many bugs with resume, at least v1.1.0 doesnt work
+#        local_dir=search_conf['results_path'] or None, # defaults to ~/ray_results
         # checkpoint_freq=200,      # if use functional api, this wont have any effect
         # checkpoint_at_end=True,   # if use functional api, this wont have any effect
         keep_checkpoints_num=1,

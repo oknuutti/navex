@@ -120,6 +120,7 @@ class RayTuneHeadNode:
 
         if len(self.workers) == self.search_conf['nodes']:
             # wait for first worker to have started, there seems to be a bug in ray where the processing wont start
+            logging.info('waiting for the first worker to start...')
             started = False
             while not started:
                 time.sleep(10)
@@ -128,7 +129,8 @@ class RayTuneHeadNode:
                         started = True
                         break
             # wait extra 5 min so that worker has had time to launch properly
-            time.sleep(60 * 5)
+            logging.info('first worker job started, waiting extra 3 min for it to launch the ray node properly...')
+            time.sleep(60 * 3)
 
             # check if ray syncs the logs to local, if not, use ssh
             # ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
