@@ -119,6 +119,14 @@ class RayTuneHeadNode:
         logging.info('following workers scheduled: %s' % ([w.slurm_job_id for w in self.workers],))
 
         if len(self.workers) == self.search_conf['nodes']:
+            # wait for first worker to have started, there seems to be a bug in ray where the processing wont start
+            started = False
+            while not started:
+                for w in self.workers:
+                    if w.is_running(self.ssh):
+                        started = True
+                        break
+
             # check if ray syncs the logs to local, if not, use ssh
             # ssh._fetch('scratch/navex/output/logs.tar', r'D:\projects\navex\output\logs.tar')
 
@@ -264,6 +272,10 @@ class ScheduledWorkerNode:
         else:
             self.listen_ports = None
             self.worker_ports_start = None
+
+    def is_running(self, ssh):
+        out, err = ssh.exec(r"squeue -h -o%%t -j %s" % self.slurm_job_id)
+        return out.strip().upper() == 'R'
 
     def create_tunnels(self, ssh):
         """
