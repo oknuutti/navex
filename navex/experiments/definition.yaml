@@ -6,7 +6,7 @@ search:
     help: "hyperparameter search method to be used"
 
   resume:
-    alt: ['--resume']
+    alt: ['--resume-search']
     choices: ['', 'local', 'remote', 'prompt', 'errored_only']
     default: ''
 
