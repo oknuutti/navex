@@ -12,12 +12,14 @@ from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_tim
 
 
 class AsteroidImagePairDataset(ImagePairDataset):
-    def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, cam_axis=(0, 0, 1), cam_up=(0, -1, 0), **kwargs):
+    def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, model_north=(0, 0, 1),
+                 cam_axis=(0, 0, 1), cam_up=(0, -1, 0), **kwargs):
         self.indices, self.index = None, None
 
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
         self.cam_axis, self.cam_up = np.array(cam_axis), np.array(cam_up)
+        self.model_north = np.array(model_north)
         self.trg_north_ra, self.trg_north_dec = trg_north_ra, trg_north_dec
         if self.trg_north_ra is None or self.trg_north_dec is None:
             # fall back on ecliptic north, in equatorial ICRF system:
@@ -37,7 +39,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
         dbfile = os.path.join(self.root, 'dataset_all.sqlite')
         self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
 
-        index = dict(self.index.get_all(('id', 'file'), cond='sc_qw IS NOT NULL AND sc_qw <> "None"'))
+        index = dict(self.index.get_all(('id', 'file')))
         aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png')
 
         get_id = lambda f, i: int(f.split(os.path.sep)[-1].split('.')[0].split('_')[i])
@@ -73,7 +75,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
                 print('%s: no trg_q!' % self.samples[idx][0][j])
             else:
                 # assuming model frame +z is towards the north pole
-                sc_north = q_times_v(sc_q.conj() * trg_q, np.array([0, 0, 1]))
+                sc_north = q_times_v(sc_q.conj() * trg_q, self.model_north)
 
             # project to image plane
             img_north = vector_rejection(sc_north, self.cam_axis)

@@ -1,15 +1,13 @@
 import copyreg
-import io
 import json
 import math
 import socket
 import os
 import pickle
 import logging
-from datetime import datetime
 from collections import OrderedDict
 from functools import partial
-from typing import Union, List, Dict, Tuple
+from typing import Union, List, Dict
 
 import torch
 
@@ -30,7 +28,7 @@ from ray.tune.suggest.variant_generator import parse_spec_vars
 from ray.tune.utils import flatten_dict
 from skopt import space as sko_sp
 
-from ..experiments.parser import set_nested, nested_update, nested_filter, prune_nested, split_double_samplers
+from ..experiments.parser import nested_update, split_double_samplers
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
 from ..trials.terrestrial import TerrestrialTrial
 
@@ -133,25 +131,11 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
 
     logging.info('start training with trn data len=%d and val data len=%d (path: %s)' % (len(trn_dl), len(val_dl),
                                                                                          model.trial.data_conf['path']))
-    t = datetime.now()
-    while True:
-        try:
-            trainer.fit(model, trn_dl, val_dl)
-        except (FileNotFoundError, IOError, OSError) as e:
-            tn = datetime.now()
-            if (tn - t).total_seconds() < 30:
-                logging.error('encountered file not found error %s' % e)
-                raise e
-            new_path = os.getenv('NAVEX_DATA', '--')
-            logging.warning('encountered file not found error %s, updating path to %s' % (e, new_path))
-            model.trial.update_conf(new_conf={'data.path': new_path})
-            model.trial._tr_data = None
-            trn_dl = model.trial.build_training_data_loader()
-            val_dl = model.trial.build_validation_data_loader()
-            t = tn
-        except Exception as e:
-            logging.error('encountered error %s' % e)
-            raise e
+    try:
+        trainer.fit(model, trn_dl, val_dl)
+    except Exception as e:
+        logging.error('encountered error %s' % e)
+        raise e
 
 
 def tune_asha(search_conf, hparams, full_conf):

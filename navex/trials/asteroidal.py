@@ -20,22 +20,21 @@ class AsteroidalTrial(TerrestrialTrial):
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})
 
             ds = []
-            if 0:
+            if 1:
                 ds.append(ErosPairDataset(self.data_conf['path'], **common, **dconf))
             if 0:
                 ds.append(SynthBennuPairDataset(self.data_conf['path'], **common, **dconf))
-            if 1 and 0:
+            if 1:
                 ds.append(BennuSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
-            if 1 and 0:
+            if 1:
                 ds.append(CG67pNavcamSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
-            if 0:
+            if 1:
                 ds.append(CG67pOsinacPairDataset(self.data_conf['path'], **common, **dconf))
-            if 0 or 1:
-                ds.append(ItokawaPairDataset(self.data_conf['path'], **common, **dconf))
+
+            tst_set = ItokawaPairDataset(self.data_conf['path'], **common, **dconf)
 
             if 0:
-                tst_set = ItokawaPairDataset(self.data_conf['path'], **common, **dconf)
-            else:
+                ds.append(tst_set)
                 tst_set = None
 
             fullset = AugmentedConcatDataset(ds)
