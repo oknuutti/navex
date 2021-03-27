@@ -1,5 +1,6 @@
 import os
 import math
+import sqlite3
 
 import numpy as np
 import quaternion
@@ -67,7 +68,13 @@ class AsteroidImagePairDataset(ImagePairDataset):
         proc_imgs = []
         for j, (i, img) in enumerate(zip(self.indices[idx], imgs)):
             # rotate based on sc_q and trg_q if both exist, else fallback on sc_q and north_v
-            q_arr = self.index.get(i, ('sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'))
+            cols = ('sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz')
+            try:
+                q_arr = self.index.get(i, cols)
+            except sqlite3.ProgrammingError as e:
+                self.index = ImageDB(os.path.join(self.root, 'dataset_all.sqlite'))
+                q_arr = self.index.get(i, cols)
+            
             sc_q = quaternion.one if q_arr[0] is None or q_arr[0] == 'None' else np.quaternion(*q_arr[:4])
             trg_q = None if q_arr[4] is None or q_arr[4] == 'None' else np.quaternion(*q_arr[4:])
             if trg_q is None:
