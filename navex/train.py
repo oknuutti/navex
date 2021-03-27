@@ -15,13 +15,13 @@ from .experiments.parser import ExperimentConfigParser, to_dict
 from .trials.terrestrial import TerrestrialTrial
 from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint
 
-PROFILING_ONLY = 1
+PROFILING_ONLY = 0
 
 
 def main():
     def_file = os.path.join(os.path.dirname(__file__), 'experiments', 'definition.yaml')
     parser = ExperimentConfigParser(definition=def_file)
-    parser.add_argument('--to-npy', action="store_true", help="just convert data to npy-format, don't do anything else")
+    parser.add_argument('--preproc_path', help="preprocess data into this folder, exit")
 
     config = parser.parse_args()
     args = config.training
@@ -61,8 +61,8 @@ def main():
         assert False, 'invalid trial: %s' % args.trial
 
     model = TrialWrapperBase(trial, use_gpu=bool(args.gpu))
-    if config.to_npy:
-        convert_data_to_npy(model)
+    if config.preproc_path:
+        preprocess_data(model, config)
         return
 
     trn_dl = model.build_training_data_loader(rgb=config.model.in_channels == 3)
@@ -101,8 +101,8 @@ def main():
                          log_every_n_steps=args.print_freq,
                          flush_logs_every_n_steps=10,
                          gpus=1 if args.gpu else 0,
-                         limit_train_batches=0.002 if PROFILING_ONLY else 1.0,
-                         limit_val_batches=0.005 if PROFILING_ONLY else 1.0,
+                         limit_train_batches=0.0002 if PROFILING_ONLY else 1.0,
+                         limit_val_batches=0.001 if PROFILING_ONLY else 1.0,
                          auto_select_gpus=bool(args.gpu),
                          deterministic=bool(args.deterministic),
                          auto_lr_find=bool(args.auto_lr_find),
@@ -116,16 +116,29 @@ def main():
     trainer.test(model, test_dataloaders=tst_dl)
 
 
-def convert_data_to_npy(model):
+def preprocess_data(model, config):
     import tqdm
     import logging
     logging.basicConfig(level=logging.INFO)
-    trn_dl = model.build_training_data_loader()
-    val_dl = model.build_validation_data_loader()
-    tst_dl = model.build_test_data_loader()
+
+    rgb = config.model.in_channels == 3
+    trn_dl = model.build_training_data_loader(rgb=rgb)
+    val_dl = model.build_validation_data_loader(rgb=rgb)
+    tst_dl = model.build_test_data_loader(rgb=rgb)
+
     for name, dl in {'trn': trn_dl, 'val': val_dl, 'tst': tst_dl}.items():
         logging.info('starting %s' % name)
-        for _ in tqdm.tqdm(dl):
+        try:
+            for ds in dl.dataset.dataset.datasets:
+                ds.preproc_path = config.preproc_path
+        except:
+            if hasattr(dl.dataset, 'preproc_path'):
+                dl.dataset.preproc_path = config.preproc_path
+            else:
+                assert hasattr(dl.dataset.dataset, 'preproc_path')
+                dl.dataset.dataset.preproc_path = config.preproc_path
+
+        for (img1, img2), aflow in tqdm.tqdm(dl):
             pass
 
 

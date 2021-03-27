@@ -9,16 +9,17 @@ import cv2
 
 from navex.datasets.base import ImagePairDataset, SynthesizedPairDataset
 from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
-    unit_aflow, show_pair
+    unit_aflow, show_pair, save_aflow
 
 
 class AsteroidImagePairDataset(ImagePairDataset):
     def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, model_north=(0, 0, 1),
-                 cam_axis=(0, 0, 1), cam_up=(0, -1, 0), **kwargs):
+                 cam_axis=(0, 0, 1), cam_up=(0, -1, 0), preproc_path=None, **kwargs):
         self.indices, self.index = None, None
 
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
+        self.preproc_path = preproc_path
         self.cam_axis, self.cam_up = np.array(cam_axis), np.array(cam_up)
         self.model_north = np.array(model_north)
         self.trg_north_ra, self.trg_north_dec = trg_north_ra, trg_north_dec
@@ -52,6 +53,8 @@ class AsteroidImagePairDataset(ImagePairDataset):
         return samples
 
     def preprocess(self, idx, imgs, aflow):
+        if self.preproc_path is None:
+            return imgs, aflow
 
         # TODO: query self.index for relevant params, transform img1, img2 accordingly
         #  (1) Rotate so that image up aligns with up in equatorial (or ecliptic) frame (+z axis)
@@ -103,18 +106,36 @@ class AsteroidImagePairDataset(ImagePairDataset):
         r_aflow = r_aflow + np.array([[[nw2/2, nh2/2]]], dtype=np.float32)
 
         # rotate aflow indices same way as img1 was rotated
-        ifun = interp.RegularGridInterpolator((np.arange(-oh1/2, oh1/2), np.arange(-ow1/2, ow1/2)), r_aflow,
+        ifun = interp.RegularGridInterpolator((np.arange(-oh1/2, oh1/2, dtype=np.float32),
+                                               np.arange(-ow1/2, ow1/2, dtype=np.float32)), r_aflow,
                                               method="nearest", bounds_error=False, fill_value=np.nan)
 
         grid = unit_aflow(nw1, nh1) - np.array([[[nw1/2, nh1/2]]])
         grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0]).T).reshape((nh1, nw1, 2))
-        n_aflow = ifun(np.flip(grid, axis=2))
+        n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
 
         if 0:
             show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10, file1=self.samples[idx][0][0],
                                                                    file2=self.samples[idx][0][1])
 
-        return [t[1] for t in proc_imgs], n_aflow
+        img1, img2 = [t[1] for t in proc_imgs]
+        (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]
+        folder = getattr(self, 'folder', r_aflow_pth[len(self.root):].strip(os.sep).split(os.sep)[0])
+        img1_pth = os.path.join(self.preproc_path, folder, r_img1_pth[len(self.root):].strip(os.sep))
+        img2_pth = os.path.join(self.preproc_path, folder, r_img2_pth[len(self.root):].strip(os.sep))
+        aflow_pth = os.path.join(self.preproc_path, folder, r_aflow_pth[len(self.root):].strip(os.sep))
+
+        if not os.path.exists(img1_pth):
+            os.makedirs(os.path.dirname(img1_pth), exist_ok=True)
+            cv2.imwrite(img1_pth, np.array(img1)[:, :, 0], (cv2.IMWRITE_PNG_COMPRESSION, 9))
+        if not os.path.exists(img2_pth):
+            os.makedirs(os.path.dirname(img2_pth), exist_ok=True)
+            cv2.imwrite(img2_pth, np.array(img2)[:, :, 0], (cv2.IMWRITE_PNG_COMPRESSION, 9))
+        if not os.path.exists(aflow_pth):
+            os.makedirs(os.path.dirname(aflow_pth), exist_ok=True)
+            save_aflow(aflow_pth, n_aflow)
+
+        return (img1, img2), n_aflow
 
 
 class AsteroidSynthesizedPairDataset(SynthesizedPairDataset):
