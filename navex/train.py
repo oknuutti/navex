@@ -21,7 +21,7 @@ PROFILING_ONLY = 0
 def main():
     def_file = os.path.join(os.path.dirname(__file__), 'experiments', 'definition.yaml')
     parser = ExperimentConfigParser(definition=def_file)
-    parser.add_argument('--preproc_path', help="preprocess data into this folder, exit")
+    parser.add_argument('--preproc-path', help="preprocess data into this folder, exit")
 
     config = parser.parse_args()
     args = config.training
