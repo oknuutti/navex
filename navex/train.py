@@ -15,7 +15,7 @@ from .experiments.parser import ExperimentConfigParser, to_dict
 from .trials.terrestrial import TerrestrialTrial
 from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint
 
-PROFILING_ONLY = 0
+PROFILING_ONLY = 1
 
 
 def main():

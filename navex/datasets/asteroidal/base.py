@@ -74,7 +74,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
             except sqlite3.ProgrammingError as e:
                 self.index = ImageDB(os.path.join(self.root, 'dataset_all.sqlite'))
                 q_arr = self.index.get(i, cols)
-            
+
             sc_q = quaternion.one if q_arr[0] is None or q_arr[0] == 'None' else np.quaternion(*q_arr[:4])
             trg_q = None if q_arr[4] is None or q_arr[4] == 'None' else np.quaternion(*q_arr[4:])
             if trg_q is None:
@@ -110,8 +110,10 @@ class AsteroidImagePairDataset(ImagePairDataset):
         grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0]).T).reshape((nh1, nw1, 2))
         n_aflow = ifun(np.flip(grid, axis=2))
 
-        show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10, file1=self.samples[idx][0][0],
-                                                               file2=self.samples[idx][0][1])
+        if 0:
+            show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10, file1=self.samples[idx][0][0],
+                                                                   file2=self.samples[idx][0][1])
+
         return [t[1] for t in proc_imgs], n_aflow
 
 

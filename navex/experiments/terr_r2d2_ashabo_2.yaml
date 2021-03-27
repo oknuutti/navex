@@ -25,7 +25,7 @@ training:
   batch_size: 8
   batch_mem: 32000
   gpu: 1
-  epochs: 27
+  epochs: 20
   print_freq: 5
   test_freq: 1
   save_freq: 1
