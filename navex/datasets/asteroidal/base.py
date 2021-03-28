@@ -1,6 +1,7 @@
 import os
 import math
 import sqlite3
+import logging
 
 import numpy as np
 import quaternion
@@ -75,8 +76,10 @@ class AsteroidImagePairDataset(ImagePairDataset):
             try:
                 q_arr = self.index.get(i, cols)
             except sqlite3.ProgrammingError as e:
+                logging.warning('Got %s, trying again with new db connection' % e)
                 self.index = ImageDB(os.path.join(self.root, 'dataset_all.sqlite'))
                 q_arr = self.index.get(i, cols)
+            assert q_arr is not None, 'could not get record id=%s for %s' % (i, self)
 
             sc_q = quaternion.one if q_arr[0] is None or q_arr[0] == 'None' else np.quaternion(*q_arr[:4])
             trg_q = None if q_arr[4] is None or q_arr[4] == 'None' else np.quaternion(*q_arr[4:])
