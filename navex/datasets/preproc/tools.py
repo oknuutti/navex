@@ -241,7 +241,7 @@ def load_xyzs(fname, skip_s=False, hz_fov=None):
             raise FileNotFoundError("couldn't read file %s" % (fname + '.png',))
         mask = valid_asteriod_area(img, 50, remove_limb=False)
         mask = np.logical_not(mask)
-        cv2.imwrite(fname + '.sdw.png', mask.astype(np.uint8), (cv2.IMWRITE_PNG_COMPRESSION, 9))
+        cv2.imwrite(fname + '.sdw.png', mask.astype(np.uint8)*255, (cv2.IMWRITE_PNG_COMPRESSION, 9))
         os.rename(fname + '.sdw.png', fname + '.sdw')
 
     shape = xyz.shape
