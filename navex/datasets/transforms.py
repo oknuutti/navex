@@ -220,7 +220,7 @@ class PairRandomCrop:
         sc1 = np.sqrt(np.median(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
         ic2, jc2 = np.nanmedian(c_aflow, axis=(0, 1))
         sc2 = np.sqrt(np.nanmedian(np.sum((c_aflow - np.array((ic2, jc2)))**2, axis=2)))
-        curr_sc = np.clip(sc2 / sc1, 1/5, 5)  # limit to reasonable original scale range between the image pair
+        curr_sc = np.clip(sc2 / (sc1 + 1e-8), 1/5, 5)  # limit to reasonable original scale range between the image pair
 
         # determine target scale based on current scale, self.max_sc_diff, and self.random_sc_diff
         lsc = abs(np.log10(self.max_sc_diff))

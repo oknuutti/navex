@@ -10,7 +10,7 @@ import cv2
 
 from navex.datasets.base import ImagePairDataset, SynthesizedPairDataset
 from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
-    unit_aflow, show_pair, save_aflow
+    unit_aflow, show_pair, save_aflow, valid_asteriod_area
 
 
 class AsteroidImagePairDataset(ImagePairDataset):
@@ -145,18 +145,4 @@ class AsteroidSynthesizedPairDataset(SynthesizedPairDataset):
     MIN_FEATURE_INTENSITY = 50
 
     def valid_area(self, img):
-        img = np.array(img)
-        if len(img.shape) == 3:
-            img = img[:, :, 0]
-        _, mask = cv2.threshold(img, self.MIN_FEATURE_INTENSITY, 255, cv2.THRESH_BINARY)
-        r = min(*img.shape) // 40
-        d = r*2 + 1
-        kernel = cv2.circle(np.zeros((d, d), dtype=np.uint8), (r, r), r, 255, -1)
-        star_kernel = cv2.circle(np.zeros((9, 9), dtype=np.uint8), (4, 4), 4, 255, -1)
-
-        # exclude asteroid limb from feature detection
-        mask = cv2.erode(mask, star_kernel, iterations=1)   # remove stars
-        mask = cv2.dilate(mask, kernel, iterations=1)       # remove small shadows inside asteroid
-        mask = cv2.erode(mask, kernel, iterations=2)        # remove asteroid limb
-
-        return mask
+        return valid_asteriod_area(img, min_intensity=self.MIN_FEATURE_INTENSITY)

@@ -97,13 +97,13 @@ def main():
 
     # read index file
     files = []
-    for id, fname, sc_qw in index.get_all(('id', 'file', 'sc_qw'), start=args.start, end=args.end):
+    for id, fname, sc_qw, rand in index.get_all(('id', 'file', 'sc_qw', 'rand'), start=args.start, end=args.end):
         tmp = fname.split('/')
-        files.append((id, src_path + [tmp[0], *args.deep_path.split('/'), tmp[1][:-4] + '.IMG'], fname, sc_qw))
+        files.append((id, src_path + [tmp[0], *args.deep_path.split('/'), tmp[1][:-4] + '.IMG'], fname, sc_qw, rand))
 
     logging.info('%d/%d files selected for processing...' % (len(files), len(index)))
     tot, n_ok, pbar = 0, 0, tqdm(files)
-    for id, src_file, dst_file, sc_qw in pbar:
+    for id, src_file, dst_file, sc_qw, rand in pbar:
         dst_path = os.path.join(args.dst, dst_file)
         if not os.path.exists(dst_path) or sc_qw is None:
             tmp_file = dst_path[:-4]
@@ -156,7 +156,7 @@ def main():
             else:
                 trg_ori = None
 
-            rand = np.random.uniform(0, 1) if ok else -1
+            rand = rand if ok else -1
             index.set(('id', 'file', 'rand', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
                        'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
                        'sc_trg_x', 'sc_trg_y', 'sc_trg_z',

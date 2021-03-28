@@ -25,7 +25,7 @@ from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
 from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
-    q_times_v, angle_between_v, eul_to_q
+    q_times_v, angle_between_v, eul_to_q, valid_asteriod_area
 from navex.experiments.parser import nested_filter
 
 
@@ -55,7 +55,7 @@ def create_image_pairs_script():
 
 
 def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angle,
-                       max_angle, min_matches, read_meta, show_only=False, start=0.0, end=1.0):
+                       max_angle, min_matches, read_meta, max_sc_diff=4.0, show_only=False, start=0.0, end=1.0):
 
     aflow_path = os.path.join(root, aflow)
     index_path = index if isinstance(index, ImageDB) else os.path.join(root, index)
@@ -78,16 +78,16 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
     if is_new:
         logging.info('building the index file...')
         files = find_files(src_path, ext='.xyz.exr', relative=True)
-        files = [(i, file) for i, file in enumerate(files)]
+        files = [(i, file[:-8]) for i, file in enumerate(files)]
     else:
-        files = [(id, file[:-4] + '.xyz.exr') for id, file in
+        files = [(id, file[:-4]) for id, file in
                  index.get_all(('id', 'file'), cond='cx1 is null', start=start, end=end)]
 
     if is_new or read_meta:
         logging.info('clustering *.xyz.exr file contents...')
         for i, fname in tqdm(files):
             try:
-                xyz = cv2.imread(os.path.join(src_path, fname), cv2.IMREAD_UNCHANGED).reshape((-1, 3))
+                xyz = load_xyzs(os.path.join(src_path, fname), skip_s=True).reshape((-1, 3))
             except Exception as e:
                 raise Exception('Failed to open file %s' % os.path.join(src_path, fname)) from e
 
@@ -99,7 +99,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                 vd = np.max(np.abs(ut - np.mean(ut, axis=0)))
                 u[:len(ut), :] = ut
 
-            values = [(i, fname[:-8] + '.png', vd, *u.flatten())]
+            values = [(i, fname + '.png', vd, *u.flatten())]
             if is_new:
                 index.add(('id', 'file', 'vd', 'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
                                                'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
@@ -108,16 +108,17 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                                                'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
 
     # read index file
-    ids, files, unit_vectors, max_dists = [], [], [], []
-    for id, fname, vd, cx1, cy1, cz1, cx2, cy2, cz2, cx3, cy3, cz3, cx4, cy4, cz4 \
-            in index.get_all(('id', 'file', 'vd', 'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
-                              'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), start=start, end=end):
+    ids, files, unit_vectors, max_dists, dists = [], [], [], [], []
+    for id, fname, vd, stx, sty, stz, cx1, cy1, cz1, cx2, cy2, cz2, cx3, cy3, cz3, cx4, cy4, cz4 \
+            in index.get_all(('id', 'file', 'vd', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'cx1', 'cy1', 'cz1',
+                              'cx2', 'cy2', 'cz2', 'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), start=start, end=end):
         assert cx1 is not None, 'centroids not set for id=%d, file=%s' % (id, fname)
         if np.isnan(float(cx1)):
             continue
         ids.append(int(id))
         files.append(fname)
         max_dists.append(float(vd))
+        dists.append(np.linalg.norm([stx, sty, stz]))
         unit_vectors.append([[float(a) for a in u] for u in ((cx1, cy1, cz1), (cx2, cy2, cz2),
                                                              (cx3, cy3, cz3), (cx4, cy4, cz4))])
 
@@ -161,8 +162,9 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
         (i, a), (j, b) = idxs[ii, :], idxs[jj, :]
         id_i, id_j = ids[i], ids[j]
         angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i + a] - unit_vectors[j + b]) / 2))
+        sc_diff = max((dists[i] - dists[j]) / dists[j], (dists[j] - dists[i]) / dists[i])
 
-        if angle >= min_angle and id_i != id_j and (id_i, id_j) not in added_pairs and (
+        if angle >= min_angle and sc_diff < max_sc_diff and id_i != id_j and (id_i, id_j) not in added_pairs and (
                 image_count[id_i] < img_max or image_count[id_j] < img_max):
             xyzs0 = load_xyzs(os.path.join(src_path, files[i]), hz_fov=hz_fov)
             xyzs1 = load_xyzs(os.path.join(src_path, files[j]), hz_fov=hz_fov)
@@ -227,6 +229,26 @@ def load_xyzs(fname, skip_s=False, hz_fov=None):
         fname = fname[:-4]
 
     xyz = cv2.imread(fname + '.xyz.exr', cv2.IMREAD_UNCHANGED)
+    if xyz is None:
+        raise FileNotFoundError("couldn't read file %s" % (fname + '.xyz.exr',))
+
+    # hide parts that are in shadow
+    if os.path.exists(fname + '.sdw'):
+        mask = cv2.imread(fname + '.sdw', cv2.IMREAD_UNCHANGED)
+    else:
+        img = cv2.imread(fname + '.png', cv2.IMREAD_UNCHANGED)
+        if img is None:
+            raise FileNotFoundError("couldn't read file %s" % (fname + '.png',))
+        mask = valid_asteriod_area(img, 50, remove_limb=False)
+        mask = np.logical_not(mask).astype(np.uint8)
+        cv2.imwrite(fname + '.sdw.png', mask, (cv2.IMWRITE_PNG_COMPRESSION, 9))
+        os.rename(fname + '.sdw.png', fname + '.sdw')
+
+    shape = xyz.shape
+    xyz = xyz.reshape((-1, 3))
+    xyz[mask.flatten(), :] = np.nan
+    xyz = xyz.reshape(shape)
+
     if skip_s:
         return xyz
 

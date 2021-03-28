@@ -76,6 +76,24 @@ def show_pair(img1, img2, aflow, file1='', file2='', pts=8):
     plt.show()
 
 
+def valid_asteriod_area(img, min_intensity=50, remove_limb=True):
+    img = np.array(img)
+    if len(img.shape) == 3:
+        img = img[:, :, 0]
+    _, mask = cv2.threshold(img, min_intensity, 255, cv2.THRESH_BINARY)
+    r = min(*img.shape) // 40
+    d = r*2 + 1
+    kernel = cv2.circle(np.zeros((d, d), dtype=np.uint8), (r, r), r, 255, -1)
+    star_kernel = cv2.circle(np.zeros((9, 9), dtype=np.uint8), (4, 4), 4, 255, -1)
+
+    # exclude asteroid limb from feature detection
+    mask = cv2.erode(mask, star_kernel, iterations=1)   # remove stars
+    mask = cv2.dilate(mask, kernel, iterations=1)       # remove small shadows inside asteroid
+    mask = cv2.erode(mask, kernel, iterations=2 if remove_limb else 1)  # remove dilation and possibly asteroid limb
+
+    return mask
+
+
 def ypr_to_q(dec, ra, cna):
     if dec is None or ra is None or cna is None:
         return None
