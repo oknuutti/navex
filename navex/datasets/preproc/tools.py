@@ -234,14 +234,14 @@ def load_xyzs(fname, skip_s=False, hz_fov=None):
 
     # hide parts that are in shadow
     if os.path.exists(fname + '.sdw'):
-        mask = cv2.imread(fname + '.sdw', cv2.IMREAD_UNCHANGED)
+        mask = cv2.imread(fname + '.sdw', cv2.IMREAD_UNCHANGED).astype(bool)
     else:
         img = cv2.imread(fname + '.png', cv2.IMREAD_UNCHANGED)
         if img is None:
             raise FileNotFoundError("couldn't read file %s" % (fname + '.png',))
         mask = valid_asteriod_area(img, 50, remove_limb=False)
-        mask = np.logical_not(mask).astype(np.uint8)
-        cv2.imwrite(fname + '.sdw.png', mask, (cv2.IMWRITE_PNG_COMPRESSION, 9))
+        mask = np.logical_not(mask)
+        cv2.imwrite(fname + '.sdw.png', mask.astype(np.uint8), (cv2.IMWRITE_PNG_COMPRESSION, 9))
         os.rename(fname + '.sdw.png', fname + '.sdw')
 
     shape = xyz.shape
