@@ -54,7 +54,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
         return samples
 
     def preprocess(self, idx, imgs, aflow):
-        if self.preproc_path is None:
+        if self.preproc_path is None and 1:
             return imgs, aflow
 
         # TODO: query self.index for relevant params, transform img1, img2 accordingly
@@ -117,11 +117,12 @@ class AsteroidImagePairDataset(ImagePairDataset):
         grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0]).T).reshape((nh1, nw1, 2))
         n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
 
+        img1, img2 = [t[1] for t in proc_imgs]
         if 0:
             show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10, file1=self.samples[idx][0][0],
                                                                    file2=self.samples[idx][0][1])
+            return (img1, img2), n_aflow
 
-        img1, img2 = [t[1] for t in proc_imgs]
         (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]
         folder = getattr(self, 'folder', r_aflow_pth[len(self.root):].strip(os.sep).split(os.sep)[0])
         img1_pth = os.path.join(self.preproc_path, folder, r_img1_pth[len(self.root):].strip(os.sep))

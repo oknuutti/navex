@@ -10,7 +10,7 @@
 #         where a worker process on another node tries to access the data of this slurm job
 
 export NAVEX_DATA=/tmp/navex
-mkdir "$NAVEX_DATA"
+mkdir -p "$NAVEX_DATA"
 trap "rm -r $NAVEX_DATA; exit" TERM EXIT
 
 rm -fR /tmp/ray
