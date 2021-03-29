@@ -3,6 +3,7 @@ import logging
 import sys
 import time
 from socket import socket
+import traceback
 
 import ray
 import ray.node
@@ -12,7 +13,7 @@ import ray.services as services2
 
 import ray.ray_constants as ray_constants
 import ray.utils
-from ray.tune.trial_runner import TrialRunner
+from ray.tune.trial_runner import TrialRunner, Trial
 
 from ray.autoscaler._private.cli_logger import cli_logger, cf
 
@@ -25,12 +26,28 @@ services.get_node_ip_address = lambda x=None: '127.0.0.1'
 services2.get_node_ip_address = lambda x=None: '127.0.0.1'
 
 # injecting a sleep as might help with dying / hanging trials, see https://github.com/ray-project/ray/issues/11239
-parent = TrialRunner._get_next_trial
+_parent_get_next_trial = TrialRunner._get_next_trial
 def _my_get_next_trial(self):
-    val = parent(self)
+    val = _parent_get_next_trial(self)
     time.sleep(2)
     return val
 TrialRunner._get_next_trial = _my_get_next_trial
+
+
+def _my_process_trial_restore(self, trial):
+    logger.debug("Trial %s: Processing trial restore.", trial)
+    try:
+        self.trial_executor.fetch_result(trial)
+        trial.on_restore()
+        logger.debug("Trial %s: Restore processed successfully", trial)
+        self.trial_executor.set_status(trial, Trial.RUNNING)
+        self.trial_executor.continue_training(trial)
+    except Exception:
+        logger.exception("Trial %s: Error processing restore: %s", (trial, traceback.format_exc()))
+        if self._fail_fast == TrialRunner.RAISE:
+            raise
+        self._process_trial_failure(trial, traceback.format_exc())
+TrialRunner._get_next_trial = _my_process_trial_restore
 
 
 SKIP_VERSION_CHECK = False

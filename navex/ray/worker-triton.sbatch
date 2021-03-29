@@ -13,6 +13,10 @@ export NAVEX_DATA=/tmp/navex
 mkdir "$NAVEX_DATA"
 trap "rm -r $NAVEX_DATA; exit" TERM EXIT
 
+rm -R /tmp/ray
+mkdir "$WRKDIR/navex/cache/$SLURM_JOB_ID"
+ln -s "$WRKDIR/navex/cache/$SLURM_JOB_ID" /tmp/ray
+
 DATADIR=${DATADIR//;/$'\n'}
 for DDIR in $DATADIR
 do

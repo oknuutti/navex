@@ -85,7 +85,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
         logger=logger,
         callbacks=callbacks,
         accumulate_grad_batches=acc_grad_batches,
-        max_epochs=15, #train_conf['epochs'],       # TODO: remove hardcoded max epochs!!
+        max_epochs=train_conf['epochs'],
         progress_bar_refresh_rate=0,
         check_val_every_n_epoch=train_conf['test_freq'],
         resume_from_checkpoint=train_conf.get('resume', None),
