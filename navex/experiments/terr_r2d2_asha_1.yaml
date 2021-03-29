@@ -88,6 +88,7 @@ optimizer:
   eps: !h_tune_choice                  '[1e-8, 1e-7, 1e-6]'
 
 data:
+  max_sc: 1.09
   max_rot: 8.0      # in degrees, synth pair warp related
   max_shear: 0.2    # synth pair warp related
   max_proj: 0.4     # synth pair warp related

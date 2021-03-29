@@ -173,8 +173,13 @@ def _register_signals():
         else:
             logging.warning('requeue failed...')
 
-        # worker node uses atexit to shut itself down gracefully
-        sys.exit()
+        # kill all connections first, otherwise head will try to restore trials leading to failure, then
+        # a failed attempt to restart the trials, then starting the same trial from scratch on a new node
+        os.system(r"pgrep -a ^ssh$")
+
+        # worker node would use atexit in an attempt to shut itself down gracefully
+        #  - however in v1.1.0 fails to do so, thus commented out
+        # sys.exit()
 
     def term_handler(signum, frame):  # pragma: no-cover
         logging.info("bypassing sigterm")

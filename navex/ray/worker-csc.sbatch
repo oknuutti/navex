@@ -18,8 +18,8 @@ export NAVEX_DATA="$LOCAL_SCRATCH/navex"
 mkdir "$NAVEX_DATA"
 trap "rm -r $NAVEX_DATA; exit" TERM EXIT
 
-rm -R /tmp/ray
-mkdir "$SCRATCH/cache/ray/$SLURM_JOB_ID"
+rm -fR /tmp/ray
+mkdir -p "$SCRATCH/cache/ray/$SLURM_JOB_ID"
 ln -s "$SCRATCH/cache/ray/$SLURM_JOB_ID" /tmp/ray
 
 DATADIR=${DATADIR//;/$'\n'}
