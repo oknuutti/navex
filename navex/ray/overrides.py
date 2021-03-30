@@ -47,7 +47,7 @@ def _my_process_trial_restore(self, trial):
         if self._fail_fast == TrialRunner.RAISE:
             raise
         self._process_trial_failure(trial, traceback.format_exc())
-TrialRunner._get_next_trial = _my_process_trial_restore
+TrialRunner._process_trial_restore = _my_process_trial_restore
 
 
 _parent_process_trial_failure = TrialRunner._process_trial_failure
