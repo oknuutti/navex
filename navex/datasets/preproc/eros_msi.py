@@ -154,7 +154,7 @@ def process_file(src_path, dst_path, id, index, args):
         if extracted:
             os.unlink(src_path + '.fit')
 
-        ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.03
+        ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.01
         ok = ok and check_img(img, fg_q=200)
         rand = np.random.uniform(0, 1) if ok else -1
         index.add(('id', 'file', 'rand', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),

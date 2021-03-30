@@ -50,6 +50,13 @@ def _my_process_trial_restore(self, trial):
 TrialRunner._get_next_trial = _my_process_trial_restore
 
 
+_parent_process_trial_failure = TrialRunner._process_trial_failure
+def _my_process_trial_failure(self, trial, error_msg):
+    time.sleep(120)
+    _parent_process_trial_failure(self, trial, error_msg)
+TrialRunner._process_trial_failure = _my_process_trial_failure
+
+
 SKIP_VERSION_CHECK = False
 
 
