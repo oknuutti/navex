@@ -60,17 +60,18 @@ TrialRunner._process_trial_failure = _my_process_trial_failure
 SKIP_VERSION_CHECK = False
 
 
+## from ..\site-packages\ray\scripts\scripts.py
+##
 def start(node_ip_address=None, address=None, port=None, redis_password=ray_constants.REDIS_DEFAULT_PASSWORD,
           redis_shard_ports=None, object_manager_port=None, node_manager_port=None, gcs_server_port=None,
-          min_worker_port=10000, max_worker_port=10999, worker_port_list=None, memory=None,
+          min_worker_port=10000, max_worker_port=10999, worker_port_list=None, ray_client_server_port=None, memory=None,
           object_store_memory=None, redis_max_memory=None, num_cpus=None, num_gpus=None, resources="{}",
           head=False, include_dashboard=None, dashboard_host="localhost",
           dashboard_port=ray_constants.DEFAULT_DASHBOARD_PORT, block=False,
           plasma_directory=None, autoscaling_config=None, no_redirect_worker_output=False,
           no_redirect_output=False, plasma_store_socket_name=None, raylet_socket_name=None,
-          temp_dir=None, java_worker_options=None, load_code_from_local=False,
-          code_search_path=None, system_config=None, lru_evict=False,
-          enable_object_reconstruction=False, metrics_export_port=None, log_style="auto",
+          temp_dir=None, java_worker_options=None, system_config=None, lru_evict=False,
+          enable_object_reconstruction=False, metrics_export_port=None, no_monitor=False, log_style="auto",
           log_color="auto", verbose=False):
     """Start Ray processes manually on the local machine."""
     cli_logger.configure(log_style, log_color, verbose)
@@ -108,6 +109,7 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
         min_worker_port=min_worker_port,
         max_worker_port=max_worker_port,
         worker_port_list=worker_port_list,
+        ray_client_server_port=ray_client_server_port,
         object_manager_port=object_manager_port,
         node_manager_port=node_manager_port,
         gcs_server_port=gcs_server_port,
@@ -128,12 +130,11 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
         dashboard_host=dashboard_host,
         dashboard_port=dashboard_port,
         java_worker_options=java_worker_options,
-        load_code_from_local=load_code_from_local,
-        code_search_path=code_search_path,
         _system_config=system_config,
         lru_evict=lru_evict,
         enable_object_reconstruction=enable_object_reconstruction,
-        metrics_export_port=metrics_export_port)
+        metrics_export_port=metrics_export_port,
+        no_monitor=no_monitor)
     if head:
         # Use default if port is none, allocate an available port if port is 0
         if port is None:
@@ -185,7 +186,9 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
                     f"Please specify a different port using the `--port`"
                     f" command to `ray start`.")
 
-        node = MyNode(ray_params, head=True, shutdown_at_exit=block, spawn_reaper=block)    # EDITED
+        node = MyNode(ray_params, head=True, shutdown_at_exit=block, spawn_reaper=block)  # EDITED
+        # ray.node.Node(ray_params, head=True, shutdown_at_exit=block, spawn_reaper=block)
+
         redis_address = node.redis_address
 
         # this is a noop if new-style is not set, so the old logger calls
@@ -199,6 +202,8 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
         with cli_logger.group("Next steps"):
             cli_logger.print(
                 "To connect to this Ray runtime from another node, run")
+            # NOTE(kfstorm): Java driver rely on this line to get the address
+            # of the cluster. Please be careful when updating this line.
             cli_logger.print(
                 cf.bold("  ray start --address='{}'{}"), redis_address,
                 f" --redis-password='{redis_password}'"
@@ -262,7 +267,7 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
 
         # Check that the version information on this node matches the version
         # information that the cluster was started with.
-        if not SKIP_VERSION_CHECK:
+        if not SKIP_VERSION_CHECK:         # EDITED
             services.check_version_info(redis_client)
 
         # Get the node IP address if one is not provided.
@@ -278,6 +283,7 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
                                         redis_client)
         ray_params.update(redis_address=redis_address)
         node = MyNode(ray_params, head=False, shutdown_at_exit=block, spawn_reaper=block)   # EDITED
+        # node = ray.node.Node(ray_params, head=False, shutdown_at_exit=block, spawn_reaper=block)
 
         cli_logger.newline()
         startup_msg = "Ray runtime started."
@@ -294,7 +300,7 @@ def start(node_ip_address=None, address=None, port=None, redis_password=ray_cons
             cli_logger.print(
                 "This command will now block until terminated by a signal.")
             cli_logger.print(
-                "Runing subprocesses are monitored and a message will be "
+                "Running subprocesses are monitored and a message will be "
                 "printed if any of them terminate unexpectedly.")
 
         while True:
