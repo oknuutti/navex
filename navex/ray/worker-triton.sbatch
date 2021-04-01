@@ -13,9 +13,12 @@ export NAVEX_DATA=/tmp/navex
 mkdir -p "$NAVEX_DATA"
 trap "rm -r $NAVEX_DATA; exit" TERM EXIT
 
+export WORKER_LOG_PATH="$WRKDIR/navex/cache/$SLURM_JOB_ID"
 rm -fR /tmp/ray
-mkdir -p "$WRKDIR/navex/cache/$SLURM_JOB_ID"
-ln -s "$WRKDIR/navex/cache/$SLURM_JOB_ID" /tmp/ray
+rm -fR "$WORKER_LOG_PATH-old"
+[ ! -f $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
+mkdir -p $WORKER_LOG_PATH
+ln -s $WORKER_LOG_PATH /tmp/ray
 
 DATADIR=${DATADIR//;/$'\n'}
 for DDIR in $DATADIR
