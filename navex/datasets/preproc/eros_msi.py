@@ -134,7 +134,7 @@ def process_file(src_path, dst_path, id, index, args):
     parts = os.path.normpath(src_path).split(os.sep)[-2:]
     dst_file = os.path.join(*parts) + '.png'
     dst_path = os.path.join(dst_path, dst_file)
-    ext_rand = index.query("rand", "file='%s'" % dst_file)
+    ext_rand = index.query(("rand",), "file='%s'" % dst_file)
     ext_rand = ext_rand and float(ext_rand['rand'])
     if not os.path.exists(dst_path) and (ext_rand is None or args.start <= ext_rand < args.end):
         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
