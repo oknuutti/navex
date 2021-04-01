@@ -149,7 +149,7 @@ def process_file(src_path, dst_path, id, index, args):
 
         img, data, metadata, metastr = read_eros_img(src_path + '.fit')
 
-        rand = np.random.uniform(0, 1)
+        rand, ok = np.random.uniform(0, 1), True
         if ext_rand is None:
             _, sc_trg_pos, trg_ori = calc_target_pose(data[:, :, :3], CAM, None, REF_NORTH_V)
 
@@ -158,7 +158,7 @@ def process_file(src_path, dst_path, id, index, args):
             if extracted:
                 os.unlink(src_path + '.fit')
 
-            ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.01
+            ok = ok and metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.01
             ok = ok and check_img(img, fg_q=200)
             rand = rand if ok else -1
             index.add(('id', 'file', 'rand', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
@@ -166,7 +166,7 @@ def process_file(src_path, dst_path, id, index, args):
 
         added = False
         rand = ext_rand or rand
-        if ok and args.start <= rand < args.end or args.debug:
+        if args.start <= rand < args.end or args.debug:
             write_data(dst_path[:-4] + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=False)
             added = True
 
