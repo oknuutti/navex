@@ -134,7 +134,9 @@ def process_file(src_path, dst_path, id, index, args):
     parts = os.path.normpath(src_path).split(os.sep)[-2:]
     dst_file = os.path.join(*parts) + '.png'
     dst_path = os.path.join(dst_path, dst_file)
-    if not os.path.exists(dst_path):
+    ext_rand = index.query("rand", "file='%s'" % dst_file)
+    ext_rand = ext_rand and float(ext_rand['rand'])
+    if not os.path.exists(dst_path) and (ext_rand is None or args.start <= ext_rand < args.end):
         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
 
         # extract *.fit.gz
@@ -147,21 +149,24 @@ def process_file(src_path, dst_path, id, index, args):
 
         img, data, metadata, metastr = read_eros_img(src_path + '.fit')
 
-        _, sc_trg_pos, trg_ori = calc_target_pose(data[:, :, :3], CAM, None, REF_NORTH_V)
+        rand = np.random.uniform(0, 1)
+        if ext_rand is None:
+            _, sc_trg_pos, trg_ori = calc_target_pose(data[:, :, :3], CAM, None, REF_NORTH_V)
 
-        os.unlink(src_path + '.xml')
-        os.unlink(src_path + '.fit.gz')
-        if extracted:
-            os.unlink(src_path + '.fit')
+            os.unlink(src_path + '.xml')
+            os.unlink(src_path + '.fit.gz')
+            if extracted:
+                os.unlink(src_path + '.fit')
 
-        ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.01
-        ok = ok and check_img(img, fg_q=200)
-        rand = np.random.uniform(0, 1) if ok else -1
-        index.add(('id', 'file', 'rand', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
-                  [(id, dst_file, rand) + safe_split(sc_trg_pos, False) + safe_split(trg_ori, True)])
+            ok = metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.01
+            ok = ok and check_img(img, fg_q=200)
+            rand = rand if ok else -1
+            index.add(('id', 'file', 'rand', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
+                      [(id, dst_file, rand) + safe_split(sc_trg_pos, False) + safe_split(trg_ori, True)])
 
         added = False
-        if args.start <= rand < args.end or args.debug:
+        rand = ext_rand or rand
+        if ok and args.start <= rand < args.end or args.debug:
             write_data(dst_path[:-4] + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=False)
             added = True
 

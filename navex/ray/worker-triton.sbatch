@@ -3,7 +3,7 @@
 #SBATCH --mem-per-cpu=3G                # memory needed (~2Gb/core)
 #SBATCH --gres=gpu:1                    # GPUs needed
 #SBATCH --constraint='volta'    # 'kepler|pascal|volta'
-#SBATCH --signal=SIGUSR1@90             # wall time auto-resubmit using Lightning
+#SBATCH --signal=SIGUSR1@120            # wall time auto-resubmit
 
 ## copy image data to local drive
 # --edit: changed tmp dir from /tmp/$SLURM_JOB_ID to /tmp/navex because of some ray bug (?),

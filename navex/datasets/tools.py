@@ -344,6 +344,12 @@ class ImageDB:
         rows = r.fetchall()
         return rows
 
+    def query(self, fields: Union[Tuple[str, ...], List[str]], cond: str = None):
+        query = "SELECT " + ','.join(fields) + " FROM images WHERE %s" % cond
+        r = self._cursor.execute(query)
+        row = r.fetchone()
+        return row
+
     def __len__(self) -> int:
         r = self._cursor.execute("SELECT count(*) FROM images WHERE 1")
         count = r.fetchone()
