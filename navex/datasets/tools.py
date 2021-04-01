@@ -54,6 +54,8 @@ def save_aflow(fname, aflow):
 
 def load_aflow(fname, img1_size=None, img2_size=None):
     aflow = cv2.imread(fname, cv2.IMREAD_UNCHANGED)
+    if aflow is None:
+        raise IOError('Could not load aflow from file %s' % fname)
     h, w, _ = aflow.shape
     aflow = aflow[:, :, :2].reshape((-1, 2)).astype(np.float32)
     aflow[aflow[:, 0] >= 2**16 - 2, :] = np.nan
