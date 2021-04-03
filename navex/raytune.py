@@ -44,7 +44,7 @@ class RayTuneHeadNode:
         self.hostname = socket.gethostname()
         self.local_linux = self.hostname and self.search_conf['host'] in self.hostname
         self.redis_pwd = '5241590000000000'
-        self.min_wport, self.max_wport = 10000, 10003
+        self.min_wport, self.max_wport = 10000, 10007
         self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543)
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
 
