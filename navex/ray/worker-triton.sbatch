@@ -9,6 +9,8 @@
 # --edit: changed tmp dir from /tmp/$SLURM_JOB_ID to /tmp/navex because of some ray bug (?),
 #         where a worker process on another node tries to access the data of this slurm job
 
+set -x    # echo all commands for debug purposes
+
 export NAVEX_DATA=/tmp/navex
 mkdir -p "$NAVEX_DATA"
 trap "rm -r $NAVEX_DATA; exit" TERM EXIT
@@ -19,6 +21,8 @@ rm -fR "$WORKER_LOG_PATH-old"
 [ ! -f $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
 mkdir -p $WORKER_LOG_PATH
 ln -s $WORKER_LOG_PATH /tmp/ray
+
+set +x    # echo all commands for debug purposes
 
 DATADIR=${DATADIR//;/$'\n'}
 for DDIR in $DATADIR
