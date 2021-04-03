@@ -218,7 +218,7 @@ class RayTuneHeadNode:
         logging.debug('parsed node configs: %s' % (self.node_configs,))
 
     def _schedule_worker(self):
-        worker = ScheduledWorkerNode(self.local_linux)
+        worker = ScheduledWorkerNode(self.local_linux, max_workers=8)
 
         if not self.local_linux:
             # create tunnels to/from non-slurm accessing machine
