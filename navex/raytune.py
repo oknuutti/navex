@@ -44,7 +44,7 @@ class RayTuneHeadNode:
         self.hostname = socket.gethostname()
         self.local_linux = self.hostname and self.search_conf['host'] in self.hostname
         self.redis_pwd = '5241590000000000'
-        self.min_wport, self.max_wport = 10000, 10007
+        self.min_wport, self.max_wport = 10000, 10004
         self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543)
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
 
@@ -218,7 +218,7 @@ class RayTuneHeadNode:
         logging.debug('parsed node configs: %s' % (self.node_configs,))
 
     def _schedule_worker(self):
-        worker = ScheduledWorkerNode(self.local_linux, max_workers=8)
+        worker = ScheduledWorkerNode(self.local_linux)
 
         if not self.local_linux:
             # create tunnels to/from non-slurm accessing machine
@@ -266,7 +266,7 @@ class ScheduledWorkerNode:
 
         raise Exception('Seems that all ports are already used')
 
-    def __init__(self, local_linux, max_workers=3):
+    def __init__(self, local_linux, max_workers=4):
         self.local_linux = local_linux
         self.max_workers = max_workers   # was worker_wport_n
         self.slurm_job_id = None
