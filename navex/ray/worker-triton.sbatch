@@ -18,7 +18,7 @@ trap "rm -r $NAVEX_DATA; exit" TERM EXIT
 export WORKER_LOG_PATH="$WRKDIR/navex/cache/$SLURM_JOB_ID"
 rm -fR /tmp/ray
 rm -fR "$WORKER_LOG_PATH-old"
-[ ! -f $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
+[ ! -d $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
 mkdir -p $WORKER_LOG_PATH
 ln -s $WORKER_LOG_PATH /tmp/ray
 
