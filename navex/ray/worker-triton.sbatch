@@ -82,7 +82,7 @@ srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0
                                 --object-manager-port="$OBJ_M_PORT" --node-manager-port="$NODE_M_PORT" \
                                 --metrics-export-port="$MEX_PORT" \
                                 --min-worker-port="$WPORT_S" --max-worker-port="$WPORT_E" \
-                                --maxmem=8000000000
+                                --maxmem=0
 #                                --head-raylet-port=$H_RLET_PORT --head-object-store-port=$H_OBJ_S_PORT \
 
 #sleep 1h

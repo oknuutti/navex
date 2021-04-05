@@ -176,6 +176,7 @@ def _register_signals():
         # kill all connections first, otherwise head will try to restore trials leading to failure, then
         # a failed attempt to restart the trials, then starting the same trial from scratch on a new node
         os.system(r"pgrep -a ^ssh$")
+        os.system(r"cat ~/slurm-%s.out >> ~/slurm-%s.hist" % (job_id, job_id))
         time.sleep(5)
 
         # worker node would use atexit in an attempt to shut itself down gracefully
