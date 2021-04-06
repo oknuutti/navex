@@ -15,12 +15,13 @@ export NAVEX_DATA=/tmp/navex
 mkdir -p "$NAVEX_DATA"
 trap "rm -r $NAVEX_DATA; exit" TERM EXIT
 
-#export WORKER_LOG_PATH="$WRKDIR/navex/cache/$SLURM_JOB_ID"
-#rm -fR /tmp/ray
-#rm -fR "$WORKER_LOG_PATH-old"
-#[ ! -d $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
-#mkdir -p $WORKER_LOG_PATH
-#ln -s $WORKER_LOG_PATH /tmp/ray
+export WORKER_LOG_PATH="$WRKDIR/navex/cache/$SLURM_JOB_ID"
+rm -fR /tmp/ray
+rm -fR "$WORKER_LOG_PATH-old"
+[ ! -d $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
+mkdir -p $WORKER_LOG_PATH
+mkdir -p /tmp/ray
+ln -s $WORKER_LOG_PATH /tmp/ray/logs
 
 set +x    # echo all commands for debug purposes
 
@@ -82,7 +83,7 @@ srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0
                                 --object-manager-port="$OBJ_M_PORT" --node-manager-port="$NODE_M_PORT" \
                                 --metrics-export-port="$MEX_PORT" \
                                 --min-worker-port="$WPORT_S" --max-worker-port="$WPORT_E" \
-                                --maxmem=0
+                                --maxmem=8000000000
 #                                --head-raylet-port=$H_RLET_PORT --head-object-store-port=$H_OBJ_S_PORT \
 
 #sleep 1h
