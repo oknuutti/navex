@@ -254,7 +254,12 @@ class ScheduledWorkerNode:
     @staticmethod
     def is_port_in_use(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(('localhost', port)) == 0
+            try:
+                s.bind(("localhost", port))
+                s.listen()
+                return False
+            except:
+                return True
 
     @classmethod
     def reserve_port(cls, n=1):
@@ -269,7 +274,7 @@ class ScheduledWorkerNode:
                 cls.ports_used.update(ps)
                 return ps[0] if n == 1 else ps
 
-        raise Exception('Seems that all ports are already used')
+        assert False, 'Seems that all ports are already used'
 
     def __init__(self, local_linux, max_workers=4):
         self.local_linux = local_linux
