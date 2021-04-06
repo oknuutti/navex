@@ -260,14 +260,14 @@ class ScheduledWorkerNode:
     def reserve_port(cls, n=1):
         for _ in range(10):
             p = random.randint(20001, 2 ** 16 - 1)
-            ps = {p} if n == 1 else set(p + np.array(list(range(n))))
+            ps = [p] if n == 1 else list(p + np.array(list(range(n))))
             if not cls.ports_used.intersection(ps):
                 in_use = {p for p in ps if cls.is_port_in_use(p)}
                 if len(in_use) > 0:
                     cls.ports_used.update(in_use)
                     continue
                 cls.ports_used.update(ps)
-                return ps
+                return ps[0] if n == 1 else ps
 
         raise Exception('Seems that all ports are already used')
 
