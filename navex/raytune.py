@@ -252,7 +252,7 @@ class ScheduledWorkerNode:
     ports_used = set()
 
     @staticmethod
-    def is_port_open(port):
+    def is_port_in_use(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(('localhost', port)) == 0
 
@@ -262,7 +262,7 @@ class ScheduledWorkerNode:
             p = random.randint(20001, 2 ** 16 - 1)
             ps = {p} if n == 1 else set(p + np.array(list(range(n))))
             if not cls.ports_used.intersection(ps):
-                in_use = {p for p in ps if not cls.is_port_open(p)}
+                in_use = {p for p in ps if cls.is_port_in_use(p)}
                 if len(in_use) > 0:
                     cls.ports_used.update(in_use)
                     continue
