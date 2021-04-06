@@ -221,7 +221,8 @@ class AugmentedPairDatasetMixin:
     def _init_transf(self):
         self._train_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-            PairRandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
+            PairRandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc)
+                if self.resize_max_sc is not None and self.resize_max_sc >= 1 else PairedIdentityTransform(),
             PairRandomCrop(self.image_size, margin=self.margin, max_sc_diff=self.max_sc, blind_crop=self.blind_crop,
                            fill_value=self.fill_value),
             PairRandomHorizontalFlip(),
@@ -236,7 +237,8 @@ class AugmentedPairDatasetMixin:
         ])
         self._eval_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
-            PairScaleToRange(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
+            PairScaleToRange(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc)
+                if self.resize_max_sc is not None and self.resize_max_sc >= 1 else PairedIdentityTransform(),
             PairCenterCrop(self.image_size, margin=self.margin, max_sc_diff=self.max_sc, blind_crop=self.blind_crop,
                            fill_value=self.fill_value),
             GeneralTransform(tr.ToTensor()),

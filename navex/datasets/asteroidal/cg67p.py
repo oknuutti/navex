@@ -34,7 +34,7 @@ class CG67pOsinacPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                            max_sc=1.0, margin=margin, fill_value=0, eval=eval, rgb=False,
-                                           blind_crop=True)
+                                           resize_max_sc=None, blind_crop=True)
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           trg_north_ra=math.radians(69.3), trg_north_dec=math.radians(64.1),
                                           model_north=[0, 1, 0])
