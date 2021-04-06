@@ -75,11 +75,12 @@ def main():
     try:
         logging.info('starting ray worker node...')
         head_address = '%s:%d' % (head_host, head_port)
+        maxmem = args.maxmem or None
         node = overrides.start(address=head_address, redis_password=args.redis_password,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
                         metrics_export_port=args.metrics_export_port,
-                        memory=args.maxmem, object_store_memory=args.maxmem, redis_max_memory=args.maxmem,
+                        memory=maxmem, object_store_memory=maxmem, redis_max_memory=maxmem,
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True)
 
         logging.info('ray worker node started with details: %s' % ((

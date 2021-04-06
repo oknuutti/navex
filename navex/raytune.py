@@ -251,18 +251,23 @@ class RayTuneHeadNode:
 class ScheduledWorkerNode:
     ports_used = set()
 
+    @staticmethod
+    def is_port_open(port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('localhost', port)) == 0
+
     @classmethod
     def reserve_port(cls, n=1):
         for _ in range(10):
             p = random.randint(20001, 2 ** 16 - 1)
-            if n == 1:
-                if p not in cls.ports_used:
-                    cls.ports_used.add(p)
-                    return p
-            elif n > 1:
-                ps = list(p + np.array(list(range(n))))
-                if not cls.ports_used.intersection(ps):
-                    return ps
+            ps = {p} if n == 1 else set(p + np.array(list(range(n))))
+            if not cls.ports_used.intersection(ps):
+                in_use = {p for p in ps if not cls.is_port_open(p)}
+                if len(in_use) > 0:
+                    cls.ports_used.update(in_use)
+                    continue
+                cls.ports_used.update(ps)
+                return ps
 
         raise Exception('Seems that all ports are already used')
 
