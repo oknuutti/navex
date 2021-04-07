@@ -271,12 +271,12 @@ class PairRandomCrop:
                 "sc1: %s, sc2: %s, curr_sc: %s, trg_sc: %s"
                 ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
 
-        if debug or 1:
+        if debug or 0:
             show_pair(c_img1, c_img2, c_aflow, pts=8)
-            min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
-            max_i, max_j = np.nanmax(c_aflow, axis=(0, 1))
-            assert min_i >= 0 and min_j >= 0, 'flow coord less than zero: i: %s, j: %s' % (min_i, min_j)
-            assert max_i < m and max_j < n, 'flow coord greater than cropped size: i: %s, j: %s' % (max_i, max_j)
+            # min_i, min_j = np.nanmin(c_aflow, axis=(0, 1))
+            # max_i, max_j = np.nanmax(c_aflow, axis=(0, 1))
+            # assert min_i >= 0 and min_j >= 0, 'flow coord less than zero: i: %s, j: %s' % (min_i, min_j)
+            # assert max_i < m and max_j < n, 'flow coord greater than cropped size: i: %s, j: %s' % (max_i, max_j)
 
         assert tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
         assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)

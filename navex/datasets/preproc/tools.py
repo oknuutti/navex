@@ -25,7 +25,7 @@ from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
 from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
-    q_times_v, angle_between_v, eul_to_q, valid_asteriod_area
+    q_times_v, angle_between_v, valid_asteriod_area, nadir_unit_v
 from navex.experiments.parser import nested_filter
 
 
@@ -55,7 +55,7 @@ def create_image_pairs_script():
 
 
 def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angle,
-                       max_angle, min_matches, read_meta, max_sc_diff=4.0, show_only=False, start=0.0, end=1.0):
+                       max_angle, min_matches, read_meta, max_sc_diff=1.5, show_only=False, start=0.0, end=1.0):
 
     aflow_path = os.path.join(root, aflow)
     index_path = index if isinstance(index, ImageDB) else os.path.join(root, index)
@@ -66,7 +66,11 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
 
     #  1) Go through all exr and create 4 clusters from pixel xyz, normalize the centroids to unity.
     #  2) Construct a tree from the unit vectors, find all pairs with max distance D.
-    #  3) Try to construct aflow, reject if too few pixels match.
+    #  3) Filter out pairs that fail one of these conditions:
+    #       - scale difference at most max_sc_diff
+    #       - relative angle of view between min_angle and max_angle
+    #       - both images already used img_max times
+    #  4) Construct aflow for selected pairs, can still reject if too few pixels match (min_matches)
 
     is_new = False
     if isinstance(index_path, ImageDB) or os.path.exists(index_path):
@@ -108,17 +112,22 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                                                'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
 
     # read index file
-    ids, files, unit_vectors, max_dists, dists = [], [], [], [], []
-    for id, fname, vd, stx, sty, stz, cx1, cy1, cz1, cx2, cy2, cz2, cx3, cy3, cz3, cx4, cy4, cz4 \
-            in index.get_all(('id', 'file', 'vd', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'cx1', 'cy1', 'cz1',
-                              'cx2', 'cy2', 'cz2', 'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), start=start, end=end):
+    ids, files, unit_vectors, max_dists, dists, coords = [], [], [], [], [], []
+    for id, fname, vd, stx, sty, stz, sqw, sqx, sqy, sqz, tqw, tqx, tqy, tqz, \
+        cx1, cy1, cz1, cx2, cy2, cz2, cx3, cy3, cz3, cx4, cy4, cz4 \
+            in index.get_all(('id', 'file', 'vd', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z',
+                              'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz',
+                              'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
+                              'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), start=start, end=end):
         assert cx1 is not None, 'centroids not set for id=%d, file=%s' % (id, fname)
-        if np.isnan(float(cx1)):
+        if np.isnan(float(cx1)) or tqw is None:
             continue
         ids.append(int(id))
         files.append(fname)
         max_dists.append(float(vd))
         dists.append(np.linalg.norm([stx, sty, stz]))
+        coords.append(nadir_unit_v((np.quaternion(sqw, sqx, sqy, sqz) if sqw is not None else quaternion.one).conj() *
+                                   np.quaternion(tqw, tqx, tqy, tqz)))
         unit_vectors.append([[float(a) for a in u] for u in ((cx1, cy1, cz1), (cx2, cy2, cz2),
                                                              (cx3, cy3, cz3), (cx4, cy4, cz4))])
 
@@ -144,13 +153,13 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
     image_count = Counter()
     if not os.path.exists(pairs_path):
         with open(pairs_path, 'w') as fh:
-            fh.write('image_id_0 image_id_1 angle match_ratio\n')
+            fh.write('image_id_0 image_id_1 sc_diff angle_diff match_ratio matches\n')
     else:
         with open(pairs_path, 'r') as fh:
             for k, line in enumerate(fh):
                 if k == 0:
                     continue
-                i, j, angle, ratio = line.split(' ')
+                i, j, sc_diff, angle, ratio, matches = line.split(' ')
                 added_pairs.update({(int(i), int(j)), (int(j), int(i))})
                 if ratio != 'nan':
                     image_count.update((int(i), int(j)))
@@ -161,17 +170,22 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
     for tot, (ii, jj) in enumerate(pbar):
         (i, a), (j, b) = idxs[ii, :], idxs[jj, :]
         id_i, id_j = ids[i], ids[j]
-        angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i + a] - unit_vectors[j + b]) / 2))
-        sc_diff = max((dists[i] - dists[j]) / dists[j], (dists[j] - dists[i]) / dists[i])
 
-        if angle >= min_angle and sc_diff < max_sc_diff and id_i != id_j and (id_i, id_j) not in added_pairs and (
+        # calculate angle between relative poses, ignore rotation around camera axis
+        angle = math.degrees(angle_between_v(coords[i], coords[j]))
+        # was earlier angle between matched cluster vectors
+        # angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i + a] - unit_vectors[j + b]) / 2))
+
+        sc_diff = max(dists[i] / dists[j], dists[j] / dists[i])
+
+        if min_angle <= angle <= max_angle and sc_diff < max_sc_diff and id_i != id_j and (id_i, id_j) not in added_pairs and (
                 image_count[id_i] < img_max or image_count[id_j] < img_max):
             xyzs0 = load_xyzs(os.path.join(src_path, files[i]), hz_fov=hz_fov)
             xyzs1 = load_xyzs(os.path.join(src_path, files[j]), hz_fov=hz_fov)
             max_matches = min(np.sum(np.logical_not(np.isnan(xyzs0[:, :, 0]))),
                               np.sum(np.logical_not(np.isnan(xyzs1[:, :, 0]))))
 
-            ratio = np.nan
+            ratio, matches = np.nan, -1
             if max_matches >= min_matches:
                 aflow = calc_aflow(xyzs0, xyzs1)
                 matches = np.sum(np.logical_not(np.isnan(aflow[:, :, 0])))
@@ -185,7 +199,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
             added_pairs.add((id_i, id_j))
             added_pairs.add((id_j, id_i))
             with open(pairs_path, 'a') as fh:
-                fh.write('%d %d %.2f %.4f\n' % (id_i, id_j, angle, ratio))
+                fh.write('%d %d %.3f %.3f %.3f %d\n' % (id_i, id_j, sc_diff, angle, ratio, matches))
 
         pbar.set_postfix({'added': add_count, 'ratio': add_count/(tot + 1)}, refresh=False)
 

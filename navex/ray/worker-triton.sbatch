@@ -20,8 +20,7 @@ rm -fR /tmp/ray
 rm -fR "$WORKER_LOG_PATH-old"
 [ ! -d $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
 mkdir -p $WORKER_LOG_PATH
-mkdir -p /tmp/ray
-ln -s $WORKER_LOG_PATH /tmp/ray/logs
+ln -s $WORKER_LOG_PATH /tmp/ray
 
 set +x    # echo all commands for debug purposes
 

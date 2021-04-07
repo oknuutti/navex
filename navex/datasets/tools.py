@@ -148,6 +148,13 @@ def cartesian2spherical(x, y, z):
     return np.array([lat, lon, r])
 
 
+def nadir_unit_v(sc_trg_q):
+    # following assumed, not certain if necessary though:
+    #   - cam: +x bore, +z up
+    #   - trg: +x zero lat & lon, +z north pole
+    return q_times_v(sc_trg_q, np.array([-1, 0, 0]))
+
+
 def plot_vectors(pts3d, scatter=True, conseq=True, neg_z=True):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
