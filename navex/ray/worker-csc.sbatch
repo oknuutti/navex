@@ -4,26 +4,29 @@
 #SBATCH --mem-per-cpu=2560M
 #SBATCH --ntasks=1
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:v100:1,nvme:10       # nvme in GB, adjust based on actual need
-#SBATCH --signal=SIGUSR1@120            # wall time auto-resubmit
+#SBATCH --gres=gpu:v100:1,nvme:10  # nvme in GB, adjust based on actual need
+#SBATCH --signal=SIGUSR1@120       # wall time auto-resubmit
 
 ## copy image data to local drive
-# --edit: changed tmp dir from /tmp/$SLURM_JOB_ID to /tmp/navex because of some ray bug (?),
-#         where a worker process on another node tries to access the data of this slurm job
 ## set locations
+
+set -x    # echo all commands for debug purposes
+
 export PROJAPPL="/projappl/project_2004227"
 export SCRATCH="/scratch/project_2004227"
 export NAVEX_DATA="$LOCAL_SCRATCH/navex"
 
-mkdir "$NAVEX_DATA"
+mkdir -p "$NAVEX_DATA"
 trap "rm -r $NAVEX_DATA; exit" TERM EXIT
 
-#export WORKER_LOG_PATH="$SCRATCH/cache/ray/$SLURM_JOB_ID"
-#rm -fR /tmp/ray
-#rm -fR "$WORKER_LOG_PATH-old"
-#[ ! -d $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
-#mkdir -p $WORKER_LOG_PATH
-#ln -s $WORKER_LOG_PATH /tmp/ray
+export WORKER_LOG_PATH="$SCRATCH/cache/ray/$SLURM_JOB_ID"
+rm -fR /tmp/ray
+rm -fR "$WORKER_LOG_PATH-old"
+[ ! -d $WORKER_LOG_PATH ] || mv $WORKER_LOG_PATH "$WORKER_LOG_PATH-old"
+mkdir -p $WORKER_LOG_PATH
+ln -s $WORKER_LOG_PATH /tmp/ray
+
+set +x
 
 DATADIR=${DATADIR//;/$'\n'}
 for DDIR in $DATADIR

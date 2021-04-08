@@ -1,17 +1,16 @@
 #!/bin/bash
-#SBATCH --time=0-0:59:00               # estimated execution time (~80s/epoch)
-#SBATCH --mem-per-cpu=3G                # memory needed (~2Gb/core)
-#SBATCH --gres=gpu:1                    # GPUs needed
+#SBATCH --time=0-11:59:00        # estimated execution time (~80s/epoch)
+#SBATCH --mem-per-cpu=2560M        # memory needed (~2Gb/core)
+#SBATCH --gres=gpu:1            # GPUs needed
 #SBATCH --constraint='volta'    # 'kepler|pascal|volta'
-#SBATCH --signal=SIGUSR1@120            # wall time auto-resubmit
+#SBATCH --signal=SIGUSR1@120    # wall time auto-resubmit
 
 ## copy image data to local drive
-# --edit: changed tmp dir from /tmp/$SLURM_JOB_ID to /tmp/navex because of some ray bug (?),
-#         where a worker process on another node tries to access the data of this slurm job
+## set locations
 
 set -x    # echo all commands for debug purposes
 
-export NAVEX_DATA=/tmp/navex
+export NAVEX_DATA="/tmp/navex"
 mkdir -p "$NAVEX_DATA"
 trap "rm -r $NAVEX_DATA; exit" TERM EXIT
 
@@ -22,7 +21,7 @@ rm -fR "$WORKER_LOG_PATH-old"
 mkdir -p $WORKER_LOG_PATH
 ln -s $WORKER_LOG_PATH /tmp/ray
 
-set +x    # echo all commands for debug purposes
+set +x
 
 DATADIR=${DATADIR//;/$'\n'}
 for DDIR in $DATADIR
