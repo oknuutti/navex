@@ -9,6 +9,7 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 
+from navex.trials.aerial import AerialTrial
 from navex.trials.asteroidal import AsteroidalTrial
 from navex.trials.terrastudent import TerraStudentTrial
 from .experiments.parser import ExperimentConfigParser, to_dict
@@ -54,7 +55,16 @@ def main():
                                 gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
     elif args.trial == 'astst':
         raise NotImplemented()
-        trial = TerraStudentTrial(to_dict(config.model), to_dict(config.loss),
+        trial = AstraStudentTrial(to_dict(config.model), to_dict(config.loss),
+                                  to_dict(config.optimizer), to_dict(config.data),
+                                  gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
+    elif args.trial == 'aer':
+        trial = AerialTrial(to_dict(config.model), to_dict(config.loss),
+                            to_dict(config.optimizer), to_dict(config.data),
+                            gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
+    elif args.trial == 'aerst':
+        raise NotImplemented()
+        trial = AeroStudentTrial(to_dict(config.model), to_dict(config.loss),
                                   to_dict(config.optimizer), to_dict(config.data),
                                   gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
     else:

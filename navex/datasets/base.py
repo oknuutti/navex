@@ -147,6 +147,7 @@ class RandomSeed:
 
 class SynthesizedPairDataset(VisionDataset):
     def __init__(self, root, max_tr, max_rot, max_shear, max_proj, min_size, transforms=None, image_loader=default_loader):
+        transforms = self.transforms if transforms is None else transforms
         super(SynthesizedPairDataset, self).__init__(root, transforms=transforms)
 
         # fv = AugmentedPairDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedPairDatasetMixin.TR_NORM_MONO.mean
