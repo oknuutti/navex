@@ -1,5 +1,6 @@
 import math
 import os
+import re
 import random
 import sqlite3
 from typing import Tuple, Union, List, Iterable
@@ -11,9 +12,15 @@ import cv2
 
 
 def _find_files_recurse(root, path, samples, npy, ext, test, depth, relative):
+    if npy:
+        ext = ('.npy',)
+    elif isinstance(ext, str):
+        ext = (ext,)
+    expat = '(' + '|'.join(map(re.escape, ext)) + ')$'
+
     for fname in os.listdir(os.path.join(root, path)):
         fullpath = os.path.join(root, path, fname)
-        if fname[-len(ext):] == ('.npy' if npy else ext):
+        if re.search(expat, fname):
             ok = test is None
             if not ok:
                 try:

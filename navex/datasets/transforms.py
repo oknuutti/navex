@@ -7,6 +7,8 @@ import PIL
 import cv2
 import torch
 from PIL import ImageOps
+import torchvision.transforms as tr
+
 from r2d2.tools.transforms import RandomTilt
 from r2d2.tools.transforms_tools import persp_apply
 
@@ -61,6 +63,22 @@ class ComposedTransforms:
         for transform in self.transforms:
             images, aflow = transform(images, aflow)
         return images, aflow
+
+
+class MatchChannels:
+    def __init__(self, rgb):
+        self.rgb = rgb
+        self.tr = tr.Grayscale(num_output_channels=3 if self.rgb else 1)
+
+    def __call__(self, img):
+        if isinstance(img, torch.Tensor):
+            d = img.shape[0 if img.dim() == 3 else 1]
+        else:
+            d = len(img.getbands())
+
+        if self.rgb and d >= 3 or not self.rgb and d == 1:
+            return img
+        return self.tr(img)
 
 
 class RandomScale:
@@ -214,7 +232,7 @@ class PairRandomCrop:
         c_img1 = img1.crop((i1, j1, i1+m, j1+n))
         c_mask = mask[j1:j1+m, i1:i1+n]
 
-        # determine current scale of cropped img2 relative to cropped img1 based on aflow
+        # determine current scale of cropped img1 relative to cropped img0 based on aflow
         xy1 = np.stack(np.meshgrid(range(m), range(n)), axis=2).reshape((-1, 2))
         ic1, jc1 = np.median(xy1[c_mask.flatten(), :], axis=0)
         sc1 = np.sqrt(np.median(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
@@ -244,7 +262,7 @@ class PairRandomCrop:
             i2, j2 = (np.nanmean(c_aflow, axis=(0, 1)) - np.array([m/2, n/2]) + 0.5).astype(np.int)
             i2, j2 = np.clip(i2, 0, trg_full_shape[1] - m), np.clip(j2, 0, trg_full_shape[0] - n)
         else:
-            # use cv2.filter2D and argmax for img2 also
+            # use cv2.filter2D and argmax for img1 also
             idxs = c_aflow.reshape((-1, 2))[np.logical_not(np.isnan(c_aflow[:, :, 0].flatten())), :].astype(np.int)
             idxs = idxs[np.logical_and(idxs[:, 0] < trg_full_shape[1], idxs[:, 1] < trg_full_shape[0]), :]
             c_ok = np.zeros(trg_full_shape, dtype='float32')
@@ -267,7 +285,7 @@ class PairRandomCrop:
         except PIL.Image.DecompressionBombError as e:
             from navex.datasets.base import DataLoadingException
             raise DataLoadingException((
-                "invalid crop params? (i2s, j2s, i2e, j2e): %s, img2.size: %s, "
+                "invalid crop params? (i2s, j2s, i2e, j2e): %s, img1.size: %s, "
                 "sc1: %s, sc2: %s, curr_sc: %s, trg_sc: %s"
                 ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
 

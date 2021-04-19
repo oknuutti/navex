@@ -7,6 +7,7 @@ from torch.functional import F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from navex.models.tools import is_rgb_model, load_model
 from .datasets.base import ExtractionImageDataset
 from .lightning.base import TrialWrapperBase
 from .models import tools
@@ -22,7 +23,6 @@ from navex.models.r2d2orig import R2D2
 def main():
     parser = argparse.ArgumentParser("extract features from images")
     parser.add_argument("--model", type=str, required=True, help='model path')
-    parser.add_argument("--model-type", type=str, choices=('r2d2', 'trial'), default='trial', help='model type')
     parser.add_argument("--images", type=str, required=True, help='images / list')
     parser.add_argument("--tag", type=str, default='astr', help='output file tag')
     parser.add_argument("--top-k", type=int, default=2000, help='number of keypoints')
@@ -37,37 +37,13 @@ def main():
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
 
-    if args.tag[:1] == '_':
-        args.model_type = 'r2d2'
-
     device = "cuda:0" if args.gpu else "cpu"
-
-    if args.model_type == 'r2d2':
-        model = R2D2(path=args.model)
-        model.to(device)
-    elif args.model_type == 'trial':
-        model = TrialWrapperBase.load_from_checkpoint(args.model, map_location=device)
-        model.trial.workers = 0
-        model.trial.batch_size = 1
-        model.use_gpu = args.gpu
-    else:
-        assert False, 'invalid model type: %s' % args.model_type
-
-    fst, rgb = model, None
-    while True:
-        try:
-            fst = next(fst.children())
-        except:
-            rgb = fst.in_channels == 3
-            break
-
+    model = load_model(args.model, device)
+    rgb = is_rgb_model(model)
     model.eval()
-    dataset = ExtractionImageDataset(args.images, rgb=rgb)
 
-    if args.model_type == 'r2d2':
-        data_loader = DataLoader(dataset, pin_memory=args.gpu)  # TODO: debug
-    else:
-        data_loader = model.wrap_ds(dataset)
+    dataset = ExtractionImageDataset(args.images, rgb=rgb)
+    data_loader = model.wrap_ds(dataset)
 
     for i, data in enumerate(tqdm(data_loader)):
         data = data.to(device)
@@ -91,11 +67,11 @@ def main():
         idxs = scores.argsort()[-args.top_k or None:]
 
         outpath = dataset.samples[i] + '.' + args.tag
-        np.savez(open(outpath, 'wb'),
-                 imsize=data.shape[2:],
-                 keypoints=xys[idxs],
-                 descriptors=desc[idxs],
-                 scores=scores[idxs])
+        with open(outpath, 'wb') as fh:
+            np.savez(fh, imsize=data.shape[2:],
+                     keypoints=xys[idxs],
+                     descriptors=desc[idxs],
+                     scores=scores[idxs])
 
 
 def extract_multiscale(model, img0, scale_f=2 ** 0.25,
@@ -109,18 +85,34 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25,
     assert b == 1, "should be a batch with a single image"  # because can't fit different size images in same batch
     assert c in (1, 3), "should be an rgb or monochrome image"
 
-    assert max_scale <= 1
-    sc, img = 1.0, img0  # current scale factor, current image
+    max_sc = min(max_scale, max_size / max(h0, w0))
+    n = np.floor(np.log(max_sc) / np.log(scale_f))      # so that get one set of features at scale 1.0
+    sc = min(max_sc, scale_f ** n)  # current scale factor
 
     XY, S, C, D = [], [], [], []
     while sc + 0.001 >= max(min_scale, min_size / max(h0, w0)):
         if sc - 0.001 <= min(max_scale, max_size / max(h0, w0)):
+            if np.isclose(sc, 1, rtol=1e-2):
+                img = img0
+            else:
+                # scale the image for next iteration
+                h, w = round(h0 * sc), round(w0 * sc)
+                mode = 'bilinear' if sc > 0.5 else 'area'
+                img = F.interpolate(img0, (h, w), mode=mode, align_corners=False if mode == 'bilinear' else None)
             h, w = img.shape[2:]
             sc = w / w0
 
             # extract descriptors
             with torch.no_grad():
                 des, det, qlt = model(img)
+
+            if 0:
+                import matplotlib.pyplot as plt
+                from .visualize import plot_tensor
+                fig, axs = plt.subplots(2, 1, figsize=(6, 6))
+                plot_tensor(img, image=True, ax=axs[0])
+                plot_tensor(qlt, ax=axs[1])
+                plt.show()
 
             _, _, H1, W1 = det.shape
             yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, det_lim=det_lim,
@@ -132,11 +124,6 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25,
             C.append(conf[0].t())
             D.append(descr[0].t())
         sc /= scale_f
-
-        # down-scale the image for next iteration
-        h, w = round(h0 * sc), round(w0 * sc)
-        mode = 'bilinear' if sc > 0.5 else 'area'
-        img = F.interpolate(img0, (h, w), mode=mode, align_corners=False if mode == 'bilinear' else None)
 
     # restore value
     torch.backends.cudnn.benchmark = old_bm

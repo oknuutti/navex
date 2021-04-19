@@ -1,5 +1,6 @@
 
 import os
+import pickle
 import re
 import math
 import psutil
@@ -117,6 +118,18 @@ def main():
                          deterministic=bool(args.deterministic),
                          auto_lr_find=bool(args.auto_lr_find),
                          precision=16 if args.gpu and args.reduced_precision else 32)
+
+    if args.auto_lr_find:
+        lr_finder = trainer.tuner.lr_find(model, trn_dl, val_dl, min_lr=1e-5, max_lr=1e-2)
+        print('auto lr finder results: %s' % (lr_finder.results,))
+        print('\nauto lr finder suggestion: %s' % (lr_finder.suggestion(),))
+        path = os.path.join(args.output, args.name, 'lr_finder.pickle')
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'wb') as fh:
+            pickle.dump(lr_finder, fh)
+        print('saved lr_finder object in file %s' % (path,))
+        return
+
     trainer.fit(model, trn_dl, val_dl)
 
     if PROFILING_ONLY:

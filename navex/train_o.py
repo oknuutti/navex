@@ -303,6 +303,9 @@ class Meter(object):
         self.recent_values = np.concatenate((self.recent_values, val), axis=0)
         self.values = np.concatenate((self.values, val), axis=0)
 
+    def __str__(self):
+        return 'mean: %f' % self.avg
+
 
 if __name__ == '__main__':
     main()

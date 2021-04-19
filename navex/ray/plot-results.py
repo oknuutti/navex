@@ -17,7 +17,11 @@ def main():
     args = parser.parse_args()
 
     search_alg = MySkOptSearch()
-    search_alg.restore_from_dir(args.path)
+    if os.path.isdir(args.path):
+        search_alg.restore_from_dir(args.path)
+    else:
+        search_alg.restore(args.path)
+
     X, y = search_alg._skopt_opt.Xi, search_alg._skopt_opt.yi
     len_sc = search_alg._skopt_opt.base_estimator_.kernel.k2.length_scale
 

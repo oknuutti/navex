@@ -58,7 +58,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
         if self.preproc_path is None and not self.aflow_rot_norm:
             return imgs, aflow
 
-        # TODO: query self.index for relevant params, transform img1, img2 accordingly
+        # TODO: query self.index for relevant params, transform img0, img1 accordingly
         #  (1) Rotate so that image up aligns with up in equatorial (or ecliptic) frame (+z axis)
         #  (2) Rotate so that the sun is directly to the left
         #  (3) Rotate so that asteroid north pole is up
@@ -114,14 +114,14 @@ class AsteroidImagePairDataset(ImagePairDataset):
                          (np.array([[math.cos(-angle), -math.sin(-angle)],
                                     [math.sin(-angle), math.cos(-angle)]], dtype=np.float32), img2)]
 
-        # rotate aflow content so that points to new rotated img2
+        # rotate aflow content so that points to new rotated img1
         (ow1, oh1), (ow2, oh2) = imgs[0].size, imgs[1].size
         (nw1, nh1), (nw2, nh2) = proc_imgs[0][1].size, proc_imgs[1][1].size
         r_aflow = aflow - np.array([[[ow2/2, oh2/2]]], dtype=np.float32)
         r_aflow = r_aflow.reshape((-1, 2)).dot(proc_imgs[1][0].T).reshape((oh1, ow1, 2))
         r_aflow = r_aflow + np.array([[[nw2/2, nh2/2]]], dtype=np.float32)
 
-        # rotate aflow indices same way as img1 was rotated
+        # rotate aflow indices same way as img0 was rotated
         ifun = interp.RegularGridInterpolator((np.arange(-oh1/2, oh1/2, dtype=np.float32),
                                                np.arange(-ow1/2, ow1/2, dtype=np.float32)), r_aflow,
                                               method="nearest", bounds_error=False, fill_value=np.nan)

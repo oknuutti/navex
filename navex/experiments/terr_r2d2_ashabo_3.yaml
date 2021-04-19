@@ -25,7 +25,7 @@ training:
   batch_size: 8
   batch_mem: 32000
   gpu: 1
-  epochs: 16
+  epochs: 20
   print_freq: 5
   test_freq: 1
   save_freq: 1
@@ -67,7 +67,7 @@ loss:
   wdt: -2.0       # weight for peakiness and cosim losses
   wap: -2.0       # weight for expected ap loss
   det_n: !h_tune2_choice  '[16], [12, 14, 16, 18, 20]'     # detector neighbourhood size
-  base:  !h_tune2_uniform '(0.20, 0.30), (0.00, 0.70)'   # quality loss target mAP
+  base:  !h_tune2_uniform '(0.40, 0.50), (0.00, 0.70)'   # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 7        # was 7       # neighbourhood size in descriptor cells
@@ -82,7 +82,7 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune2_loguniform  '(8e-4, 12e-4), (1e-4, 1e-2)'
+  learning_rate: 3e-4
   weight_decay:  !h_tune2_loguniform  '(4e-4, 6e-4), (1e-8, 1e-3)'
   split_params: 0
   eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'

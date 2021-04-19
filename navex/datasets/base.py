@@ -1,6 +1,7 @@
 import bisect
 import math
 import os
+import re
 import random
 
 import numpy as np
@@ -16,11 +17,14 @@ import torchvision.transforms as tr
 from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, ComposedTransforms, \
     GeneralTransform, PairCenterCrop, PairRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform, \
     RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
-    PairRandomHorizontalFlip, Clamp, UniformNoise
+    PairRandomHorizontalFlip, Clamp, UniformNoise, MatchChannels
 
 from .tools import find_files_recurse, load_aflow
 
 from .. import RND_SEED
+
+RGB_MEAN, RGB_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+GRAY_MEAN, GRAY_STD = [0.449], [0.226]
 
 
 def worker_init_fn(id):
@@ -108,7 +112,7 @@ class PairIndexFileLoader:
 
 class IndexedImagePairDataset(ImagePairDataset):
     """An image pair data loader where the index file has has three columns: ::
-    img1 path, img2 path, aflow path
+    img0 path, img1 path, aflow path
 
     Args:
         index_file (string): path of the index file
@@ -119,7 +123,7 @@ class IndexedImagePairDataset(ImagePairDataset):
             E.g, ``RandomExposure`` which doesn't have a geometric distortion.
 
      Attributes:
-        samples (list): List of ((img1 path, img2 path), aflow path) tuples
+        samples (list): List of ((img0 path, img1 path), aflow path) tuples
     """
     def __init__(self, index_file, aflow_loader, image_loader=default_loader,
                  index_file_loader=PairIndexFileLoader(), transforms=None):
@@ -199,8 +203,8 @@ class SynthesizedPairDataset(VisionDataset):
 
 
 class AugmentedPairDatasetMixin:
-    TR_NORM_RGB = tr.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    TR_NORM_MONO = tr.Normalize(mean=[0.449], std=[0.226])
+    TR_NORM_RGB = tr.Normalize(mean=RGB_MEAN, std=RGB_STD)
+    TR_NORM_MONO = tr.Normalize(mean=GRAY_MEAN, std=GRAY_STD)
 
     def __init__(self, noise_max=0.1, rnd_gain=(0.5, 2), image_size=512, max_sc=2**(1/4), blind_crop=False,
                  margin=16, resize_max_size=1024, resize_max_sc=2.0, fill_value=None, eval=False, rgb=False):
@@ -397,22 +401,42 @@ class ExtractionImageDataset(torch.utils.data.Dataset):
     def __init__(self, path, eval=True, rgb=False):
         if eval:
             self.transforms = tr.Compose([
-                IdentityTransform() if rgb else tr.Grayscale(num_output_channels=1),
+                MatchChannels(rgb),
                 tr.ToTensor(),
-                tr.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) if rgb else
-                tr.Normalize(mean=[0.449], std=[0.226]),
+                tr.Normalize(mean=RGB_MEAN, std=RGB_STD) if rgb else
+                tr.Normalize(mean=GRAY_MEAN, std=GRAY_STD),
             ])
         else:
             assert False, 'not implemented'
 
         # load samples
+        exts = ('.jpg', '.png', '.bmp', '.jpeg', '.ppm')
         if os.path.isdir(path):
-            self.samples = [os.path.join(path, f.strip()) for f in os.listdir(path)
-                                                  if f[-4:] in ('.jpg', '.png', '.bmp', '.jpeg', '.ppm')]
+            self.samples = find_files_recurse(path, ext=exts)
+            self.samples = sorted(self.samples, key=lambda x: tuple(map(int, re.findall(r'\d+', x))))
+        elif path[-4:] in exts or path[-5:] == '.jpeg':
+            self.samples = [path]
         else:
             with open(path) as fh:
                 path = os.path.dirname(path)
                 self.samples = list(map(lambda x: os.path.join(path, x.strip()), fh))
+
+    @staticmethod
+    def tensor2img(data):
+        if data.dim() == 3:
+            data = data[None, :, :, :]
+        B, D, H, W = data.shape
+
+        imgs = []
+        for i in range(B):
+            img = data[i, :, :, :].permute((1, 2, 0)).cpu().numpy()
+            if D == 3:
+                img = img * np.array(RGB_STD, dtype=np.float32) + np.array(RGB_MEAN, dtype=np.float32)
+            else:
+                img = img * np.array(GRAY_STD, dtype=np.float32) + np.array(GRAY_MEAN, dtype=np.float32)
+            imgs.append(np.clip(img*255, 0, 255).astype(np.uint8))
+
+        return imgs
 
     def __getitem__(self, idx):
         try:

@@ -113,10 +113,10 @@ class TrialBase(abc.ABC, torch.nn.Module):
     def train_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, epoch_idx: int, batch_idx: int):
         # import matplotlib.pyplot as plt
         # import numpy as np
-        # img1, img2 = data[0].permute((0, 2, 3, 1)).detach().numpy()[0,:,:,:], data[1].permute((0, 2, 3, 1)).detach().numpy()[0,:,:,:]
+        # img0, img1 = data[0].permute((0, 2, 3, 1)).detach().numpy()[0,:,:,:], data[1].permute((0, 2, 3, 1)).detach().numpy()[0,:,:,:]
+        # img0 = img0 * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
         # img1 = img1 * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
-        # img2 = img2 * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
-        # plt.imshow(np.concatenate((img1, img2), axis=1))
+        # plt.imshow(np.concatenate((img0, img1), axis=1))
         # plt.show()
 
         self.model.train()

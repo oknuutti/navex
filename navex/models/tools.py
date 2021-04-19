@@ -1,10 +1,14 @@
 import math
+import os
 
 import numpy as np
 
 import torch
 from torch import nn
 from torch.functional import F
+
+from navex.lightning.base import TrialWrapperBase
+from navex.models.r2d2orig import R2D2
 
 
 def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, border=16, interp='bicubic'):
@@ -97,7 +101,7 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
     B, K1, K2 = dist.shape
     W2, H2 = img2_w_h
 
-    # ground truth image coords in img2 of detected features in img1
+    # ground truth image coords in img1 of detected features in img0
     gt_yx2 = -torch.ones_like(yx1)
     for b in range(B):
         # +0.5 for automatic rounding; nan => -9223372036854775808
@@ -145,11 +149,40 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
         from r2d2.nets.ap_loss import APLoss
         ap_loss = APLoss()
         ap_loss.to(x.device)
-        t = ap_loss(x, labels)  # AP for each feature from img1
+        t = ap_loss(x, labels)  # AP for each feature from img0
         num_ap = torch.logical_not(torch.isnan(t)).sum()
         acc[b, 3] = t.nansum() / num_ap  # mAP
 
     return acc
+
+
+def load_model(path, device, model_only=False):
+    model_type = 'orig' if os.path.basename(path)[:1] == '_' or path[-3:] == '.pt' else 'own'
+
+    if model_type == 'orig':
+        model = R2D2(path=path)
+        model.to(device)
+    else:
+        model = TrialWrapperBase.load_from_checkpoint(path, map_location=device)
+        model.trial.workers = 0
+        model.trial.batch_size = 1
+        model.use_gpu = model.on_gpu
+
+        if model_only:
+            model = model.trial.model
+
+    return model
+
+
+def is_rgb_model(model):
+    fst, rgb = model, None
+    while True:
+        try:
+            fst = next(fst.children())
+        except:
+            rgb = fst.in_channels == 3
+            break
+    return rgb
 
 
 def max_rect_bounded_by_quad_mask(mask: np.ndarray = None):
