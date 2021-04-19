@@ -16,10 +16,15 @@ class R2D2Loss(BaseLoss):
 
         self.wdt = wdt if wdt >= 0 else nn.Parameter(torch.Tensor([-wdt]))
         self.wap = wap if wap >= 0 else nn.Parameter(torch.Tensor([-wap]))
+        base = base if base >= 0 else nn.Parameter(torch.Tensor([-base]))
 
         self.ap_loss = AveragePrecisionLoss(base=base, nq=nq, sampler_conf=sampler)
         self.cosim_loss = CosSimilarityLoss(int(det_n))
         self.peakiness_loss = PeakinessLoss(int(det_n))
+
+    @property
+    def base(self):
+        return self.ap_loss.super.base
 
     def update_conf(self, new_conf):
         ok = True
@@ -72,12 +77,7 @@ class R2D2Loss(BaseLoss):
         return p_loss + c_loss + a_loss
 
     def params_to_optimize(self, split=False):
-        params = []
-        if not isinstance(self.wdt, float):
-            params.append(self.wdt)
-        if not isinstance(self.wap, float):
-            params.append(self.wap)
-
+        params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'ap_loss.super.base')]
         if split:
             # new_biases, new_weights, biases, weights, others
             return [[], [], [], [], params]

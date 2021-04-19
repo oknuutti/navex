@@ -76,6 +76,8 @@ class TerrestrialTrial(TrialBase):
             log['wdt'] = self.loss_fn.wdt
         if not isinstance(self.loss_fn.wap, float):
             log['wap'] = self.loss_fn.wap
+        if not isinstance(self.loss_fn.base, float):
+            log['ap_base'] = self.loss_fn.base
         return log or None
 
     def resource_loss(self, loss):
