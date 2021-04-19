@@ -40,6 +40,8 @@ class TrialBase(abc.ABC, torch.nn.Module):
             self.count_ops = ops_prof
         except:
             self.count_ops = False
+        self.nparams = None
+        self.macs = None
 
     def update_conf(self, new_conf: dict, fail_silently: bool = False):
         for k, v in new_conf.items():
@@ -145,8 +147,9 @@ class TrialBase(abc.ABC, torch.nn.Module):
         with torch.no_grad():
             if self.count_ops:
                 d = data[0][:1, :, :, :]
-                macs, params = self.count_ops(self.model, inputs=(d,), verbose=False)
-                print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s)' % (params * 1e-6, macs * 1e-9, d.shape))
+                self.macs, self.nparams = self.count_ops(self.model, inputs=(d,), verbose=False)
+                print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s)' %
+                      (self.nparams * 1e-6, self.macs * 1e-9, d.shape))
                 self.count_ops = False
 
             output1 = self.model(data[0])

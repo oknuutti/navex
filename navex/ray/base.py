@@ -62,6 +62,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
 
     callbacks = [
         TuneReportCheckpointCallback(metrics={
+            "rloss": "val_rloss_epoch",
             "loss": "val_loss_epoch",
             "tot_ratio": "val_tot_epoch",
             "inl_ratio": "val_inl_epoch",
@@ -126,7 +127,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
         logging.info('new trial with %s' % (full_conf,))
 
-        TrialClass = {cls.name: cls for cls in (
+        TrialClass = {cls.NAME: cls for cls in (
             TerrestrialTrial, TerraStudentTrial, AsteroidalTrial, AerialTrial,  # AstraStudentTrial, AeroStudentTrial
         )}.get(train_conf['trial'], None)
         assert TrialClass is not None, 'invalid trial: %s' % train_conf['trial']

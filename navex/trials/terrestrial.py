@@ -78,6 +78,10 @@ class TerrestrialTrial(TrialBase):
             log['wap'] = self.loss_fn.wap
         return log or None
 
+    def resource_loss(self, loss):
+        # TODO: use self.macs and self.target_macs
+        return loss  # * some_good_fn(self.macs - self.target_macs)
+
     def build_training_data_loader(self, rgb=False):
         return self._get_datasets(rgb)[0]
 

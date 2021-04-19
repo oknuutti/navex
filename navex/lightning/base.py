@@ -109,6 +109,9 @@ class TrialWrapperBase(pl.LightningModule):
             lp + '_map' + postfix: map * 100,
         }
 
+        if hasattr(self.trial, 'resource_loss'):
+            log_values[lp + '_rloss' + postfix] = self.trial.resource_loss(loss)     # TODO: continue here (resource_loss)
+
         if trial_params is not None:
             log_values.update({'%s_%s%s' % (lp, p, postfix): v for p, v in trial_params.items()})
 

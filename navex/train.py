@@ -42,7 +42,7 @@ def main():
     acc_grad_batches = 2 ** max(0, math.ceil(math.log2((args.batch_mem * 1024 * 1024) / totmem)))  # in MB
     gpu_batch_size = args.batch_size // acc_grad_batches
 
-    TrialClass = {cls.name: cls for cls in (
+    TrialClass = {cls.NAME: cls for cls in (
         TerrestrialTrial, TerraStudentTrial, AsteroidalTrial, AerialTrial,  # AstraStudentTrial, AeroStudentTrial
     )}.get(args.trial, None)
     assert TrialClass is not None, 'invalid trial: %s' % args.trial
