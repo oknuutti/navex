@@ -6,6 +6,8 @@ from ..datasets.base import AugmentedConcatDataset
 
 
 class AerialTrial(TerrestrialTrial):
+    NAME = 'aer'
+
     def _get_datasets(self, rgb=False):
         if self._tr_data is None:
             common = dict(margin=self.loss_fn.ap_loss.super.sampler.border, eval=False, rgb=False)

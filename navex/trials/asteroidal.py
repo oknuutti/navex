@@ -10,6 +10,8 @@ from ..datasets.base import AugmentedConcatDataset
 
 
 class AsteroidalTrial(TerrestrialTrial):
+    NAME = 'ast'
+
     def _get_datasets(self, rgb=False):
         assert rgb is False, 'no rgb images from asteroids'
 

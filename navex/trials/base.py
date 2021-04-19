@@ -21,6 +21,8 @@ def _bare(val):
 
 
 class TrialBase(abc.ABC, torch.nn.Module):
+    NAME = None  # override
+
     def __init__(self, model, loss_fn, optimizer_conf, lr_scheduler=None, aux_cost_coef=0.5, acc_grad_batches=1):
         super(TrialBase, self).__init__()
         self.model = model

@@ -12,6 +12,8 @@ from ..losses.student import StudentLoss
 
 
 class TerraStudentTrial(StudentTrialMixin, TerrestrialTrial):
+    NAME = 'terrst'
+
     def __init__(self, model_conf, loss_conf, optimizer_conf, data_conf, batch_size, acc_grad_batches=1, hparams=None):
         # load teacher
         teacher_ckpt = loss_conf.pop('teacher')

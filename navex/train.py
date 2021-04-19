@@ -42,34 +42,14 @@ def main():
     acc_grad_batches = 2 ** max(0, math.ceil(math.log2((args.batch_mem * 1024 * 1024) / totmem)))  # in MB
     gpu_batch_size = args.batch_size // acc_grad_batches
 
-    if args.trial == 'terr':
-        trial = TerrestrialTrial(to_dict(config.model), to_dict(config.loss),
-                                 to_dict(config.optimizer), to_dict(config.data),
-                                 gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
-    elif args.trial == 'terrst':
-        trial = TerraStudentTrial(to_dict(config.model), to_dict(config.loss),
-                                  to_dict(config.optimizer), to_dict(config.data),
-                                  gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
-    elif args.trial == 'ast':
-        trial = AsteroidalTrial(to_dict(config.model), to_dict(config.loss),
-                                to_dict(config.optimizer), to_dict(config.data),
-                                gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
-    elif args.trial == 'astst':
-        raise NotImplemented()
-        trial = AstraStudentTrial(to_dict(config.model), to_dict(config.loss),
-                                  to_dict(config.optimizer), to_dict(config.data),
-                                  gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
-    elif args.trial == 'aer':
-        trial = AerialTrial(to_dict(config.model), to_dict(config.loss),
-                            to_dict(config.optimizer), to_dict(config.data),
-                            gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
-    elif args.trial == 'aerst':
-        raise NotImplemented()
-        trial = AeroStudentTrial(to_dict(config.model), to_dict(config.loss),
-                                  to_dict(config.optimizer), to_dict(config.data),
-                                  gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
-    else:
-        assert False, 'invalid trial: %s' % args.trial
+    TrialClass = {cls.name: cls for cls in (
+        TerrestrialTrial, TerraStudentTrial, AsteroidalTrial, AerialTrial,  # AstraStudentTrial, AeroStudentTrial
+    )}.get(args.trial, None)
+    assert TrialClass is not None, 'invalid trial: %s' % args.trial
+
+    trial = TrialClass(to_dict(config.model), to_dict(config.loss),
+                       to_dict(config.optimizer), to_dict(config.data),
+                       gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
 
     model = TrialWrapperBase(trial, use_gpu=bool(args.gpu))
     if config.preproc_path:
@@ -119,7 +99,9 @@ def main():
                          auto_lr_find=bool(args.auto_lr_find),
                          precision=16 if args.gpu and args.reduced_precision else 32)
 
-    if args.auto_lr_find:
+    if args.auto_lr_find == 1:
+        trainer.tune(model, trn_dl, val_dl)
+    elif args.auto_lr_find > 1:
         lr_finder = trainer.tuner.lr_find(model, trn_dl, val_dl, min_lr=1e-5, max_lr=1e-2)
         print('auto lr finder results: %s' % (lr_finder.results,))
         print('\nauto lr finder suggestion: %s' % (lr_finder.suggestion(),))

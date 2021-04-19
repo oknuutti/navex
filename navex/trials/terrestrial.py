@@ -13,6 +13,8 @@ from ..models.r2d2 import R2D2
 
 
 class TerrestrialTrial(TrialBase):
+    NAME = 'terr'
+
     def __init__(self, model_conf, loss_conf, optimizer_conf, data_conf, batch_size, acc_grad_batches=1, hparams=None):
         if isinstance(model_conf, dict):
             arch = model_conf['arch'].split('-')

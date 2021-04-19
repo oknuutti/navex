@@ -30,6 +30,9 @@ from skopt import space as sko_sp
 
 from ..experiments.parser import nested_update, split_double_samplers
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
+from ..trials.aerial import AerialTrial
+from ..trials.asteroidal import AsteroidalTrial
+from ..trials.terrastudent import TerraStudentTrial
 from ..trials.terrestrial import TerrestrialTrial
 
 
@@ -122,12 +125,21 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
     else:
         logging.info('npy is %s' % (json.dumps(json.loads(full_conf['data']['npy'])),))
         logging.info('new trial with %s' % (full_conf,))
-        trial = TerrestrialTrial(full_conf['model'], full_conf['loss'], full_conf['optimizer'], full_conf['data'],
-                                 gpu_batch_size, acc_grad_batches, hparams)
+
+        TrialClass = {cls.name: cls for cls in (
+            TerrestrialTrial, TerraStudentTrial, AsteroidalTrial, AerialTrial,  # AstraStudentTrial, AeroStudentTrial
+        )}.get(train_conf['trial'], None)
+        assert TrialClass is not None, 'invalid trial: %s' % train_conf['trial']
+        trial = TrialClass(full_conf['model'], full_conf['loss'], full_conf['optimizer'], full_conf['data'],
+                           gpu_batch_size, acc_grad_batches, hparams)
         model = TrialWrapperBase(trial)
 
     trn_dl = model.trial.build_training_data_loader()
     val_dl = model.trial.build_validation_data_loader()
+
+    if not checkpoint_dir and train_conf['auto_lr_find']:
+        # find optimal learning rate
+        trainer.tune(model, trn_dl, val_dl)
 
     logging.info('start training with trn data len=%d and val data len=%d (path: %s)' % (len(trn_dl), len(val_dl),
                                                                                          model.trial.data_conf['path']))
