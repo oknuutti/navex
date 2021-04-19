@@ -7,7 +7,6 @@ import torch
 from torch import nn
 from torch.functional import F
 
-from navex.lightning.base import TrialWrapperBase
 from navex.models.r2d2orig import R2D2
 
 
@@ -163,6 +162,7 @@ def load_model(path, device, model_only=False):
         model = R2D2(path=path)
         model.to(device)
     else:
+        from navex.lightning.base import TrialWrapperBase
         model = TrialWrapperBase.load_from_checkpoint(path, map_location=device)
         model.trial.workers = 0
         model.trial.batch_size = 1

@@ -25,7 +25,7 @@ training:
   batch_size: 32
   batch_mem: 32000
   gpu: 1
-  epochs: 27
+  epochs: 20
   print_freq: 5
   test_freq: 1
   save_freq: 1
@@ -64,7 +64,7 @@ model:
     dropout:     0.0
 
 loss:
-  teacher: 'output/terr_r2d2_best.ckpt'
+  teacher: 'output/terr-v4.ckpt'
   des_loss: !h_tune2_choice '["L1"], ["L1", "L2"]'     # L1 or L2
   des_w: -10.0     # weight for descriptor head loss
   det_w: -0.8      # weight for detector head loss
@@ -72,7 +72,7 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_tune2_loguniform  '(8e-4, 12e-4), (1e-4, 1e-2)'
+  learning_rate: 1e-3
   weight_decay:  !h_tune2_loguniform  '(8e-6, 12e-6), (1e-8, 1e-3)'
   split_params: 0
   eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'
@@ -82,11 +82,11 @@ data:
   max_rot:   0.0    # in degrees, synth pair warp related
   max_shear: 0.0    # synth pair warp related
   max_proj:  0.5    # synth pair warp related
-  noise_max: !h_tune2_uniform '(0.08, 0.12), (0.00, 0.20)'
-  rnd_gain:  !h_tune2_uniform '(1.15, 1.25), (1.0, 2.0)'
+  noise_max: !h_tune2_uniform '(0.02, 0.04), (0.00, 0.20)'
+  rnd_gain:  !h_tune2_uniform '(1.9, 2.1), (1.0, 3.0)'
   student_rnd_gain: !h_tune2_uniform '(1.15, 1.25), (1.0, 1.5)'
-  student_noise_sd: !h_tune2_uniform '(0.04, 0.06), (0.00, 0.10)'
-  image_size: 224
+  student_noise_sd: !h_tune2_uniform '(0.01, 0.03), (0.00, 0.10)'
+  image_size: 256
   path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
   trn_ratio: 0.85
