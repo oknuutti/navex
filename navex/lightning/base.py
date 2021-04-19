@@ -46,6 +46,7 @@ class TrialWrapperBase(pl.LightningModule):
     @learning_rate.setter
     def learning_rate(self, learning_rate):
         self.trial.update_param('optimizer.learning_rate', learning_rate)
+        self.log('learning_rate', learning_rate)
 
     def configure_optimizers(self):
         return self.trial.optimizer
