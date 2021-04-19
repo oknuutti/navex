@@ -60,15 +60,15 @@ class TrialBase(abc.ABC, torch.nn.Module):
             except:
                 ok = False
         elif p[0] == 'optimizer':
-            pm = {'learning_rate': 'lr', 'lr': 'lr', 'weight_decay': 'weight_decay', 'eps': 'eps'}
+            pm = {'learning_rate': 'lr', 'weight_decay': 'weight_decay', 'eps': 'eps'}
             if len(p) > 1 and p[1] in pm:
                 for pg in self.optimizer.param_groups:
-                    setattr(pg, pm[p[1]], value)
+                    pg[pm[p[1]]] = value
             elif len(p) == 1 and isinstance(value, dict):
                 for pg in self.optimizer.param_groups:
                     for k, v in value.items():
                         if k in pm:
-                            setattr(pg, pm[k], v)
+                            pg[pm[k]] = v
             else:
                 ok = False
         else:
