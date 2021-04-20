@@ -1,6 +1,9 @@
+import math
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.init import _calculate_correct_fan
 
 from .base import BasePoint, initialize_weights
 
@@ -31,8 +34,13 @@ class R2D2(BasePoint):
             raise NotImplemented()
         else:
             # Initialization
-            init_modules = [self.backbone, self.det_head, self.qlt_head]
-            initialize_weights(init_modules)
+            initialize_weights([self.backbone, self.det_head])
+
+            # kaiming initialization but x100 lower gain than normal
+            fan = _calculate_correct_fan(self.qlt_head.weight, 'fan_in')
+            std = 0.01 / math.sqrt(fan)  # normal gain for linear nonlinearity would be `1`
+            with torch.no_grad():
+                self.qlt_head.weight.normal_(0, std)
 
     def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1, **kwargs):
         def add_layer(l, in_ch, out_ch, k=3, p=1, d=1, bn=True, relu=True):

@@ -155,10 +155,10 @@ class BasePoint(nn.Module):
         return p, name, np
 
 
-def initialize_weights(modules, std=0.01):
+def initialize_weights(modules, std=0.01, mode='fan_out', nonlinearity='relu'):
     for m in modules:
         if isinstance(m, nn.Conv2d):
-            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            nn.init.kaiming_normal_(m.weight, mode=mode, nonlinearity=nonlinearity)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)) and m.affine:
