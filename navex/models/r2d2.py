@@ -39,8 +39,10 @@ class R2D2(BasePoint):
             # kaiming initialization but x100 lower gain than normal
             fan = _calculate_correct_fan(self.qlt_head.weight, 'fan_in')
             std = 0.01 / math.sqrt(fan)  # normal gain for linear nonlinearity would be `1`
+            base = -math.log(2.0)
             with torch.no_grad():
-                self.qlt_head.weight.normal_(0, std)
+                nn.init.normal_(self.qlt_head.weight, 0, std)
+                nn.init.constant_(self.qlt_head.bias, base)
 
     def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1, **kwargs):
         def add_layer(l, in_ch, out_ch, k=3, p=1, d=1, bn=True, relu=True):
