@@ -1,7 +1,7 @@
 
 from torch.nn import Module
 
-from r2d2.nets.reliability_loss import ReliabilityLoss
+from r2d2.nets.reliability_loss import ReliabilityLoss, PixelAPLoss
 from r2d2.nets.sampler import NghSampler2
 
 
@@ -19,3 +19,20 @@ class AveragePrecisionLoss(Module):
         assert des1.shape[2:] == aflow.shape[2:], 'different shape absolute flow tensor'
         return self.super((des1, des2), aflow, reliability=(qlt1, qlt2))
 
+
+class ReliabilityLossBCE(PixelAPLoss):
+    """
+    Use Binary Cross Entropy Loss
+    """
+    def __init__(self, sampler, base=0.5, nq=20):
+        PixelAPLoss.__init__(self, sampler, nq=nq)
+        assert 0 <= base < 1
+        self.base = base
+        self.name = 'reliability'
+
+    def loss_from_ap(self, ap, rel):
+        return 1 - (ap * rel + self.base * (1 - rel))
+
+        # (1 - b) + (b - ap) * r
+
+        #
