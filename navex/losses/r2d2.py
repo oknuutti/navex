@@ -73,11 +73,11 @@ class R2D2Loss(BaseLoss):
         # however, in the papar log(sigma**2) is optimized instead
 
         lib = math if isinstance(self.wdt, float) else torch
-        p_loss = lib.exp(-self.wdt) * lib.log(p_loss) + 0.5 * self.wdt
-        c_loss = lib.exp(-self.wdt) * lib.log(c_loss) + 0.5 * self.wdt
+        p_loss = -lib.exp(-self.wdt) * lib.log(1-p_loss) + 0.5 * self.wdt
+        c_loss = -lib.exp(-self.wdt) * lib.log(1-c_loss) + 0.5 * self.wdt
 
         lib = math if isinstance(self.wap, float) else torch
-        a_loss = lib.exp(-self.wap) * lib.log(a_loss) + 0.5 * self.wap
+        a_loss = -lib.exp(-self.wap) * lib.log(1-a_loss) + 0.5 * self.wap
 
         # p_loss = self.wdt*p_loss - 0.5*(math.log(self.wdt) if isinstance(self.wdt, float) else torch.log(self.wdt))
         # c_loss = self.wdt*c_loss - 0.5*(math.log(self.wdt) if isinstance(self.wdt, float) else torch.log(self.wdt))
