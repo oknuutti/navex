@@ -63,8 +63,8 @@ class R2D2(BasePoint):
         return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
 
     @staticmethod
-    def create_quality_head(in_channels, single=False):
-        return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
+    def create_quality_head(in_channels):
+        return nn.Conv2d(in_channels, 1, kernel_size=1, padding=0)
 
     def extract_features(self, x):
         x_features = self.backbone(x)
@@ -103,5 +103,5 @@ class R2D2(BasePoint):
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
         det = self.activation(detection)
-        qlt = self.activation(quality)
+        qlt = quality   # log precision now
         return des, det, qlt

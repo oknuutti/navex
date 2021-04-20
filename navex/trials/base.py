@@ -165,7 +165,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
         return self.loss_fn(output1, output2, labels)
 
     def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor, top_k=None, border=16,
-                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.02, qlt_lim=0.02):
+                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.02, qlt_lim=-10):
 
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
@@ -258,7 +258,7 @@ class StudentTrialMixin:
         return self.loss_fn(output, labels)
 
     def accuracy(self, output: Tensor, labels: Tensor, top_k=None, border=16,
-                 mutual=True, ratio=False, success_px_limit=6, det_lim=0.02, qlt_lim=0.02):
+                 mutual=True, ratio=False, success_px_limit=6, det_lim=0.02, qlt_lim=-10):
 
         des1, det1, qlt1 = output
         des2, det2, qlt2 = labels

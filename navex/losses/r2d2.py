@@ -65,19 +65,20 @@ class R2D2Loss(BaseLoss):
         else:
             sc_aflow = aflow
 
-        a_loss = self.ap_loss(des1, des2, qlt1, qlt2, sc_aflow)
+        a_loss = self.ap_loss(des1, des2, qlt1, qlt2, sc_aflow)     # already in negative log with a weight discount
 
         # maybe optimize weights during training, see
         # https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf
         #  => regression: -0.5*log(2*w); classification: -0.5*log(w)
         # however, in the papar log(sigma**2) is optimized instead
 
+        eps = 1e-5
         lib = math if isinstance(self.wdt, float) else torch
-        p_loss = -lib.exp(-self.wdt) * lib.log(1-p_loss) + 0.5 * self.wdt
-        c_loss = -lib.exp(-self.wdt) * lib.log(1-c_loss) + 0.5 * self.wdt
+        p_loss = -lib.exp(-self.wdt) * lib.log(1 - p_loss + eps) + 0.5 * self.wdt
+        c_loss = -lib.exp(-self.wdt) * lib.log(1 - c_loss + eps) + 0.5 * self.wdt
 
         lib = math if isinstance(self.wap, float) else torch
-        a_loss = -lib.exp(-self.wap) * lib.log(1-a_loss) + 0.5 * self.wap
+        a_loss = lib.exp(-self.wap) * a_loss + 0.5 * self.wap
 
         # p_loss = self.wdt*p_loss - 0.5*(math.log(self.wdt) if isinstance(self.wdt, float) else torch.log(self.wdt))
         # c_loss = self.wdt*c_loss - 0.5*(math.log(self.wdt) if isinstance(self.wdt, float) else torch.log(self.wdt))
