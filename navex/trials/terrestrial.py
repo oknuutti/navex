@@ -2,6 +2,8 @@ import json
 import math
 import os
 
+import torch
+
 from navex.datasets.terrestrial.aachen import AachenFlowPairDataset, AachenSynthPairDataset, AachenStyleTransferPairDataset
 from ..datasets.base import AugmentedConcatDataset
 from navex.datasets.terrestrial.revisitop1m import WebImageSynthPairDataset
@@ -73,9 +75,9 @@ class TerrestrialTrial(TrialBase):
     def log_values(self):
         log = {}
         if not isinstance(self.loss_fn.wdt, float):
-            log['wdt'] = self.loss_fn.wdt
+            log['wdt'] = torch.exp(-self.loss_fn.wdt)
         if not isinstance(self.loss_fn.wap, float):
-            log['wap'] = self.loss_fn.wap
+            log['wap'] = torch.exp(-self.loss_fn.wap)
         if not isinstance(self.loss_fn.base, float):
             log['ap_base'] = self.loss_fn.base
         return log or None

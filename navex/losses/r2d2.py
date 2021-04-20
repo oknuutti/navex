@@ -14,8 +14,8 @@ class R2D2Loss(BaseLoss):
     def __init__(self, wdt=1.0, wap=1.0, det_n=16, base=0.5, nq=20, sampler=None):
         super(R2D2Loss, self).__init__()
 
-        self.wdt = wdt if wdt >= 0 else nn.Parameter(torch.Tensor([-wdt]))
-        self.wap = wap if wap >= 0 else nn.Parameter(torch.Tensor([-wap]))
+        self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
+        self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
         base = base if base >= 0 else nn.Parameter(torch.Tensor([-base]))
 
         self.ap_loss = AveragePrecisionLoss(base=base, nq=nq, sampler_conf=sampler)
