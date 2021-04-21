@@ -38,4 +38,4 @@ class WeightedAPLoss(PixelAPLoss):
     def loss_from_ap(self, ap, rel):
         # rel ~ log(1/sigma**2), i.e. log precision
         rel_capped = rel.clamp(-self.max_rel, self.max_rel)
-        return -torch.exp(rel_capped) * torch.log(ap + self.eps) - 0.5 * rel_capped
+        return - 0.5 * torch.exp(rel_capped) * torch.log(ap + self.eps) - 0.5 * rel_capped
