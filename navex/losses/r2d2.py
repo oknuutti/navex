@@ -13,7 +13,7 @@ from .peakiness import PeakinessLoss
 
 
 class R2D2Loss(BaseLoss):
-    def __init__(self, wdt=1.0, wap=1.0, wqt=-2.0, det_n=16, base=0.5, nq=20, sampler=None):
+    def __init__(self, wdt=1.0, wap=1.0, wqt=1.0, det_n=16, base=0.5, nq=20, sampler=None):
         super(R2D2Loss, self).__init__()
 
         self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))

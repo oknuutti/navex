@@ -301,6 +301,11 @@ loss:
     type: float
     help: "weight for expected ap loss"
 
+  wqt:
+    trial: ["terr", "ast", "aer"]
+    type: float
+    help: "weight for quality head that predicts ap loss"
+
   det_n:
     trial: ["terr", "ast", "aer"]
     alt: ['--det-n']

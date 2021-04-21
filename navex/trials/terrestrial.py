@@ -78,7 +78,7 @@ class TerrestrialTrial(TrialBase):
             log['wdt'] = torch.exp(-self.loss_fn.wdt)
         if not isinstance(self.loss_fn.wap, float):
             log['wap'] = torch.exp(-self.loss_fn.wap)
-        if not isinstance(self.loss_fn.base, float):
+        if not isinstance(self.loss_fn.wqt, float):
             log['wqt'] = torch.exp(-self.loss_fn.wqt)
         if not isinstance(self.loss_fn.base, float):
             log['ap_base'] = self.loss_fn.base

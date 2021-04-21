@@ -64,8 +64,9 @@ model:
     dropout:     0.0
 
 loss:
-  wdt: !h_float -2.0      # weight for peakiness and cosim losses
-  wap: !h_float -2.0      # weight for expected ap loss
+  wdt: !h_float -1.6      # weight for peakiness and cosim losses
+  wap: !h_float -1.4      # weight for expected ap loss
+  wqt: !h_float -1.5      # weight for expected ap loss
   det_n: !h_int  20       # detector neighbourhood size
   base: !h_float 0.3     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
