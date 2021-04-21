@@ -79,6 +79,8 @@ class TerrestrialTrial(TrialBase):
         if not isinstance(self.loss_fn.wap, float):
             log['wap'] = torch.exp(-self.loss_fn.wap)
         if not isinstance(self.loss_fn.base, float):
+            log['wqt'] = torch.exp(-self.loss_fn.wqt)
+        if not isinstance(self.loss_fn.base, float):
             log['ap_base'] = self.loss_fn.base
         return log or None
 
@@ -98,7 +100,7 @@ class TerrestrialTrial(TrialBase):
     def _get_datasets(self, rgb):
         if self._tr_data is None:
             npy = json.loads(self.data_conf['npy'])
-            common = dict(margin=self.loss_fn.ap_loss.super.sampler.border, eval=False, rgb=rgb, npy=npy)
+            common = dict(margin=self.loss_fn.border, eval=False, rgb=rgb, npy=npy)
             dconf = {k: v for k, v in self.data_conf.items() if k in ('max_sc', 'noise_max', 'rnd_gain', 'image_size')}
             sconf = {k: v for k, v in self.data_conf.items() if k in ('max_rot', 'max_shear', 'max_proj')}
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})

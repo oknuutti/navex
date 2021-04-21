@@ -7,6 +7,8 @@ from torch.nn.init import _calculate_correct_fan
 
 from .base import BasePoint, initialize_weights
 
+LINEAR_QLT = False
+
 
 class R2D2(BasePoint):
     def __init__(self, arch, des_head, det_head, qlt_head, in_channels=1,
@@ -28,7 +30,7 @@ class R2D2(BasePoint):
 
         # det_head single=True in r2d2 github code, in article was single=False though
         self.det_head = self.create_detector_head(des_head['dimensions'], single=True)
-        self.qlt_head = self.create_quality_head(des_head['dimensions'])
+        self.qlt_head = self.create_quality_head(des_head['dimensions'], single=True)
 
         if pretrained:
             raise NotImplemented()
@@ -37,12 +39,15 @@ class R2D2(BasePoint):
             initialize_weights([self.backbone, self.det_head])
 
             # kaiming initialization but x100 lower gain than normal
-            fan = _calculate_correct_fan(self.qlt_head.weight, 'fan_in')
-            std = 0.01 / math.sqrt(fan)  # normal gain for linear nonlinearity would be `1`
-            base = -math.log(2.0)
-            with torch.no_grad():
-                nn.init.normal_(self.qlt_head.weight, 0, std)
-                nn.init.constant_(self.qlt_head.bias, base)
+            if LINEAR_QLT:
+                fan = _calculate_correct_fan(self.qlt_head.weight, 'fan_in')
+                std = 0.01 / math.sqrt(fan)  # normal gain for linear nonlinearity would be `1`
+                base = -math.log(2.0)
+                with torch.no_grad():
+                    nn.init.normal_(self.qlt_head.weight, 0, std)
+                    nn.init.constant_(self.qlt_head.bias, base)
+            else:
+                initialize_weights([self.qlt_head])
 
     def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1, **kwargs):
         def add_layer(l, in_ch, out_ch, k=3, p=1, d=1, bn=True, relu=True):
@@ -73,8 +78,8 @@ class R2D2(BasePoint):
         return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
 
     @staticmethod
-    def create_quality_head(in_channels):
-        return nn.Conv2d(in_channels, 1, kernel_size=1, padding=0)
+    def create_quality_head(in_channels, single=False):
+        return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
 
     def extract_features(self, x):
         x_features = self.backbone(x)
@@ -113,5 +118,5 @@ class R2D2(BasePoint):
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
         det = self.activation(detection)
-        qlt = quality   # log precision now
+        qlt = quality if LINEAR_QLT else self.activation(quality)
         return des, det, qlt

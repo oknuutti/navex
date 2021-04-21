@@ -48,7 +48,7 @@ def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, bor
         k = min(len(idxs[0]), K)
 
         # calculate scores, sort by them
-        sc = torch.log(det[b, 0, idxs[0], idxs[1]]) + qlt[b, 0, idxs[0], idxs[1]]  # qlt now log(1/sigma**2)
+        sc = det[b, 0, idxs[0], idxs[1]] * qlt[b, 0, idxs[0], idxs[1]]
         sc, ord = torch.sort(sc, descending=True)
         idxs = (idxs[0][ord[:k]], idxs[1][ord[:k]])
 
