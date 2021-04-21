@@ -43,7 +43,7 @@ class WeightedAPLoss(PixelAPLoss):
 
 
 class DiscountedAPLoss(Module):
-    def __init__(self, base=0.5, scale=10, nq=20, min=0, max=1, euc=False, sampler_conf=None):
+    def __init__(self, base=0.5, scale=0.1, nq=20, min=0, max=1, euc=False, sampler_conf=None):
         super(DiscountedAPLoss, self).__init__()
 
         self.base = base
