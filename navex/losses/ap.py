@@ -63,8 +63,10 @@ class DiscountedAPLoss(Module):
         scores, gt, qqlt = scores.view(n, -1), gt.view(n, -1), qqlt.view(n, -1)
         ap = self.calc_ap(scores, gt).view(n, -1)
 
-        tmp = 1 - ap
-        a_loss = self.scale * torch.log(torch.exp((- tmp + self.base) / self.scale) + 1) + tmp
+        # reversed logistic function shaped derivative for loss (x = 1 - ap), arrived at by integration:
+        #   integrate(1 - 1/(1+exp(-(x - bias) / scale)), x) => -scale * log(exp(-(x - bias) / scale) + 1)
+        x = 1 - ap
+        a_loss = -self.scale * torch.log(torch.exp(-(x - self.base) / self.scale) + 1)
         a_loss = a_loss.view(mask.shape)[mask].mean()
 
         q_loss = self.bce_loss(qqlt, ap.detach())
