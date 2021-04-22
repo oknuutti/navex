@@ -81,8 +81,9 @@ class R2D2Loss(BaseLoss):
 
         eps = 1e-5
         lib = math if isinstance(self.wdt, float) else torch
-        p_loss = -lib.exp(-self.wdt) * lib.log(1 - p_loss + eps) + 0.5 * self.wdt
-        c_loss = -lib.exp(-self.wdt) * lib.log(1 - c_loss + eps) + 0.5 * self.wdt
+        p_loss, c_loss = -lib.log(1 - p_loss + eps), -lib.log(1 - c_loss + eps)
+        p_loss = lib.exp(-self.wdt) * p_loss + 0.5 * self.wdt
+        c_loss = lib.exp(-self.wdt) * c_loss + 0.5 * self.wdt
 
         lib = math if isinstance(self.wap, float) else torch
         a_loss = lib.exp(-self.wap) * a_loss + 0.5 * self.wap

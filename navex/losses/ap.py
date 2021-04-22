@@ -48,6 +48,7 @@ class DiscountedAPLoss(Module):
 
         self.base = base
         self.scale = scale
+        self.bias = self.scale * math.log(math.exp((1 - self.base) / self.scale) + 1)
         self.name = 'reliability'
 
         self.sampler = NghSampler2(**(sampler_conf or {'ngh': 7, 'subq': -8, 'subd': 1, 'pos_d': 3, 'neg_d': 5,
@@ -66,7 +67,7 @@ class DiscountedAPLoss(Module):
         # reversed logistic function shaped derivative for loss (x = 1 - ap), arrived at by integration:
         #   integrate(1 - 1/(1+exp(-(x - bias) / scale)), x) => -scale * log(exp(-(x - bias) / scale) + 1)
         x = 1 - ap
-        a_loss = -self.scale * torch.log(torch.exp(-(x - self.base) / self.scale) + 1)
+        a_loss = self.bias - self.scale * torch.log(torch.exp(-(x - (1 - self.base)) / self.scale) + 1)
         a_loss = a_loss.view(mask.shape)[mask].mean()
 
         q_loss = self.bce_loss(qqlt, ap.detach())
