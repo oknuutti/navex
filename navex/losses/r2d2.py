@@ -17,7 +17,6 @@ class R2D2Loss(BaseLoss):
         super(R2D2Loss, self).__init__()
 
         self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
-        self.wpk = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
         self.wqt = -math.log(wqt) if wqt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wqt)]))
 
@@ -83,7 +82,7 @@ class R2D2Loss(BaseLoss):
         eps = 1e-5
         lib = math if isinstance(self.wdt, float) else torch
         p_loss, c_loss = -lib.log(1 - p_loss + eps), -lib.log(1 - c_loss + eps)
-        p_loss = lib.exp(-self.wpk) * p_loss + 0.5 * self.wpk
+        p_loss = lib.exp(-self.wdt) * p_loss + 0.5 * self.wdt
         c_loss = lib.exp(-self.wdt) * c_loss + 0.5 * self.wdt
 
         lib = math if isinstance(self.wap, float) else torch
@@ -99,7 +98,7 @@ class R2D2Loss(BaseLoss):
         return p_loss + c_loss + a_loss + q_loss
 
     def params_to_optimize(self, split=False):
-        params = [v for n, v in self.named_parameters() if n in ('wdt', 'wpk', 'wap', 'wqt')]
+        params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'wqt')]
         if split:
             # new_biases, new_weights, biases, weights, others
             return [[], [], [], [], params]
