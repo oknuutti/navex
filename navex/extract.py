@@ -106,7 +106,7 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25,
             with torch.no_grad():
                 des, det, qlt = model(img)
 
-            if 1:
+            if 0:
                 import matplotlib.pyplot as plt
                 from .visualize import plot_tensor
                 fig, axs = plt.subplots(2, 1, figsize=(6, 6))
