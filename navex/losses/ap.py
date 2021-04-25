@@ -3,6 +3,7 @@ import math
 import torch
 from r2d2.nets.ap_loss import APLoss
 from torch.nn import Module, BCELoss
+import torch.nn.functional as F
 
 from r2d2.nets.reliability_loss import ReliabilityLoss, PixelAPLoss
 from r2d2.nets.sampler import NghSampler2
@@ -50,7 +51,7 @@ class DiscountedAPLoss(Module):
         self.scale = scale
         self.bias = self.scale * math.log(math.exp((1 - self.base) / self.scale) + 1)
         self.name = 'reliability'
-        self.discount = False
+        self.discount = True
 
         self.sampler = NghSampler2(**(sampler_conf or {'ngh': 7, 'subq': -8, 'subd': 1, 'pos_d': 3, 'neg_d': 5,
                                                        'border': 16, 'subd_neg': -8, 'maxpool_pos': True}))
@@ -66,10 +67,11 @@ class DiscountedAPLoss(Module):
         ap = self.calc_ap(scores, gt).view(n, -1)
 
         # reversed logistic function shaped derivative for loss (x = 1 - ap), arrived at by integration:
-        #   integrate(1 - 1/(1+exp(-(x - bias) / scale)), x) => -scale * log(exp(-(x - bias) / scale) + 1)
+        #   integrate(1 - 1/(1+exp(-(x - bias) / scale)), x) => -scale * log(1 + exp(-(x - bias) / scale))
         if self.discount:
             x = 1 - ap
-            a_loss = self.bias - self.scale * torch.log(torch.exp(-(x - (1 - self.base)) / self.scale) + 1)
+#            a_loss = self.bias - self.scale * torch.log(1 + torch.exp(-(x - (1 - self.base)) / self.scale))
+            a_loss = self.bias - F.softplus(-(x - (1 - self.base)), 1/self.scale)
         else:
             a_loss = -torch.log(ap)
         a_loss = a_loss.view(mask.shape)[mask].mean()
