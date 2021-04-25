@@ -276,6 +276,12 @@ loss:
     choices: ['L1', 'L2']
     help: "loss function to use for descriptors"
 
+  loss_type:
+    trial: ["terr", "ast", "aer"]
+    alt: ["--loss-type"]
+    choices: ['discounted', 'weighted', 'thresholded']
+    help: "loss function to use"
+
   des_w:
     trial: ["terrst", "astst", "aerst"]
     type: float

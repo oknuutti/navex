@@ -1,46 +1,11 @@
 import math
 
 import torch
-from r2d2.nets.ap_loss import APLoss
 from torch.nn import Module, BCELoss
 import torch.nn.functional as F
 
-from r2d2.nets.reliability_loss import ReliabilityLoss, PixelAPLoss
 from r2d2.nets.sampler import NghSampler2
-
-
-class AveragePrecisionLoss(Module):
-    def __init__(self, base=0.5, nq=20, sampler_conf=None):
-        super(AveragePrecisionLoss, self).__init__()
-        sampler_conf = sampler_conf or {'ngh': 7, 'subq': -8, 'subd': 1, 'pos_d': 3, 'neg_d': 5, 'border': 16,
-                                        'subd_neg': -8, 'maxpool_pos': True}
-#        self.super = ReliabilityLoss(sampler=NghSampler2(**sampler_conf), base=base, nq=nq)
-        self.super = WeightedAPLoss(sampler=NghSampler2(**sampler_conf), nq=nq)
-
-    def forward(self, des1, des2, qlt1, qlt2, aflow):
-        assert des1.shape == des2.shape, 'different shape descriptor tensors'
-        assert qlt1.shape == qlt2.shape, 'different shape quality tensors'
-        assert des1.shape[2:] == qlt2.shape[2:], 'different shape descriptor and quality tensors'
-        assert des1.shape[2:] == aflow.shape[2:], 'different shape absolute flow tensor'
-        return self.super((des1, des2), aflow, reliability=(qlt1, qlt2))
-
-
-class WeightedAPLoss(PixelAPLoss):
-    """
-    https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf
-    used as inspiration
-    """
-    def __init__(self, sampler, nq=20):
-        PixelAPLoss.__init__(self, sampler, nq=nq)
-        self.base = 0.0     # TODO: remove
-        self.eps = 1e-5
-        self.max_rel = -math.log(self.eps)
-        self.name = 'reliability'
-
-    def loss_from_ap(self, ap, rel):
-        # rel ~ log(1/sigma**2), i.e. log precision
-        rel_capped = rel.clamp(-self.max_rel, self.max_rel)
-        return - 0.5 * torch.exp(rel_capped) * torch.log(ap + self.eps) - 0.5 * rel_capped
+from r2d2.nets.ap_loss import APLoss
 
 
 class DiscountedAPLoss(Module):
@@ -60,23 +25,54 @@ class DiscountedAPLoss(Module):
 
     def forward(self, des1, des2, qlt1, qlt2, aflow):
         # subsample things
-        scores, gt, mask, qqlt = self.sampler((des1, des2), (qlt1, qlt2), aflow)
+        scores, gt, mask, rel = self.sampler((des1, des2), (qlt1, qlt2), aflow)
 
-        n = qqlt.numel()
-        scores, gt, qqlt = scores.view(n, -1), gt.view(n, -1), qqlt.view(n, -1)
+        n = rel.numel()
+        scores, gt, rel = scores.view(n, -1), gt.view(n, -1), rel.view(n, -1)
         ap = self.calc_ap(scores, gt).view(n, -1)
 
+        a_loss, q_loss = self.losses(ap, rel)
+
+        a_loss = a_loss.view(mask.shape)[mask].mean()
+        q_loss = q_loss.view(mask.shape)[mask].mean() if q_loss is not None else None
+        return a_loss, q_loss
+
+    def losses(self, ap, rel):
         # reversed logistic function shaped derivative for loss (x = 1 - ap), arrived at by integration:
         #   integrate(1 - 1/(1+exp(-(x - bias) / scale)), x) => -scale * log(1 + exp(-(x - bias) / scale))
         if self.discount:
             x = 1 - ap
-#            a_loss = self.bias - self.scale * torch.log(1 + torch.exp(-(x - (1 - self.base)) / self.scale))
-            a_loss = self.bias - F.softplus(-(x - (1 - self.base)), 1/self.scale)
+            # a_loss = self.bias - self.scale * torch.log(1 + torch.exp(-(x - (1 - self.base)) / self.scale))
+            a_loss = self.bias - F.softplus(-(x - (1 - self.base)), 1 / self.scale)
         else:
             a_loss = -torch.log(ap)
-        a_loss = a_loss.view(mask.shape)[mask].mean()
 
-        q_loss = self.bce_loss(qqlt, ap.detach())
-        q_loss = q_loss.view(mask.shape)[mask].mean()
+        q_loss = self.bce_loss(rel, ap.detach())
 
         return a_loss, q_loss
+
+
+class WeightedAPLoss(DiscountedAPLoss):
+    def __init__(self, *args, **kwargs):
+        super(WeightedAPLoss, self).__init__(*args, **kwargs)
+        self.eps = 1e-5
+
+    """
+    https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf
+    used as inspiration
+    """
+    def losses(self, ap, rel):
+        # rel ~ log(1/sigma**2), i.e. log precision
+        # rel_capped = rel.clamp(-self.max_rel, self.max_rel)
+        a_loss = - rel * torch.log(ap + self.eps)
+        q_loss = - 0.5 * torch.log(rel)
+        return a_loss, q_loss
+
+
+class ThresholdedAPLoss(DiscountedAPLoss):
+    """
+    Original loss
+    """
+    def losses(self, ap, rel):
+        a_loss = 1 - ap * rel - (1 - rel) * self.base
+        return a_loss, None

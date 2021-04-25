@@ -1,29 +1,36 @@
 import math
 
 import torch
-from r2d2.nets.sampler import NghSampler2
 from torch import nn
 from torch.functional import F
-from torch.nn import BCELoss
 
 from .base import BaseLoss
-from .ap import AveragePrecisionLoss, DiscountedAPLoss
+from .ap import DiscountedAPLoss, WeightedAPLoss, ThresholdedAPLoss
 from .cosim import CosSimilarityLoss
 from .peakiness import PeakinessLoss
 
 
 class R2D2Loss(BaseLoss):
-    def __init__(self, wdt=1.0, wap=1.0, wqt=1.0, det_n=16, base=0.5, nq=20, sampler=None):
+    def __init__(self, loss_type, wdt=1.0, wap=1.0, wqt=1.0, det_n=16, base=0.5, nq=20, sampler=None):
         super(R2D2Loss, self).__init__()
-
-        self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
-        self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
-        self.wqt = -math.log(wqt) if wqt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wqt)]))
+        self.loss_type = loss_type
 
         self.cosim_loss = CosSimilarityLoss(int(det_n))
         self.peakiness_loss = PeakinessLoss(int(det_n))
-        self.ap_loss = DiscountedAPLoss(base=base, nq=nq, sampler_conf=sampler)
-#        self.ap_loss = AveragePrecisionLoss(base=base, nq=nq, sampler_conf=sampler)
+
+        self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
+        self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
+        self.wqt = 0.0
+
+        if loss_type == 'discounted':
+            self.wqt = -math.log(wqt) if wqt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wqt)]))
+            self.ap_loss = DiscountedAPLoss(base=base, nq=nq, sampler_conf=sampler)
+        elif loss_type == 'weighted':
+            self.ap_loss = WeightedAPLoss(base=base, nq=nq, sampler_conf=sampler)
+        elif loss_type == 'thresholded':
+            self.ap_loss = ThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
+        else:
+            assert False, 'invalid loss_type: %s' % loss_type
 
     @property
     def base(self):
@@ -36,7 +43,7 @@ class R2D2Loss(BaseLoss):
     def update_conf(self, new_conf):
         ok = True
         for k, v in new_conf.items():
-            if k in ('wdt', 'wap'):
+            if k in ('wdt', 'wap', 'wqt'):
                 ov = getattr(self, k)
                 if isinstance(ov, nn.Parameter):
                     setattr(self, k,  nn.Parameter(torch.Tensor([abs(v)], device=ov.device)))
@@ -77,7 +84,7 @@ class R2D2Loss(BaseLoss):
         # maybe optimize weights during training, see
         # https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf
         #  => regression: -0.5*log(2*w); classification: -0.5*log(w)
-        # however, in the papar log(sigma**2) is optimized instead
+        # log(sigma**2) is optimized
 
         eps = 1e-5
         lib = math if isinstance(self.wdt, float) else torch
@@ -88,12 +95,15 @@ class R2D2Loss(BaseLoss):
         lib = math if isinstance(self.wap, float) else torch
         a_loss = lib.exp(-self.wap) * a_loss + 0.5 * self.wap
 
-        lib = math if isinstance(self.wqt, float) else torch
-        q_loss = lib.exp(-self.wqt) * q_loss + 0.5 * self.wqt
+        if self.loss_type == 'weighted':
+            a_loss = a_loss + q_loss
+            q_loss = None
 
-        # p_loss = self.wdt*p_loss - 0.5*(math.log(self.wdt) if isinstance(self.wdt, float) else torch.log(self.wdt))
-        # c_loss = self.wdt*c_loss - 0.5*(math.log(self.wdt) if isinstance(self.wdt, float) else torch.log(self.wdt))
-        # a_loss = self.wap*a_loss - 0.5*(math.log(self.wap) if isinstance(self.wap, float) else torch.log(self.wap))
+        if q_loss is not None:
+            lib = math if isinstance(self.wqt, float) else torch
+            q_loss = lib.exp(-self.wqt) * q_loss + 0.5 * self.wqt
+        else:
+            q_loss = 0
 
         return p_loss + c_loss + a_loss + q_loss
 
