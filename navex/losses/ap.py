@@ -12,6 +12,7 @@ class DiscountedAPLoss(Module):
     def __init__(self, base=0.5, scale=0.1, nq=20, min=0, max=1, euc=False, sampler_conf=None):
         super(DiscountedAPLoss, self).__init__()
 
+        self.eps = 1e-5
         self.base = base
         self.scale = scale
         self.bias = self.scale * math.log(math.exp((1 - self.base) / self.scale) + 1)
@@ -45,7 +46,7 @@ class DiscountedAPLoss(Module):
             # a_loss = self.bias - self.scale * torch.log(1 + torch.exp(-(x - (1 - self.base)) / self.scale))
             a_loss = self.bias - F.softplus(-(x - (1 - self.base)), 1 / self.scale)
         else:
-            a_loss = -torch.log(ap)
+            a_loss = -torch.log(ap + self.eps)
 
         q_loss = self.bce_loss(rel, ap.detach())
 
@@ -53,10 +54,6 @@ class DiscountedAPLoss(Module):
 
 
 class WeightedAPLoss(DiscountedAPLoss):
-    def __init__(self, *args, **kwargs):
-        super(WeightedAPLoss, self).__init__(*args, **kwargs)
-        self.eps = 1e-5
-
     """
     https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf
     used as inspiration
@@ -64,6 +61,7 @@ class WeightedAPLoss(DiscountedAPLoss):
     def losses(self, ap, rel):
         # rel ~ log(1/sigma**2), i.e. log precision
         # rel_capped = rel.clamp(-self.max_rel, self.max_rel)
+        rel = rel + self.eps
         a_loss = - rel * torch.log(ap + self.eps)
         q_loss = - 0.5 * torch.log(rel)
         return a_loss, q_loss
@@ -74,5 +72,6 @@ class ThresholdedAPLoss(DiscountedAPLoss):
     Original loss
     """
     def losses(self, ap, rel):
-        a_loss = 1 - ap * rel - (1 - rel) * self.base
+        # TODO: try with -torch.log(rel * ap + (1 - rel) * self.base)
+        a_loss = 1 - rel * ap - (1 - rel) * self.base
         return a_loss, None
