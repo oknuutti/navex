@@ -80,7 +80,7 @@ class TrialWrapperBase(pl.LightningModule):
             acc = self.trial.accuracy(*output, labels, mutual=True, ratio=False, success_px_limit=5)
             self._log('trn', loss, acc, self.trial.log_values())
 
-        return loss
+        return {'loss': loss, 'acc': acc}
 
     def validation_step(self, batch, batch_idx):
         return self._eval_step(batch, batch_idx, 'val')
@@ -95,7 +95,7 @@ class TrialWrapperBase(pl.LightningModule):
             data, labels = batch
             loss, acc, output = self.trial.evaluate_batch(data, labels, mutual=True, ratio=False, success_px_limit=6)
         self._log(log_prefix, loss, acc, self.trial.log_values())
-        return loss
+        return {'loss': loss, 'acc': acc}
 
     def _log(self, lp, loss, acc, trial_params=None):
         tot, inl, dst, map = self.nanmean(acc)
@@ -131,8 +131,13 @@ class TrialWrapperBase(pl.LightningModule):
         tqdm_dict.pop('v_num', None)
         return tqdm_dict
 
+    def training_epoch_end(self, outputs):
+        loss = self.nanmean(torch.stack([o['loss'] for o in outputs]).flatten())
+        tot, inl, dst, map = self.nanmean(torch.stack([o['acc'] for o in outputs]).view(-1, 4))
+        self.trial.training_epoch_end(loss, tot, inl, dst, map)
+
     def validation_epoch_end(self, outputs):
-        val_losses = torch.stack(outputs)
+        val_losses = torch.stack([o['loss'] for o in outputs])
         hp_metric = -self.nanmean(val_losses)
         self.log('hp_metric', hp_metric)
 

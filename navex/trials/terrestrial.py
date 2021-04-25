@@ -73,6 +73,11 @@ class TerrestrialTrial(TrialBase):
             ok = super(TerrestrialTrial, self).update_param(param, value)
         return ok
 
+    def training_epoch_end(self, loss, tot, inl, dst, map):
+        # called after each training epoch
+        if self.loss_fn.loss_type == 'thresholded':
+            self.loss_fn.update_conf({'base': 0.9 * map})
+
     def log_values(self):
         log = {}
         if not isinstance(self.loss_fn.wdt, float):
@@ -83,6 +88,8 @@ class TerrestrialTrial(TrialBase):
             log['wqt'] = torch.exp(-self.loss_fn.wqt)
         if not isinstance(self.loss_fn.base, float):
             log['ap_base'] = self.loss_fn.base
+        if self.loss_fn.loss_type == 'thresholded':
+            log['ap_base'] = torch.Tensor([self.loss_fn.base])
         return log or None
 
     def resource_loss(self, loss):

@@ -114,6 +114,10 @@ class TrialBase(abc.ABC, torch.nn.Module):
         optimizer.step()
         optimizer.zero_grad()
 
+    def training_epoch_end(self, loss, tot, inl, dst, map):
+        # called after each training epoch
+        pass
+
     def train_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, epoch_idx: int, batch_idx: int):
         # import matplotlib.pyplot as plt
         # import numpy as np
