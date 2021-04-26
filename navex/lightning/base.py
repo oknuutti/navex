@@ -133,7 +133,7 @@ class TrialWrapperBase(pl.LightningModule):
 
     def training_epoch_end(self, outputs):
         loss = self.nanmean(torch.stack([o['loss'] for o in outputs]).flatten())
-        tot, inl, dst, map = self.nanmean(torch.stack([o['acc'] for o in outputs]).view(-1, 4))
+        tot, inl, dst, map = self.nanmean(torch.cat([o['acc'] for o in outputs], dim=0))
         self.trial.training_epoch_end(loss, tot, inl, dst, map)
 
     def validation_epoch_end(self, outputs):
