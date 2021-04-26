@@ -72,7 +72,7 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: 5e-4
+  learning_rate: 1e-3
   weight_decay:  !h_tune2_loguniform  '(8e-6, 12e-6), (1e-8, 1e-3)'
   split_params:  0
   eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'
@@ -86,7 +86,7 @@ data:
   rnd_gain:  !h_tune2_uniform '(1.9, 2.1), (1.0, 3.0)'
   student_rnd_gain: !h_tune2_uniform '(1.15, 1.25), (1.0, 1.5)'
   student_noise_sd: !h_tune2_uniform '(0.01, 0.03), (0.00, 0.10)'
-  image_size: 256
+  image_size: 448
   path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
   trn_ratio: 0.85
