@@ -191,8 +191,8 @@ class MobileAP(BasePoint):
                                                      width_mult=width_mult, in_channels=in_channels)
 
         self.des_head = self.create_descriptor_head(out_ch, des_head)
-        self.det_head = self.create_detector_head(out_ch, det_head)
-        self.qlt_head = self.create_quality_head(out_ch, qlt_head)
+        self.det_head = self.create_detector_head(des_head['dimensions'] if det_head['after_des'] else out_ch, det_head)
+        self.qlt_head = self.create_quality_head(des_head['dimensions'] if det_head['after_des'] else out_ch, qlt_head)
 
         if pretrained:
             raise NotImplemented()
