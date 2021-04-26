@@ -273,7 +273,7 @@ loss:
   des_loss:
     trial: ["terrst", "astst", "aerst"]
     alt: ["--des-loss"]
-    choices: ['L1', 'L2']
+    choices: ['L1', 'L2', 'MSE', 'SmoothL1']
     help: "loss function to use for descriptors"
 
   loss_type:

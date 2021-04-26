@@ -3,7 +3,8 @@ import math
 import torch
 from torch import nn
 from torch.functional import F
-from torch.nn.modules.loss import L1Loss, BCELoss
+from torch.nn import SmoothL1Loss
+from torch.nn.modules.loss import L1Loss, BCELoss, MSELoss
 
 from .base import BaseLoss
 
@@ -31,8 +32,10 @@ class StudentLoss(BaseLoss):
                                                 "would need L2-normalization for des, clip(0,1) for det and qlt"
         self.interpolation_mode = interpolation_mode
 
-        assert des_loss in ('L1', 'L2'), 'invalid descriptor loss function %s' % (des_loss,)
-        self.des_loss = L1Loss(reduction='none') if des_loss == 'L1' else L2Loss(reduction='none')
+        clss = {'L1': L1Loss, 'L2': L2Loss, 'MSE': MSELoss, 'SmoothL1': SmoothL1Loss}
+        assert des_loss in clss, 'invalid descriptor loss function %s' % (des_loss,)
+
+        self.des_loss = clss[des_loss](reduction='none')
         self.det_loss = BCELoss()
         self.qlt_loss = BCELoss()
 
