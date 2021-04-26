@@ -49,6 +49,7 @@ class TerrestrialTrial(TrialBase):
             optimizer_conf=optimizer_conf,
             acc_grad_batches=acc_grad_batches)
 
+        self.target_macs = 20e9     # TODO: set at e.g. loss_conf
         self.data_conf = data_conf
         self.workers = int(os.getenv('CPUS', data_conf['workers']))
         self.batch_size = batch_size

@@ -68,6 +68,10 @@ class WeightedAPLoss(DiscountedAPLoss):
 
 
 class ThresholdedAPLoss(DiscountedAPLoss):
+    def __init__(self, *args, **kwargs):
+        super(ThresholdedAPLoss, self).__init__(*args, **kwargs)
+        self.base = torch.nn.Parameter(torch.Tensor([self.base]), requires_grad=False)
+
     """
     Original loss
     """

@@ -28,6 +28,7 @@ class TerraStudentTrial(StudentTrialMixin, TerrestrialTrial):
                 optimizer_conf, data_conf, batch_size, acc_grad_batches, hparams)
 
         StudentTrialMixin.__init__(self, teacher=teacher)
+        self.target_macs = 1e9     # TODO: set at e.g. loss_conf
 
     def log_values(self):
         log = {}

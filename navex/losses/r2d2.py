@@ -50,7 +50,10 @@ class R2D2Loss(BaseLoss):
                 else:
                     setattr(self, k, abs(v))
             elif k == 'base':
-                self.ap_loss.base = v
+                if isinstance(self.ap_loss.base, nn.Parameter):
+                    self.ap_loss.base[0] = v
+                else:
+                    self.ap_loss.base = v
             elif k == 'det_n':
                 assert v % 2 == 0, 'N must be pair'
                 self.cosim_loss.super.name = f'cosim{v}'
