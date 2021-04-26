@@ -95,15 +95,16 @@ class R2D2(BasePoint):
         return x_output if exec_aux else x_output[0]
 
     @staticmethod
-    def activation(ux):
+    def activation(ux, T=1):
         if ux.shape[1] == 1:
             x = F.softplus(ux)
             return x / (1 + x)
         elif ux.shape[1] == 2:
-            return F.softmax(ux, dim=1)[:, 1:2, :, :]   # was long time ":1" instead of "1:2" in own implementation
+            # T is for temperature scaling, referred e.g. at https://arxiv.org/pdf/1706.04599.pdf
+            return F.softmax(ux/T, dim=1)[:, 1:2, :, :]   # was long time ":1" instead of "1:2" in own implementation
 
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
         det = self.activation(detection)
-        qlt = self.activation(quality)
+        qlt = self.activation(quality, T=1 if self.training else 10)
         return des, det, qlt

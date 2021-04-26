@@ -77,7 +77,7 @@ class TerrestrialTrial(TrialBase):
     def training_epoch_end(self, loss, tot, inl, dst, map):
         # called after each training epoch
         if self.loss_fn.loss_type == 'thresholded':
-            self.loss_fn.update_conf({'base': 0.9 * map})
+            self.loss_fn.update_conf({'base': map})
 
     def log_values(self):
         log = {}
