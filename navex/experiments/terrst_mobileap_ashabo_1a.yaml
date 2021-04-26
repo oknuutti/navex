@@ -41,7 +41,7 @@ model:
   arch:             !h_tune2_choice  '["mob-mn3_L"], ["mob-mn2_L", "mob-mn3_L", "mob-en_0"]'
   in_channels:      1
   partial_residual: 0
-  width_mult:       !h_tune2_choice  '[1.0], [0.75, 1.0, 1.25, 1.5]'
+  width_mult:       1.0
   pretrained: 0         # not in use
   cache_dir: 'cache'    # not in use
   des_head:

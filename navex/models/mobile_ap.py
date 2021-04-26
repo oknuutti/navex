@@ -182,6 +182,7 @@ class MobileAP(BasePoint):
         self.norm_layer = partial(nn.BatchNorm2d, eps=0.001, momentum=0.01, affine=False)
         if partial_residual:
             # idea from https://github.com/WongKinYiu/PartialResidualNetworks
+            # -- doesn't seem to work well though
             self.block_cls = partial(InvertedPartialResidual, norm_layer=self.norm_layer)
         else:
             self.block_cls = partial(InvertedResidual, norm_layer=self.norm_layer)

@@ -93,8 +93,8 @@ class TerrestrialTrial(TrialBase):
         return log or None
 
     def resource_loss(self, loss):
-        # TODO: use self.macs and self.target_macs
-        return loss  # * some_good_fn(self.macs - self.target_macs)
+        # use self.macs and self.target_macs, something like this: loss * some_good_fn(self.macs, self.target_macs)
+        return loss * min(1, (self.target_macs / self.macs)**2)
 
     def build_training_data_loader(self, rgb=False):
         return self._get_datasets(rgb)[0]
