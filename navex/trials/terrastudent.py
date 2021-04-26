@@ -1,10 +1,12 @@
 import json
 import math
 
+import torch
+
 from .base import StudentTrialMixin
 from ..datasets.base import AugmentedConcatDataset
-from navex.datasets.terrestrial.aachen import AachenDataset, AachenSyntheticNightDataset
-from navex.datasets.terrestrial.revisitop1m import WebImageDataset
+from ..datasets.terrestrial.aachen import AachenDataset, AachenSyntheticNightDataset
+from ..datasets.terrestrial.revisitop1m import WebImageDataset
 from ..lightning.base import TrialWrapperBase
 from ..models.r2d2orig import R2D2
 from ..trials.terrestrial import TerrestrialTrial
@@ -33,11 +35,11 @@ class TerraStudentTrial(StudentTrialMixin, TerrestrialTrial):
     def log_values(self):
         log = {}
         if not isinstance(self.loss_fn.des_w, float):
-            log['des_w'] = self.loss_fn.des_w
+            log['des_w'] = torch.exp(-self.loss_fn.des_w)
         if not isinstance(self.loss_fn.det_w, float):
-            log['det_w'] = self.loss_fn.det_w
+            log['det_w'] = torch.exp(-self.loss_fn.det_w)
         if not isinstance(self.loss_fn.qlt_w, float):
-            log['qlt_w'] = self.loss_fn.qlt_w
+            log['qlt_w'] = torch.exp(-self.loss_fn.qlt_w)
         return log or None
 
     def _get_datasets(self, rgb):

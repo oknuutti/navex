@@ -9,8 +9,14 @@ from .base import BaseLoss
 
 
 class L2Loss:
+    def __init__(self, reduction='mean'):
+        self.reduction = reduction
+
     def __call__(self, out, lbl):
-        return torch.norm(out - lbl, dim=1).mean()
+        loss = torch.norm(out - lbl, dim=1)
+        if self.reduction != 'none':
+            return getattr(loss, self.reduction)()
+        return loss
 
 
 class StudentLoss(BaseLoss):
@@ -26,7 +32,7 @@ class StudentLoss(BaseLoss):
         self.interpolation_mode = interpolation_mode
 
         assert des_loss in ('L1', 'L2'), 'invalid descriptor loss function %s' % (des_loss,)
-        self.des_loss = L1Loss() if des_loss == 'L1' else L2Loss()
+        self.des_loss = L1Loss(reduction='none') if des_loss == 'L1' else L2Loss(reduction='none')
         self.det_loss = BCELoss()
         self.qlt_loss = BCELoss()
 
@@ -40,20 +46,18 @@ class StudentLoss(BaseLoss):
                 else:
                     setattr(self, k, abs(v))
             elif k == 'des_loss':
-                self.des_loss = L1Loss() if v == 'L1' else L2Loss()
+                self.des_loss = L1Loss(reduction='none') if v == 'L1' else L2Loss(reduction='none')
             else:
                 ok = False
         return ok
 
     def forward(self, output, label):
-        loss_fns = (self.des_loss, self.det_loss, self.qlt_loss)
         weights = (self.des_w, self.det_w, self.qlt_w)
-        w_coefs = (1.0, 0.5, 0.5)   # 1.0 if regression, 0.5 if classification
         align_corners = None if self.interpolation_mode in ('nearest', 'area') else False
+        d = {}
 
         # upscale to higher resolution (uses a lot of memory though, could downscale but would seem fishy, hmm...)
-        losses = []
-        for out, lbl, weight, loss_fn, w_coef in zip(output, label, weights, loss_fns, w_coefs):
+        for name, out, lbl, weight in zip(('des', 'det', 'qlt'), output, label, weights):
             h1, w1 = out.shape[2:]
             h2, w2 = lbl.shape[2:]
             if (h1, w1) != (h2, w2):
@@ -61,12 +65,22 @@ class StudentLoss(BaseLoss):
                     out = F.interpolate(out, size=(h2, w2), mode=self.interpolation_mode, align_corners=align_corners)
                 elif h1 * w1 > h2 * w2:
                     lbl = F.interpolate(lbl, size=(h1, w1), mode=self.interpolation_mode, align_corners=align_corners)
+            d[name] = (out, lbl, weight)
 
-            lib = math if isinstance(weight, float) else torch
-            loss = lib.exp(-weight) * loss_fn(out, lbl) + w_coef * weight
-            losses.append(loss)
+        out, lbl, weight = d['det']
+        lib = math if isinstance(weight, float) else torch
+        det_loss = lib.exp(-weight) * self.det_loss(out, lbl) + 0.5 * weight  # 1.0 if regression, 0.5 if classification
 
-        return torch.stack(losses).sum()
+        out, lbl, weight = d['qlt']
+        lib = math if isinstance(weight, float) else torch
+        qlt_loss = lib.exp(-weight) * self.qlt_loss(out, lbl) + 0.5 * weight
+
+        out, lbl, weight = d['des']
+        lib = math if isinstance(weight, float) else torch
+        des_loss = lib.exp(-weight) * (d['qlt'][1] * self.des_loss(out, lbl)).mean() + 1.0 * weight
+
+        loss = det_loss + qlt_loss + des_loss
+        return loss
 
     def params_to_optimize(self, split=False):
         params = []
