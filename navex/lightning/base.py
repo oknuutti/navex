@@ -70,7 +70,7 @@ class TrialWrapperBase(pl.LightningModule):
         epoch_id = self.trainer.current_epoch
 
         if isinstance(self.trial, StudentTrialMixin):
-            loss, output = self.trial.train_batch(batch, epoch_id, batch_idx)
+            loss, output = self.trial.train_batch(batch, epoch_id, batch_idx, component_loss=True)
             output, labels = (output[0],), output[1]
         else:
             data, labels = batch
@@ -80,7 +80,7 @@ class TrialWrapperBase(pl.LightningModule):
             acc = self.trial.accuracy(*output, labels, mutual=True, ratio=False, success_px_limit=5)
             self._log('trn', loss, acc, self.trial.log_values())
 
-        return {'loss': loss, 'acc': acc}
+        return {'loss': loss.sum(dim=1), 'acc': acc}
 
     def validation_step(self, batch, batch_idx):
         return self._eval_step(batch, batch_idx, 'val')
@@ -90,27 +90,33 @@ class TrialWrapperBase(pl.LightningModule):
 
     def _eval_step(self, batch, batch_idx, log_prefix):
         if isinstance(self.trial, StudentTrialMixin):
-            loss, acc, output = self.trial.evaluate_batch(batch, mutual=True, ratio=False, success_px_limit=6)
+            loss, acc, output = self.trial.evaluate_batch(batch, mutual=True, ratio=False, success_px_limit=6,
+                                                          component_loss=True)
         else:
             data, labels = batch
             loss, acc, output = self.trial.evaluate_batch(data, labels, mutual=True, ratio=False, success_px_limit=6)
         self._log(log_prefix, loss, acc, self.trial.log_values())
-        return {'loss': loss, 'acc': acc}
+        return {'loss': loss.sum(dim=1), 'acc': acc}
 
     def _log(self, lp, loss, acc, trial_params=None):
         tot, inl, dst, map = self.nanmean(acc)
         postfix = '_epoch' if lp == 'val' else ''
 
         log_values = {
-            lp + '_loss' + postfix: loss,
+            lp + '_loss' + postfix: loss.sum(dim=1),
             lp + '_tot' + postfix: tot * 100,
             lp + '_inl' + postfix: inl * 100,
             lp + '_dst' + postfix: dst,
             lp + '_map' + postfix: map * 100,
         }
 
+        if loss.shape[1] > 1:
+            log_values[lp + '_des_loss' + postfix] = loss[:, 0]
+            log_values[lp + '_det_loss' + postfix] = loss[:, 1]
+            log_values[lp + '_qlt_loss' + postfix] = loss[:, 2]
+
         if hasattr(self.trial, 'resource_loss'):
-            log_values[lp + '_rloss' + postfix] = self.trial.resource_loss(loss)     # TODO: continue here (resource_loss)
+            log_values[lp + '_rloss' + postfix] = self.trial.resource_loss(loss.sum(dim=1))
 
         if trial_params is not None:
             log_values.update({'%s_%s%s' % (lp, p, postfix): v for p, v in trial_params.items()})

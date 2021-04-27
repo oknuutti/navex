@@ -224,7 +224,7 @@ class StudentTrialMixin:
         self.teacher = teacher
         self.teacher.eval()
 
-    def train_batch(self, data: Tuple[Tensor, Tensor], epoch_idx: int, batch_idx: int):
+    def train_batch(self, data: Tuple[Tensor, Tensor], epoch_idx: int, batch_idx: int, component_loss: bool = False):
         clean_data, noisy_data = data
 
         with torch.no_grad():
@@ -232,15 +232,15 @@ class StudentTrialMixin:
 
         self.model.train()
         output = self.model(noisy_data)
-        loss = self.loss(output, labels)
-        self.loss_backward_fn(loss)
+        loss = self.loss(output, labels, component_loss=component_loss)
+        self.loss_backward_fn(loss.sum(dim=1))
 
         if (batch_idx+1) % self.acc_grad_batches == 0:
             self.step_optimizer_fn(self.optimizer)
 
         return loss, (output, labels)
 
-    def evaluate_batch(self, data: Tuple[Tensor, Tensor], **acc_conf):
+    def evaluate_batch(self, data: Tuple[Tensor, Tensor], component_loss: bool = False, **acc_conf):
         clean_data, noisy_data = data
 
         self.model.eval()
@@ -253,13 +253,13 @@ class StudentTrialMixin:
 
             labels = self.teacher(clean_data)
             output = self.model(noisy_data)
-            validation_loss = self.loss(output, labels)
+            validation_loss = self.loss(output, labels, component_loss=component_loss)
             accuracy = self.accuracy(output, labels, **acc_conf)
         return validation_loss, accuracy, (output, labels)
 
-    def loss(self, output: Tensor, labels: Tensor):
+    def loss(self, output: Tensor, labels: Tensor, component_loss=False):
         assert self.loss_fn is not None, 'loss function not implemented'
-        return self.loss_fn(output, labels)
+        return self.loss_fn(output, labels, component_loss=component_loss)
 
     def accuracy(self, output: Tensor, labels: Tensor, top_k=None, border=16,
                  mutual=True, ratio=False, success_px_limit=6, det_lim=0.02, qlt_lim=-10):

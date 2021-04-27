@@ -106,5 +106,5 @@ class R2D2(BasePoint):
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
         det = self.activation(detection)
-        qlt = self.activation(quality, T=1 if self.training else 10)
+        qlt = self.activation(quality)  # could use `T=1 if self.training else 10`, however, had worse performance
         return des, det, qlt

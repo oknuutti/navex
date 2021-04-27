@@ -54,7 +54,7 @@ class StudentLoss(BaseLoss):
                 ok = False
         return ok
 
-    def forward(self, output, label):
+    def forward(self, output, label, component_loss=False):
         weights = (self.des_w, self.det_w, self.qlt_w)
         align_corners = None if self.interpolation_mode in ('nearest', 'area') else False
         d = {}
@@ -82,8 +82,8 @@ class StudentLoss(BaseLoss):
         lib = math if isinstance(weight, float) else torch
         des_loss = lib.exp(-weight) * (d['qlt'][1] * self.des_loss(out, lbl)).mean() + 1.0 * weight
 
-        loss = det_loss + qlt_loss + des_loss
-        return loss
+        loss = torch.stack((des_loss, det_loss, qlt_loss), dim=1)
+        return loss if component_loss else loss.sum(dim=1)
 
     def params_to_optimize(self, split=False):
         params = []
