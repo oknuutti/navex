@@ -236,6 +236,11 @@ model:
   qlt_head:
     __group__: 1
 
+    skip:
+      alt: ['--qlt-skip']
+      type: int
+      help: 'merge quality head with detection head, only possible for student networks'
+
     after_des:
       alt: ['--qlt-stack']
       type: int

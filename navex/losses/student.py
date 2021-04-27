@@ -21,12 +21,13 @@ class L2Loss:
 
 
 class StudentLoss(BaseLoss):
-    def __init__(self, des_loss='L1', des_w=1.0, det_w=1.0, qlt_w=1.0, interpolation_mode='bilinear'):
+    def __init__(self, des_loss='L1', des_w=1.0, det_w=1.0, qlt_w=1.0, skip_qlt=False, interpolation_mode='bilinear'):
         super(StudentLoss, self).__init__()
 
         self.des_w = -math.log(des_w) if des_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-des_w)]))
         self.det_w = -math.log(det_w) if det_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-det_w)]))
-        self.qlt_w = -math.log(qlt_w) if qlt_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-qlt_w)]))
+        self.qlt_w = -math.log(qlt_w) if qlt_w >= 0 or skip_qlt else nn.Parameter(torch.Tensor([-math.log(-qlt_w)]))
+        self.skip_qlt = skip_qlt
 
         assert interpolation_mode != 'bicubic', "can't use bicubic as results could overshoot, "\
                                                 "would need L2-normalization for des, clip(0,1) for det and qlt"
@@ -70,13 +71,17 @@ class StudentLoss(BaseLoss):
                     lbl = F.interpolate(lbl, size=(h1, w1), mode=self.interpolation_mode, align_corners=align_corners)
             d[name] = (out, lbl, weight)
 
+        if not self.skip_qlt:
+            out, lbl, weight = d['qlt']
+            lib = math if isinstance(weight, float) else torch
+            qlt_loss = 1.0 * lib.exp(-weight) * self.qlt_loss(out, lbl) + weight
+        else:
+            qlt_loss = torch.Tensor([0]).to(d['des'][0].device)
+            d['det'][1] = d['det'][1] * d['qlt'][1]     # merge det and qlt labels to be detection target label
+
         out, lbl, weight = d['det']
         lib = math if isinstance(weight, float) else torch
         det_loss = 1.0 * lib.exp(-weight) * self.det_loss(out, lbl) + weight  # 1.0 if regression, 2.0 if classification
-
-        out, lbl, weight = d['qlt']
-        lib = math if isinstance(weight, float) else torch
-        qlt_loss = 1.0 * lib.exp(-weight) * self.qlt_loss(out, lbl) + weight
 
         out, lbl, weight = d['des']
         lib = math if isinstance(weight, float) else torch

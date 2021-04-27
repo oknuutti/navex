@@ -1,6 +1,7 @@
 from functools import partial
 from typing import Callable, List, Optional
 
+import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 
@@ -191,8 +192,10 @@ class MobileAP(BasePoint):
                                                      width_mult=width_mult, in_channels=in_channels)
 
         self.des_head = self.create_descriptor_head(out_ch, des_head)
-        self.det_head = self.create_detector_head(des_head['dimensions'] if det_head['after_des'] else out_ch, det_head)
-        self.qlt_head = self.create_quality_head(des_head['dimensions'] if det_head['after_des'] else out_ch, qlt_head)
+
+        out_ch = des_head['dimensions'] if det_head['after_des'] else out_ch
+        self.det_head = self.create_detector_head(out_ch, det_head)
+        self.qlt_head = None if qlt_head['skip'] else self.create_quality_head(out_ch, qlt_head)
 
         if pretrained:
             raise NotImplemented()
@@ -309,7 +312,9 @@ class MobileAP(BasePoint):
         else:
             det = self.det_head(features)
 
-        if self.conf['qlt_head']['after_des']:
+        if self.qlt_head is None:
+            qlt = None
+        elif self.conf['qlt_head']['after_des']:
             des2 = des.pow(2) if des2 is None else des2
             qlt = self.qlt_head(des2)
         else:
@@ -331,5 +336,5 @@ class MobileAP(BasePoint):
                 return F.softmax(x, dim=1)[:, :1, :, :]
 
         det = activation(detection)
-        qlt = activation(quality)
+        qlt = torch.ones_like(det) if quality is None else activation(quality)
         return des, det, qlt

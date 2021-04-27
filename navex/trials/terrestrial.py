@@ -49,7 +49,7 @@ class TerrestrialTrial(TrialBase):
             optimizer_conf=optimizer_conf,
             acc_grad_batches=acc_grad_batches)
 
-        self.target_macs = 20e9     # TODO: set at e.g. loss_conf
+        self.target_macs = 20e9 / 256**2     # TODO: set at e.g. loss_conf
         self.data_conf = data_conf
         self.workers = int(os.getenv('CPUS', data_conf['workers']))
         self.batch_size = batch_size
@@ -96,7 +96,7 @@ class TerrestrialTrial(TrialBase):
     def resource_loss(self, loss):
         # use self.macs and self.target_macs, something like this: loss * some_good_fn(self.macs, self.target_macs)
         if self.target_macs is not None and self.macs is not None:
-            return loss * min(1, (self.target_macs / self.macs)**2)
+            return loss + 2 * math.log(max(1, self.macs / self.target_macs))
         else:
             return loss
 

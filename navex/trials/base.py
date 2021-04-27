@@ -153,9 +153,10 @@ class TrialBase(abc.ABC, torch.nn.Module):
         with torch.no_grad():
             if self.count_ops:
                 d = data[0][:1, :, :, :]
-                self.macs, self.nparams = self.count_ops(self.model, inputs=(d,), verbose=False)
-                print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s)' %
-                      (self.nparams * 1e-6, self.macs * 1e-9, d.shape))
+                macs, self.nparams = self.count_ops(self.model, inputs=(d,), verbose=False)
+                self.macs = macs / d.shape[-1] / d.shape[-2]
+                print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s), MAC ops per px: %.1fk/px'
+                      % (self.nparams * 1e-6, macs * 1e-9, d.shape, self.macs*1e-3))
                 self.count_ops = False
 
             output1 = self.model(data[0])
@@ -249,8 +250,10 @@ class StudentTrialMixin:
         with torch.no_grad():
             if self.count_ops:
                 d = clean_data[:1, :, :, :]
-                macs, params = self.count_ops(self.model, inputs=(d,), verbose=False)
-                print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s)' % (params * 1e-6, macs * 1e-9, d.shape))
+                macs, self.nparams = self.count_ops(self.model, inputs=(d,), verbose=False)
+                self.macs = macs / d.shape[-1] / d.shape[-2]
+                print('Params: %.2fM, MAC ops: %.2fG (with input dims: %s), MAC ops per px: %.1fk/px'
+                      % (self.nparams * 1e-6, macs * 1e-9, d.shape, self.macs*1e-3))
                 self.count_ops = False
 
             labels = self.teacher(clean_data)
