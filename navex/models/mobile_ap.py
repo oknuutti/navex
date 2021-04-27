@@ -227,7 +227,7 @@ class MobileAP(BasePoint):
             in_ch = self.add_layer(layers, in_ch, 3, 3, 24, False, "RE", 1, 1)
             in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 2, 1)    # C2
             in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)
-            in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)            # hf-net mod: 40=>64, or 72?
+            in_ch = self.add_layer(layers, in_ch, 5, 3, 72, True, "RE", 1, 1)            # hf-net mod: 40=>64, or 72?
             # in_ch = add_layer(layers, in_ch, 3, 6, 80, False, "HS", 2, 1)  # C3
             # in_ch = add_layer(layers, in_ch, 3, 2.5, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 2.3, 80, False, "HS", 1, 1)
@@ -242,7 +242,7 @@ class MobileAP(BasePoint):
             in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 2, 1)  # C1
             in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 1, 1)
             in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 2, 1)  # C2
-            in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 1, 1)        # hf-net mod: 40=>64, or 72?
+            in_ch = self.add_layer(layers, in_ch, 5, 6, 72, True, "HS", 1, 1)        # hf-net mod: 40=>64, or 72?
 
         elif a0 == 'mn2' and a1 in ('m', 'l'):
             # mobilenet v2
@@ -250,12 +250,12 @@ class MobileAP(BasePoint):
             # https://arxiv.org/abs/1812.03506
 
             # in_ch, kernel, exp_ch, out_ch, use_se, activation, stride, dilation
-            in_ch = self.add_layer(layers, in_ch, 3, 1, 16, True, "RE", 1, 1)
-            in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "RE", 2, 1)   # C1
-            in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "RE", 1, 1)
-            in_ch = self.add_layer(layers, in_ch, 3, 6, 32 if a1 == 'l' else 24, True, "RE", 2, 1)   # C2
-            in_ch = self.add_layer(layers, in_ch, 3, 6, 64 if a1 == 'l' else 48, True, "RE", 1, 1)   # hf-net mod: 32=>64
-            in_ch = self.add_layer(layers, in_ch, 3, 6, 128 if a1 == 'l' else 96, True, "RE", 1, 1)  # hf-net mod: 32=>128
+            in_ch = self.add_layer(layers, in_ch, 3, 1, 16, False, "RE", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 24, False, "RE", 2, 1)   # C1
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 24, False, "RE", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 32 if a1 == 'l' else 24, False, "RE", 2, 1)   # C2
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 64 if a1 == 'l' else 48, False, "RE", 1, 1)   # hf-net mod: 32=>64
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 128 if a1 == 'l' else 96, False, "RE", 1, 1)  # hf-net mod: 32=>128
 
         else:
             assert a0 == 'mn3' and a1 == 's', 'invalid arch %s' % (arch,)
