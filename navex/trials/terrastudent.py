@@ -25,6 +25,7 @@ class TerraStudentTrial(StudentTrialMixin, TerrestrialTrial):
         else:
             teacher = R2D2(path=teacher_ckpt)
 
+        loss_conf['skip_qlt'] = model_conf['qlt_head']['skip']
         TerrestrialTrial.__init__(self, model_conf,
                 StudentLoss(**loss_conf) if isinstance(loss_conf, dict) else loss_conf,
                 optimizer_conf, data_conf, batch_size, acc_grad_batches, hparams)
