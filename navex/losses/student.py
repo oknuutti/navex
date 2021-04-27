@@ -45,7 +45,7 @@ class StudentLoss(BaseLoss):
             if k in ('des_w', 'det_w', 'qlt_w'):
                 ov = getattr(self, k)
                 if isinstance(ov, nn.Parameter):
-                    setattr(self, k,  nn.Parameter(torch.Tensor([abs(v)], device=ov.device)))
+                    setattr(self, k,  nn.Parameter(torch.Tensor([abs(v)]).to(ov.device)))
                 else:
                     setattr(self, k, abs(v))
             elif k == 'des_loss':

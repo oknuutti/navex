@@ -118,7 +118,9 @@ class TrialBase(abc.ABC, torch.nn.Module):
         # called after each training epoch
         pass
 
-    def train_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, epoch_idx: int, batch_idx: int):
+    def train_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, epoch_idx: int, batch_idx: int,
+                    component_loss=False):
+
         # import matplotlib.pyplot as plt
         # import numpy as np
         # img0, img1 = data[0].permute((0, 2, 3, 1)).detach().numpy()[0,:,:,:], data[1].permute((0, 2, 3, 1)).detach().numpy()[0,:,:,:]
@@ -137,16 +139,16 @@ class TrialBase(abc.ABC, torch.nn.Module):
                 loss = loss + self.aux_cost_coef * self.loss(output1[i], output2[i], labels)
             output1, output2 = output1[0], output2[0]
         else:
-            loss = self.loss(output1, output2, labels)
+            loss = self.loss(output1, output2, labels, component_loss=component_loss)
 
-        self.loss_backward_fn(loss)
+        self.loss_backward_fn(loss.sum(dim=1))
 
         if (batch_idx+1) % self.acc_grad_batches == 0:
             self.step_optimizer_fn(self.optimizer)
 
         return loss, (output1, output2)
 
-    def evaluate_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, **acc_conf):
+    def evaluate_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, component_loss=False, **acc_conf):
         self.model.eval()
         with torch.no_grad():
             if self.count_ops:
@@ -160,13 +162,13 @@ class TrialBase(abc.ABC, torch.nn.Module):
             output2 = self.model(data[1])
             if self.model.aux_qty and self.model.training:
                 output1, output2 = output1[0], output2[0]
-            validation_loss = self.loss(output1, output2, labels)
+            validation_loss = self.loss(output1, output2, labels, component_loss=component_loss)
             accuracy = self.accuracy(output1, output2, labels, **acc_conf)
         return validation_loss, accuracy, (output1, output2)
 
-    def loss(self, output1: Tensor, output2: Tensor, labels: Tensor):
+    def loss(self, output1: Tensor, output2: Tensor, labels: Tensor, component_loss=False):
         assert self.loss_fn is not None, 'loss function not implemented'
-        return self.loss_fn(output1, output2, labels)
+        return self.loss_fn(output1, output2, labels, component_loss=component_loss)
 
     def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor, top_k=None, border=16,
                  mutual=True, ratio=False, success_px_limit=5, det_lim=0.02, qlt_lim=-10):

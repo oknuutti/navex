@@ -74,7 +74,7 @@ class TrialWrapperBase(pl.LightningModule):
             output, labels = (output[0],), output[1]
         else:
             data, labels = batch
-            loss, output = self.trial.train_batch(data, labels, epoch_id, batch_idx)
+            loss, output = self.trial.train_batch(data, labels, epoch_id, batch_idx, component_loss=True)
 
         with torch.no_grad():
             acc = self.trial.accuracy(*output, labels, mutual=True, ratio=False, success_px_limit=5)
@@ -94,7 +94,8 @@ class TrialWrapperBase(pl.LightningModule):
                                                           component_loss=True)
         else:
             data, labels = batch
-            loss, acc, output = self.trial.evaluate_batch(data, labels, mutual=True, ratio=False, success_px_limit=6)
+            loss, acc, output = self.trial.evaluate_batch(data, labels, mutual=True, ratio=False, success_px_limit=6,
+                                                          component_loss=True)
         self._log(log_prefix, loss, acc, self.trial.log_values())
         return {'loss': loss.sum(dim=1), 'acc': acc}
 
@@ -110,10 +111,15 @@ class TrialWrapperBase(pl.LightningModule):
             lp + '_map' + postfix: map * 100,
         }
 
-        if loss.shape[1] > 1:
+        if loss.shape[1] == 3:
             log_values[lp + '_des_loss' + postfix] = loss[:, 0]
             log_values[lp + '_det_loss' + postfix] = loss[:, 1]
             log_values[lp + '_qlt_loss' + postfix] = loss[:, 2]
+        elif loss.shape[1] == 4:
+            log_values[lp + '_peak_loss' + postfix] = loss[:, 0]
+            log_values[lp + '_cosim_loss' + postfix] = loss[:, 1]
+            log_values[lp + '_ap_loss' + postfix] = loss[:, 2]
+            log_values[lp + '_qlt_loss' + postfix] = loss[:, 3]
 
         if hasattr(self.trial, 'resource_loss'):
             log_values[lp + '_rloss' + postfix] = self.trial.resource_loss(loss.sum(dim=1))

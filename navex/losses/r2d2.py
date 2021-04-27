@@ -46,7 +46,7 @@ class R2D2Loss(BaseLoss):
             if k in ('wdt', 'wap', 'wqt'):
                 ov = getattr(self, k)
                 if isinstance(ov, nn.Parameter):
-                    setattr(self, k,  nn.Parameter(torch.Tensor([abs(v)], device=ov.device)))
+                    setattr(self, k,  nn.Parameter(torch.Tensor([abs(v)]).to(ov.device)))
                 else:
                     setattr(self, k, abs(v))
             elif k == 'base':
@@ -66,7 +66,7 @@ class R2D2Loss(BaseLoss):
                 ok = False
         return ok
 
-    def forward(self, output1, output2, aflow):
+    def forward(self, output1, output2, aflow, component_loss=False):
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
 
@@ -106,9 +106,10 @@ class R2D2Loss(BaseLoss):
             lib = math if isinstance(self.wqt, float) else torch
             q_loss = lib.exp(-self.wqt) * q_loss + 0.5 * self.wqt
         else:
-            q_loss = 0
+            q_loss = torch.Tensor([0]).to(des1.device)
 
-        return p_loss + c_loss + a_loss + q_loss
+        loss = torch.stack((p_loss, c_loss, a_loss, q_loss), dim=1)
+        return loss if component_loss else loss.sum(dim=1)
 
     def params_to_optimize(self, split=False):
         params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'wqt')]
