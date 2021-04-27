@@ -58,7 +58,7 @@ except:
             super().__init__()
             squeeze_channels = _make_divisible(input_channels // squeeze_factor, 8)
             self.fc1 = nn.Conv2d(input_channels, squeeze_channels, 1)
-            self.relu = nn.ReLU(inplace=True)
+            self.relu = nn.ReLU6(inplace=True)                                  # NOTE: change from ReLU to ReLU6 !!!
             self.fc2 = nn.Conv2d(squeeze_channels, input_channels, 1)
 
         def _scale(self, input: Tensor, inplace: bool) -> Tensor:
@@ -102,7 +102,7 @@ except:
             self.use_res_connect = cnf.stride == 1 and cnf.input_channels == cnf.out_channels
 
             layers: List[nn.Module] = []
-            activation_layer = nn.Hardswish if cnf.use_hs else nn.ReLU
+            activation_layer = nn.Hardswish if cnf.use_hs else nn.ReLU6         # NOTE: change from ReLU to ReLU6 !!!
 
             # expand
             if cnf.expanded_channels != cnf.input_channels:
@@ -211,7 +211,7 @@ class MobileAP(BasePoint):
         a0, a1 = arch[0], arch[1] if len(arch) > 1 else ''
 
         # building first layer
-        in_ch = 32 if a0 == 'en' else 16
+        in_ch = {'en': 32, 'mn2': 32, 'mn3': 16}[a0]
         layers = [ConvBNActivation(in_channels, in_ch, kernel_size=3, stride=2, norm_layer=self.norm_layer,
                                    activation_layer=nn.Hardswish)]
 
@@ -232,14 +232,27 @@ class MobileAP(BasePoint):
             # in_ch = add_layer(layers, in_ch, 3, 6, 112, True, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 6, 112, True, "HS", 1, 1)
         elif a0 == 'en' and a1 == '0':
-                # EfficientNet-B0 from https://arxiv.org/pdf/1905.11946v5.pdf
+            # EfficientNet-B0 from https://arxiv.org/pdf/1905.11946v5.pdf
 
-                # in_ch, kernel, exp_ch, out_ch, use_se, activation, stride, dilation
-                in_ch = self.add_layer(layers, in_ch, 3, 1, 16, True, "HS", 1, 1)
-                in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 2, 1)  # C1
-                in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 1, 1)
-                in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 2, 1)  # C2
-                in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 1, 1)        # hf-net mod: 40=>64?
+            # in_ch, kernel, exp_ch, out_ch, use_se, activation, stride, dilation
+            in_ch = self.add_layer(layers, in_ch, 3, 1, 16, True, "HS", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 2, 1)  # C1
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 2, 1)  # C2
+            in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 1, 1)        # hf-net mod: 40=>64?
+
+        elif a0 == 'mn2' and a1 == 'l':
+            # mobilenet v2
+            # however, use arch from the code of hf-net instead, article version is yet a bit different:
+            # https://arxiv.org/abs/1812.03506
+
+            # in_ch, kernel, exp_ch, out_ch, use_se, activation, stride, dilation
+            in_ch = self.add_layer(layers, in_ch, 3, 1, 16, True, "HS", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 2, 1)   # C1
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 1, 1)
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 32, True, "HS", 2, 1)   # C2
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 64, True, "HS", 1, 1)   # hf-net mod: 32=>64
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 128, True, "HS", 1, 1)  # hf-net mod: 32=>128
 
         else:
             assert a0 == 'mn3' and a1 == 's', 'invalid arch %s' % (arch,)
@@ -265,7 +278,7 @@ class MobileAP(BasePoint):
                 seq.append(nn.Conv2d(in_ch, conf['hidden_ch'], kernel_size=3, padding=1))
                 seq.append(nn.BatchNorm2d(conf['hidden_ch']))
                 # TODO: fix the current hack where squeeze-exitation param is used to determine activation function
-                seq.append(nn.Hardswish() if conf['use_se'] else nn.ReLU())
+                seq.append(nn.Hardswish() if conf['use_se'] else nn.ReLU6())
                 in_ch = conf['hidden_ch']
 
         if conf['dropout'] > 0:

@@ -72,15 +72,15 @@ class StudentLoss(BaseLoss):
 
         out, lbl, weight = d['det']
         lib = math if isinstance(weight, float) else torch
-        det_loss = lib.exp(-weight) * self.det_loss(out, lbl) + 0.5 * weight  # 1.0 if regression, 0.5 if classification
+        det_loss = 1.0 * lib.exp(-weight) * self.det_loss(out, lbl) + weight  # 1.0 if regression, 2.0 if classification
 
         out, lbl, weight = d['qlt']
         lib = math if isinstance(weight, float) else torch
-        qlt_loss = lib.exp(-weight) * self.qlt_loss(out, lbl) + 0.5 * weight
+        qlt_loss = 1.0 * lib.exp(-weight) * self.qlt_loss(out, lbl) + weight
 
         out, lbl, weight = d['des']
         lib = math if isinstance(weight, float) else torch
-        des_loss = lib.exp(-weight) * (d['qlt'][1] * self.des_loss(out, lbl)).mean() + 1.0 * weight
+        des_loss = 2.0 * lib.exp(-weight) * (d['qlt'][1] * self.des_loss(out, lbl)).mean() + weight
 
         loss = torch.stack((des_loss, det_loss, qlt_loss), dim=1)
         return loss if component_loss else loss.sum(dim=1)
