@@ -4,14 +4,14 @@ import os
 
 import torch
 
-from navex.datasets.terrestrial.aachen import AachenFlowPairDataset, AachenSynthPairDataset, AachenStyleTransferPairDataset
+from ..datasets.terrestrial.aachen import AachenFlowPairDataset, AachenSynthPairDataset, AachenStyleTransferPairDataset
 from ..datasets.base import AugmentedConcatDataset
-from navex.datasets.terrestrial.revisitop1m import WebImageSynthPairDataset
+from ..datasets.terrestrial.revisitop1m import WebImageSynthPairDataset
 from ..losses.r2d2 import R2D2Loss
 from ..models.astropoint import AstroPoint
-from .base import TrialBase
 from ..models.mobile_ap import MobileAP
 from ..models.r2d2 import R2D2
+from .base import TrialBase
 
 
 class TerrestrialTrial(TrialBase):

@@ -5,7 +5,7 @@ from ..base import AugmentedPairDatasetMixin
 
 
 class SynthBennuPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
-    def __init__(self, root='data', folder='synth/bennu', noise_max=0.20, rnd_gain=(0.5, 2), image_size=512,
+    def __init__(self, root='data', folder='synth', noise_max=0.20, rnd_gain=(0.5, 2), image_size=512,
                  margin=16, eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
         assert not rgb, 'rgb images not supported'

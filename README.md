@@ -8,8 +8,9 @@ cd navex
 git clone https://github.com/oknuutti/r2d2.git r2d2
 conda create -n navex python=3.8 pip
 conda activate navex
-conda install pytorch torchvision cudatoolkit=11.0 -c pytorch
+conda install pytorch cudatoolkit=11.0 -c pytorch
 conda install pytorch-lightning opencv paramiko quaternion scipy scikit-optimize -c conda-forge
+pip install git+https://github.com/pytorch/vision.git#egg=torchvision
 pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0 ray==1.1.0 ray[tune]==1.1.0
 pip install -e ./r2d2
 ```

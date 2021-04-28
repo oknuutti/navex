@@ -16,16 +16,16 @@ class AsteroidalTrial(TerrestrialTrial):
         assert rgb is False, 'no rgb images from asteroids'
 
         if self._tr_data is None:
-            common = dict(margin=self.loss_fn.ap_loss.super.sampler.border, eval=False, rgb=False)
+            common = dict(margin=self.loss_fn.border, eval=False, rgb=False)
             common.update({k: v for k, v in self.data_conf.items() if k in ('noise_max', 'rnd_gain', 'image_size')})
             pconf = dict(aflow_rot_norm=True)
-            sconf = {k: v for k, v in self.data_conf.items() if k in ('max_rot', 'max_shear', 'max_proj')}
+            sconf = {k: v for k, v in self.data_conf.items() if k in ('max_sc', 'max_rot', 'max_shear', 'max_proj')}
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})
 
             ds = []
             if 1:
                 ds.append(ErosPairDataset(self.data_conf['path'], **common, **pconf))
-            if 0:
+            if 1:
                 ds.append(SynthBennuPairDataset(self.data_conf['path'], **common))
             if 1:
                 ds.append(BennuSynthPairDataset(self.data_conf['path'], **common, **sconf))

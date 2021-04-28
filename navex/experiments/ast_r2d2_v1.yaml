@@ -22,17 +22,17 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: !h_int 16
+  batch_size: !h_int 8
   batch_mem: 32000
   gpu: 1
-  epochs: 27
+  epochs: 15
   print_freq: 5
   test_freq: 1
   save_freq: 1
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 10
+  early_stopping: 0
   reduced_precision: !h_int 0
   auto_lr_find: 0
   deterministic: 1
@@ -65,10 +65,12 @@ model:
     dropout:     0.0
 
 loss:
+  loss_type: !h_str thresholded
   wdt: !h_float -1.5      # weight for peakiness and cosim losses
-  wap: !h_float -1.5      # weight for expected ap loss
+  wap: !h_float -2.0      # weight for expected ap loss
+  wqt: !h_float -1.0      # weight for expected ap loss
   det_n: !h_int  16       # detector neighbourhood size
-  base: !h_float 0.0     # quality loss target mAP
+  base: !h_float 0.1     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     ngh: 7        # was 7       # neighbourhood size in descriptor cells
@@ -83,8 +85,8 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 1e-3
-  weight_decay: !h_float 1e-6
+  learning_rate: !h_float 5e-4
+  weight_decay: !h_float 5e-4
   split_params: 0
   eps: !h_float 1e-8
 
@@ -94,11 +96,11 @@ data:
   max_shear: !h_float 0.0    # synth pair warp related
   max_proj: !h_float 0.5     # synth pair warp related
   noise_max: !h_float 0.1
-  rnd_gain: !h_float 1.5
+  rnd_gain: !h_float 1.2
   image_size: !h_int 224
   path: 'data'
   npy: 'false'
   trn_ratio: 0.90
   val_ratio: 0.10
   tst_ratio: 0.00   # different test set altogether (itokawa)
-  workers: 5
+  workers: 6
