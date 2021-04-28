@@ -227,7 +227,7 @@ class MobileAP(BasePoint):
             in_ch = self.add_layer(layers, in_ch, 3, 3, 24, False, "RE", 1, 1)
             in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 2, 1)    # C2
             in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)
-            in_ch = self.add_layer(layers, in_ch, 5, 3, 72, True, "RE", 1, 1)            # hf-net mod: 40=>64, or 72?
+            in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)            # hf-net mod: 40=>64, or 72?
             # in_ch = add_layer(layers, in_ch, 3, 6, 80, False, "HS", 2, 1)  # C3
             # in_ch = add_layer(layers, in_ch, 3, 2.5, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 2.3, 80, False, "HS", 1, 1)

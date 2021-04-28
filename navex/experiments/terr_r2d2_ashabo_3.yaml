@@ -25,14 +25,14 @@ training:
   batch_size: 8
   batch_mem: 32000
   gpu: 1
-  epochs: 20
+  epochs: 15
   print_freq: 5
   test_freq: 1
   save_freq: 1
   resume: null
   evaluate: 0
   pretrained: ''
-  early_stopping: 6
+  early_stopping: 0
   reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
