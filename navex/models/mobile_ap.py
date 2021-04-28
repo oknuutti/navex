@@ -204,10 +204,13 @@ class MobileAP(BasePoint):
             init_modules = [self.backbone, self.des_head, self.det_head, self.qlt_head]
             initialize_weights(init_modules)
 
-    def add_layer(self, l, in_ch, kernel, exp_coef, out_ch, use_se, activation, stride, dilation):
-        l.append(self.block_cls(InvertedResidualConfig(in_ch, kernel, round(in_ch * exp_coef), out_ch, use_se, activation,
-                                              stride, dilation, self.conf['width_mult'])))
-        return out_ch
+    def add_layer(self, l, in_ch, kernel, exp_coef, out_ch, use_se, activation, stride, dilation, force_out_ch=False):
+        irc = InvertedResidualConfig(in_ch, kernel, round(in_ch * exp_coef), out_ch, use_se, activation,
+                                     stride, dilation, self.conf['width_mult'])
+        if force_out_ch:
+            irc.out_channels = out_ch
+        l.append(self.block_cls(irc))
+        return round(irc.out_channels / self.conf['width_mult'])
 
     def create_backbone(self, arch, cache_dir=None, pretrained=False, in_channels=1, **kwargs):
         arch = arch.lower().split('_')
@@ -276,7 +279,8 @@ class MobileAP(BasePoint):
         seq = []
         if conf['hidden_ch'] > 0:
             if conf['exp_coef'] > 0:
-                in_ch = self.add_layer(seq, in_ch, 3, conf['exp_coef'], conf['hidden_ch'], conf['use_se'], "HS", 1, 1)
+                in_ch = self.add_layer(seq, in_ch, 3, conf['exp_coef'], conf['hidden_ch'], conf['use_se'], "HS", 1, 1,
+                                       force_out_ch=True)
             else:
                 seq.append(nn.Conv2d(in_ch, conf['hidden_ch'], kernel_size=3, padding=1))
                 seq.append(nn.BatchNorm2d(conf['hidden_ch']))
