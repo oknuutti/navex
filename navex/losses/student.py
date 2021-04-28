@@ -35,6 +35,7 @@ class StudentLoss(BaseLoss):
         assert interpolation_mode != 'bicubic', "can't use bicubic as results could overshoot, "\
                                                 "would need L2-normalization for des, clip(0,1) for det and qlt"
         self.interpolation_mode = interpolation_mode
+        self.match_sc_method = 'unshuffle'
 
         clss = {'L1': L1Loss, 'L2': L2Loss, 'MSE': MSELoss, 'SmoothL1': SmoothL1Loss}
         assert des_loss in clss, 'invalid descriptor loss function %s' % (des_loss,)
@@ -74,14 +75,21 @@ class StudentLoss(BaseLoss):
         des_x, det_x, qlt_x = output
         des_y, det_y, qlt_y = label
 
-        d_det_y = F.pixel_unshuffle(det_y, 8)
-        idxs = torch.argmax(d_det_y, dim=1, keepdim=True)
+        if self.match_sc_method == 'unshuffle':
+            d_det_y = F.pixel_unshuffle(det_y, 8)
+            idxs = torch.argmax(d_det_y, dim=1, keepdim=True)
 
-        d_des_y = F.pixel_unshuffle(des_y, 8)
-        lo_des_y = torch.gather(d_des_y, idxs)
+            d_qlt_y = F.pixel_unshuffle(qlt_y, 8)
+            lo_qlt_y = torch.gather(d_qlt_y, 1, idxs)
 
-        d_qlt_y = F.pixel_unshuffle(qlt_y, 8)
-        lo_qlt_y = torch.gather(d_qlt_y, idxs)
+            d_des_y = F.pixel_unshuffle(des_y[:, :, None, :, :], 8)
+            dI = idxs[:, None, :, :, :].expand(-1, des_y.size(1), 1, -1, -1)
+            lo_des_y = torch.gather(d_des_y, 2, dI).squeeze()
+        else:
+            des_x, des_y = self._match_sc_interp(des_x, des_y)
+            det_x, det_y = self._match_sc_interp(det_x, det_y)
+            qlt_x, qlt_y = self._match_sc_interp(qlt_x, qlt_y)
+            lo_des_y, lo_qlt_y = des_y, qlt_y
 
         if not self.skip_qlt:
             weight = self.qlt_w
