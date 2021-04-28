@@ -58,37 +58,46 @@ class StudentLoss(BaseLoss):
                 ok = False
         return ok
 
-    def forward(self, output, label, component_loss=False):
-        weights = (self.des_w, self.det_w, self.qlt_w)
+    def _match_sc_interp(self, out, lbl):
         align_corners = None if self.interpolation_mode in ('nearest', 'area') else False
-        d = {}
-
+        h1, w1 = out.shape[2:]
+        h2, w2 = lbl.shape[2:]
         # upscale to higher resolution (uses a lot of memory though, could downscale but would seem fishy, hmm...)
-        for name, out, lbl, weight in zip(('des', 'det', 'qlt'), output, label, weights):
-            h1, w1 = out.shape[2:]
-            h2, w2 = lbl.shape[2:]
-            if (h1, w1) != (h2, w2):
-                if h1 * w1 < h2 * w2:
-                    out = F.interpolate(out, size=(h2, w2), mode=self.interpolation_mode, align_corners=align_corners)
-                elif h1 * w1 > h2 * w2:
-                    lbl = F.interpolate(lbl, size=(h1, w1), mode=self.interpolation_mode, align_corners=align_corners)
-            d[name] = [out, lbl, weight]
+        if (h1, w1) != (h2, w2):
+            if h1 * w1 < h2 * w2:
+                out = F.interpolate(out, size=(h2, w2), mode=self.interpolation_mode, align_corners=align_corners)
+            elif h1 * w1 > h2 * w2:
+                lbl = F.interpolate(lbl, size=(h1, w1), mode=self.interpolation_mode, align_corners=align_corners)
+        return out, lbl
+
+    def forward(self, output, label, component_loss=False):
+        des_x, det_x, qlt_x = output
+        des_y, det_y, qlt_y = label
+
+        d_det_y = F.pixel_unshuffle(det_y, 8)
+        idxs = torch.argmax(d_det_y, dim=1, keepdim=True)
+
+        d_des_y = F.pixel_unshuffle(des_y, 8)
+        lo_des_y = torch.gather(d_des_y, idxs)
+
+        d_qlt_y = F.pixel_unshuffle(qlt_y, 8)
+        lo_qlt_y = torch.gather(d_qlt_y, idxs)
 
         if not self.skip_qlt:
-            out, lbl, weight = d['qlt']
+            weight = self.qlt_w
             lib = math if isinstance(weight, float) else torch
-            qlt_loss = 1.0 * lib.exp(-weight) * self.qlt_loss(out, lbl) + weight
+            qlt_loss = 1.0 * lib.exp(-weight) * self.qlt_loss(qlt_x, lo_qlt_y) + weight
         else:
-            qlt_loss = torch.Tensor([0]).to(d['des'][0].device)
-            d['det'][1] = d['det'][1] * d['qlt'][1]     # merge det and qlt labels to be detection target label
+            qlt_loss = torch.Tensor([0]).to(des_x.device)
+            det_y = det_y * qlt_y     # merge det and qlt labels to be detection target label
 
-        out, lbl, weight = d['det']
+        weight = self.det_w
         lib = math if isinstance(weight, float) else torch
-        det_loss = 1.0 * lib.exp(-weight) * self.det_loss(out, lbl) + weight  # 1.0 if regression, 2.0 if classification
+        det_loss = 1.0 * lib.exp(-weight) * self.det_loss(det_x, det_y) + weight  # 1.0 if regression, 2.0 if classification
 
-        out, lbl, weight = d['des']
+        weight = self.des_w
         lib = math if isinstance(weight, float) else torch
-        des_loss = 2.0 * lib.exp(-weight) * (d['qlt'][1] * self.des_loss(out, lbl)).mean() + weight
+        des_loss = 2.0 * lib.exp(-weight) * (lo_qlt_y * self.des_loss(des_x, lo_des_y)).mean() + weight
 
         loss = torch.stack((des_loss, det_loss, qlt_loss), dim=1)
         return loss if component_loss else loss.sum(dim=1)

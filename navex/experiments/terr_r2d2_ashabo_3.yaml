@@ -66,8 +66,9 @@ model:
 
 loss:
   loss_type: thresholded
-  wdt: -2.0       # weight for peakiness and cosim losses
+  wdt: -1.5       # weight for peakiness and cosim losses
   wap: -2.0       # weight for expected ap loss
+  wqt: -1.0
   det_n: !h_tune2_choice  '[16], [12, 16, 20, 24]'     # detector neighbourhood size
   base: 0.1       # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
