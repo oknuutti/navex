@@ -85,7 +85,7 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: 3e-4
+  learning_rate: 0.0003    # for some reason cant use exp form, e.g. 3e-4
   weight_decay:  !h_tune2_loguniform  '(4e-4, 6e-4), (1e-8, 1e-3)'
   split_params:  0
   eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'

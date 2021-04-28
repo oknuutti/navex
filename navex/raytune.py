@@ -78,9 +78,10 @@ class RayTuneHeadNode:
                                include_dashboard=False, verbose=True, temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
                                max_worker_port=self.max_wport)
 
-        logging.info('head node started with details: %s' % ((
+        logging.info('starting head node with details: %s' % ((
                        node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
-        logging.info('interfacing with python...')
+        logging.info('waiting 10s before interfacing with python...')
+        time.sleep(10)
 
         head_address = '127.0.0.1:%d' % self.local_ports[0]
         addr = ray.init(head_address, _redis_password=self.redis_pwd)
