@@ -53,9 +53,9 @@ class DetectionSampler(torch.nn.Module):
         d_xy = F.pixel_unshuffle(self._unit_aflow[None, :, None, t:-b, l:-r].expand(B, -1, 1, -1, -1), self.cell_d)
         dI = idxs[:, None, :, :, :].expand(-1, 2, 1, -1, -1)
         s_xy = torch.gather(d_xy, 2, dI)[:, :, 0, :, :]
-        x, y = s_xy[:, 0, :, :].view(-1), s_xy[:, 1, :, :].view(-1)
-        n = x.size(0)
-        b = torch.arange(B, device=det.device)[:, None].expand(B, n).view(-1)
+        x, y = s_xy[:, 0, :, :].reshape(-1), s_xy[:, 1, :, :].reshape(-1)
+        n = x.size(0) // B
+        b = torch.arange(B, device=det.device)[:, None].expand(B, n).reshape(-1)
 
         return b, x, y, n
 
