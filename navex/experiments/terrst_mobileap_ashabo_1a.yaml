@@ -52,8 +52,8 @@ model:
     dropout:     0.0
   det_head:
     after_des:   0
-    hidden_ch:   !h_tune2_choice     '[128], [0, 65, 128]'
-    exp_coef:    !h_tune2_choice     '[7.5], [0, 5.6, 7.5, 10.0, 13.3]'
+    hidden_ch:   !h_tune2_choice     '[65], [0, 65, 128]'
+    exp_coef:    !h_tune2_choice     '[5.6], [0, 5.6, 7.5, 10.0, 13.3]'
     use_se:      !h_tune2_choice     '[0], [0, 1]'
     dropout:     0.0
   qlt_head:

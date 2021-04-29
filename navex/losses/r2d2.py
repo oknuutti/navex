@@ -22,6 +22,7 @@ class R2D2Loss(BaseLoss):
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
         self.wqt = 0.0
 
+        sampler['subq'] = -int(det_n)
         if loss_type == 'discounted':
             self.wqt = -math.log(wqt) if wqt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wqt)]))
             self.ap_loss = DiscountedAPLoss(base=base, nq=nq, sampler_conf=sampler)
@@ -82,7 +83,7 @@ class R2D2Loss(BaseLoss):
         else:
             sc_aflow = aflow
 
-        a_loss, q_loss = self.ap_loss(des1, des2, qlt1, qlt2, sc_aflow)
+        a_loss, q_loss = self.ap_loss(output1, output2, sc_aflow)
 
         # maybe optimize weights during training, see
         # https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf

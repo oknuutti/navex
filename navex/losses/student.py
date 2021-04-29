@@ -84,7 +84,7 @@ class StudentLoss(BaseLoss):
 
             d_des_y = F.pixel_unshuffle(des_y[:, :, None, :, :], 8)
             dI = idxs[:, None, :, :, :].expand(-1, des_y.size(1), 1, -1, -1)
-            lo_des_y = torch.gather(d_des_y, 2, dI).squeeze()
+            lo_des_y = torch.gather(d_des_y, 2, dI)[:, :, 0, :, :]
         else:
             des_x, des_y = self._match_sc_interp(des_x, des_y)
             det_x, det_y = self._match_sc_interp(det_x, det_y)

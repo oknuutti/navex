@@ -52,28 +52,28 @@ model:
     dropout:     !h_float  0.0
   det_head:
     after_des:   !h_int    0
-    hidden_ch:   !h_int    128
-    exp_coef:    !h_float  7.5
+    hidden_ch:   !h_int    65
+    exp_coef:    !h_float  5.6
     use_se:      !h_int    0
     dropout:     !h_float  0.0
   qlt_head:
-    skip:        !h_int    0
+    skip:        !h_int    1
     after_des:   !h_int    0
-    hidden_ch:   !h_int    128
-    exp_coef:    !h_float  7.5
+    hidden_ch:   !h_int    0
+    exp_coef:    !h_float  0
     use_se:      !h_int    0
     dropout:     !h_float  0.0
 
 loss:
-  teacher: !h_str  'output/r2d2-v7g.ckpt'
-  des_loss: !h_str 'L1'     # L1 or L2
+  teacher: !h_str  'output/r2d2-v8th.ckpt'
+  des_loss: !h_str 'MSE'     # L1 or L2
   des_w: !h_float -10.0     # weight for descriptor head loss
   det_w: !h_float -0.8      # weight for detector head loss
   qlt_w: !h_float -3.0      # weight for quality head loss
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 5e-4
+  learning_rate: !h_float 1e-3
   weight_decay:  !h_float 1e-5
   split_params: 0
   eps: !h_float 1e-8
