@@ -21,12 +21,13 @@ class DiscountedAPLoss(Module):
         self.name = 'ap-loss'
         self.discount = True
 
-        if 0:
+        if sampler_conf['subd_neg'] != 0:
             self.sampler = NghSampler2(**sampler_conf)
         else:
             c = sampler_conf
-            self.sampler = DetectionSampler(pos_r=c['pos_d'], cell_d=abs(c['subq']),
-                                            border=c['border'], max_neg_b=c['max_neg_b'])
+            self.sampler = DetectionSampler(pos_r=c['pos_d'], neg_min_r=c['neg_d'], neg_max_r=c['ngh'],
+                                            neg_step=c['subd'], cell_d=abs(c['subq']), border=c['border'],
+                                            max_neg_b=c['max_neg_b'])
 
         self.calc_ap = APLoss(nq=nq, min=min, max=max, euc=euc)
         self.bce_loss = BCELoss(reduction='none')
@@ -36,10 +37,10 @@ class DiscountedAPLoss(Module):
         des2, det2, qlt2 = output2
 
         # subsample things
-        if 0:
-            scores, labels, mask, qlt = self.sampler((des1, des2), (qlt1, qlt2), aflow)
-        else:
+        if isinstance(self.sampler, DetectionSampler):
             scores, labels, mask, qlt = self.sampler(output1, output2, aflow)
+        else:
+            scores, labels, mask, qlt = self.sampler((des1, des2), (qlt1, qlt2), aflow)
 
         n = qlt.numel()
         scores, labels, qlt = scores.view(n, -1), labels.view(n, -1), qlt.view(n, -1)

@@ -22,7 +22,6 @@ class R2D2Loss(BaseLoss):
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
         self.wqt = 0.0
 
-        sampler['subq'] = -int(det_n)
         if loss_type == 'discounted':
             self.wqt = -math.log(wqt) if wqt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wqt)]))
             self.ap_loss = DiscountedAPLoss(base=base, nq=nq, sampler_conf=sampler)

@@ -15,21 +15,43 @@ class DetectionSampler(torch.nn.Module):
     Pixel label:              + + + + - - -
     """
 
-    def __init__(self, pos_r=2, cell_d=16, border=None, max_neg_b=None):
+    def __init__(self, pos_r=3, neg_min_r=7, neg_max_r=8, neg_step=2, cell_d=8, border=16, max_neg_b=8):
+        """
+        :param pos_r: radius from inside which positive samples are gathered
+        :param neg_min_r: min radius for negative samples
+        :param neg_max_r: max radius for negative samples
+        :param neg_step: negative sampling step
+        :param cell_d: diameter of rectangular cell that is searched for max detection score
+        :param border: border width, don't sample if closer than this to image borders
+        :param max_neg_b: get distractors from at most this amount of images in the mini-batch
+        """
         super(DetectionSampler, self).__init__()
-
         self.pos_r = pos_r
+        self.neg_min_r = neg_min_r
+        self.neg_max_r = neg_max_r
+        self.neg_step = neg_step
         self.cell_d = cell_d
-        self.max_neg_b = max_neg_b
         self.border = border
+        self.max_neg_b = max_neg_b
 
-        offsets = [
+        pos_offsets = [
             (i, j)
             for i in range(-self.pos_r, self.pos_r + 1)
             for j in range(-self.pos_r, self.pos_r + 1)
-            if i * i + j * j <= self.pos_r ** 2
+            if (i**2 + j**2) <= self.pos_r**2
         ]
-        self.offsets = torch.nn.Parameter(torch.LongTensor(offsets).view(-1, 2).t(), requires_grad=False)
+        self.pos_offsets = torch.nn.Parameter(torch.LongTensor(pos_offsets).view(-1, 2).t(), requires_grad=False)
+
+        self.neg_offsets = None
+        if self.neg_min_r < self.neg_max_r:
+            neg_offsets = [
+                (i, j)
+                for i in range(-self.neg_max_r, self.neg_max_r + 1, self.neg_step)
+                for j in range(-self.neg_max_r, self.neg_max_r + 1, self.neg_step)
+                if self.neg_min_r**2 <= (i**2 + j**2) <= self.neg_max_r**2
+            ]
+            self.neg_offsets = torch.nn.Parameter(torch.LongTensor(neg_offsets).view(-1, 2).t(), requires_grad=False)
+
         self._unit_aflow = None
 
     def sample(self, det, max_b=None):
@@ -76,12 +98,18 @@ class DetectionSampler(torch.nn.Module):
             return xy
 
         # compute positive scores
-        xy2p = clamp(xy2[:, None, :] + self.offsets[:, :, None])
+        xy2p = clamp(xy2[:, None, :] + self.pos_offsets[:, :, None])
         pscores = (s_des1[None, :, :] * des2[b, :, xy2p[1], xy2p[0]]).sum(dim=-1).t()
 
         pscores, pos = pscores.max(dim=1, keepdim=True)
-        sel_xy2 = clamp(xy2 + self.offsets[:, pos.view(-1)])
+        sel_xy2 = clamp(xy2 + self.pos_offsets[:, pos.view(-1)])
         qlt = (qlt1[b, :, y1, x1] + qlt2[b, :, sel_xy2[1], sel_xy2[0]]) / 2
+
+        # compute negative scores
+        nscores = None
+        if self.neg_offsets is not None:
+            xy2n = clamp(xy2[:, None, :] + self.neg_offsets[:, :, None])
+            nscores = (s_des1[None, :, :] * des2[b, :, xy2n[1], xy2n[0]]).sum(dim=-1).t()
 
         # add distractors from other images in same mini-batch
         bd, yd, xd, _ = self.sample(det2, max_b=self.max_neg_b)
@@ -93,8 +121,7 @@ class DetectionSampler(torch.nn.Module):
         dis2 += (bd != b[:, None]).long() * self.pos_r ** 2
         dscores[dis2 < self.pos_r ** 2] = 0
 
-        scores = torch.cat((pscores, dscores), dim=1)
+        scores = torch.cat((pscores, dscores) if self.neg_offsets is None else (pscores, nscores, dscores), dim=1)
         labels = scores.new_zeros(scores.shape, dtype=torch.bool)
         labels[:, :pscores.shape[1]] = 1
-
         return scores, labels, mask, qlt
