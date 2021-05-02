@@ -10,12 +10,9 @@ class DetectionSampler(torch.nn.Module):
     with the highest detection score as positive samples. Don't sample too close to the image borders.
 
     Get extra negative samples from other images in the same batch.
-
-    Distance to ground truth: 0 ... pos_r ...
-    Pixel label:              + + + + - - -
     """
 
-    def __init__(self, pos_r=3, neg_min_r=7, neg_max_r=8, neg_step=2, cell_d=8, border=16, max_neg_b=8):
+    def __init__(self, pos_r=3, neg_min_r=7, neg_max_r=8, neg_step=2, cell_d=8, border=16, max_neg_b=8, random=False):
         """
         :param pos_r: radius from inside which positive samples are gathered
         :param neg_min_r: min radius for negative samples
@@ -24,6 +21,7 @@ class DetectionSampler(torch.nn.Module):
         :param cell_d: diameter of rectangular cell that is searched for max detection score
         :param border: border width, don't sample if closer than this to image borders
         :param max_neg_b: get distractors from at most this amount of images in the mini-batch
+        :param random: if True, sample randomly instead of using the detection scores
         """
         super(DetectionSampler, self).__init__()
         self.pos_r = pos_r
@@ -33,6 +31,7 @@ class DetectionSampler(torch.nn.Module):
         self.cell_d = cell_d
         self.border = border
         self.max_neg_b = max_neg_b
+        self.random = random
 
         pos_offsets = [
             (i, j)
@@ -60,24 +59,32 @@ class DetectionSampler(torch.nn.Module):
         if max_b is not None:
             B = min(max_b, B)
 
+        if 0:
+            # TODO: support all image sizes
+            ml, mr, mt, mb = self.margins(W, H)
+        else:
+            ml, mr, mt, mb = [self.border] * 4
+
+        n = (W - ml - mr) * (H - mt - mb) // self.cell_d ** 2
+        b = torch.arange(B, device=det.device)[:, None].expand(B, n).reshape(-1)
+
+        if self.random:
+            x = torch.randint(ml, W - mr, (n,), device=det.device)
+            y = torch.randint(mt, H - mb, (n,), device=det.device)
+            x = x[None, :].expand(B, n).reshape(-1)
+            y = y[None, :].expand(B, n).reshape(-1)
+            return b, x, y, n
+
         if self._unit_aflow is None:
             self._unit_aflow = torch.LongTensor(unit_aflow(W, H)).permute((2, 0, 1)).to(det.device)
 
-        if 0:
-            # TODO: support all image sizes
-            l, r, t, b = self.margins(W, H)
-        else:
-            l, r, t, b = [self.border] * 4
-
-        d_det = F.pixel_unshuffle(det[:B, :, t:-b, l:-r], self.cell_d)
+        d_det = F.pixel_unshuffle(det[:B, :, mt:-mb, ml:-mr], self.cell_d)
         idxs = torch.argmax(d_det, dim=1, keepdim=True)
 
-        d_xy = F.pixel_unshuffle(self._unit_aflow[None, :, None, t:-b, l:-r].expand(B, -1, 1, -1, -1), self.cell_d)
+        d_xy = F.pixel_unshuffle(self._unit_aflow[None, :, None, mt:-mb, ml:-mr].expand(B, -1, 1, -1, -1), self.cell_d)
         dI = idxs[:, None, :, :, :].expand(-1, 2, 1, -1, -1)
         s_xy = torch.gather(d_xy, 2, dI)[:, :, 0, :, :]
         x, y = s_xy[:, 0, :, :].reshape(-1), s_xy[:, 1, :, :].reshape(-1)
-        n = x.size(0) // B
-        b = torch.arange(B, device=det.device)[:, None].expand(B, n).reshape(-1)
 
         return b, x, y, n
 

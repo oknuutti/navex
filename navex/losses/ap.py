@@ -4,9 +4,7 @@ import torch
 from torch.nn import Module, BCELoss
 import torch.nn.functional as F
 
-from r2d2.nets.sampler import NghSampler2
-from r2d2.nets.ap_loss import APLoss
-
+from navex.losses.quantizer import Quantizer
 from navex.losses.sampler import DetectionSampler
 
 
@@ -21,26 +19,17 @@ class DiscountedAPLoss(Module):
         self.name = 'ap-loss'
         self.discount = True
 
-        if sampler_conf['subd_neg'] != 0:
-            self.sampler = NghSampler2(**sampler_conf)
-        else:
-            c = sampler_conf
-            self.sampler = DetectionSampler(pos_r=c['pos_d'], neg_min_r=c['neg_d'], neg_max_r=c['ngh'],
-                                            neg_step=c['subd'], cell_d=abs(c['subq']), border=c['border'],
-                                            max_neg_b=c['max_neg_b'])
+        # TODO: update config
+        c = sampler_conf
+        self.sampler = DetectionSampler(pos_r=c['pos_d'], neg_min_r=c['neg_d'], neg_max_r=c['ngh'],
+                                        neg_step=c['subd'], cell_d=abs(c['subq']), border=c['border'],
+                                        max_neg_b=c['max_neg_b'], random=sampler_conf['subd_neg'] != 0)
 
-        self.calc_ap = APLoss(nq=nq, min=min, max=max, euc=euc)
+        self.calc_ap = DifferentiableAP(bins=nq, euclidean=True)
         self.bce_loss = BCELoss(reduction='none')
 
     def forward(self, output1, output2, aflow):
-        des1, det1, qlt1 = output1
-        des2, det2, qlt2 = output2
-
-        # subsample things
-        if isinstance(self.sampler, DetectionSampler):
-            scores, labels, mask, qlt = self.sampler(output1, output2, aflow)
-        else:
-            scores, labels, mask, qlt = self.sampler((des1, des2), (qlt1, qlt2), aflow)
+        scores, labels, mask, qlt = self.sampler(output1, output2, aflow)
 
         n = qlt.numel()
         scores, labels, qlt = scores.view(n, -1), labels.view(n, -1), qlt.view(n, -1)
@@ -92,6 +81,34 @@ class ThresholdedAPLoss(DiscountedAPLoss):
         return a_loss, None
 
 
+class DifferentiableAP(Module):
+    """
+    Based on "Descriptors Optimized for Average Precision" by He et al. 2018
+    """
+    def __init__(self, bins=25, euclidean=True):
+        super(DifferentiableAP, self).__init__()
+        self.quantizer = Quantizer(bins, min_v=0, max_v=1)  # note that min_v=0 even though scores can go as low as -1
+        self.euclidean = euclidean
+
+    def forward(self, score, label):
+        if self.euclidean:        # use `1 - euclidean distance` instead of pure inner product
+            score = 1 - torch.sqrt(2.0001 - 2 * score)
+
+        # quantize matching scores, e
+        binned_s = self.quantizer(score, insert_dim=1)
+
+        # prepare for ap calculation
+        samples_per_bin = binned_s.sum(dim=2)
+        correct_per_bin = (binned_s * label[:, None, :].float()).sum(dim=2)
+        cum_correct = correct_per_bin.cumsum(dim=1)
+        cum_precision = cum_correct / (1e-16 + samples_per_bin.cumsum(dim=1))
+
+        # average precision, per query
+        ap = (correct_per_bin * cum_precision).sum(dim=1) / cum_correct[:, -1]
+
+        return ap
+
+
 # TODO: remove when no need to load models that refer to it
 class AveragePrecisionLoss(Module):
     """
@@ -103,6 +120,8 @@ class AveragePrecisionLoss(Module):
                                         'subd_neg': -8, 'maxpool_pos': True}
 
         from r2d2.nets.reliability_loss import ReliabilityLoss
+        from r2d2.nets.sampler import NghSampler2
+
         self.super = ReliabilityLoss(sampler=NghSampler2(**sampler_conf), base=base, nq=nq)
 
     def forward(self, output1, output2, aflow):
