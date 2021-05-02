@@ -9,7 +9,7 @@ from navex.losses.sampler import DetectionSampler
 
 
 class DiscountedAPLoss(Module):
-    def __init__(self, base=0.5, scale=0.1, nq=20, min=0, max=1, euc=False, sampler_conf=None):
+    def __init__(self, base=0.5, scale=0.1, nq=20, sampler_conf=None):
         super(DiscountedAPLoss, self).__init__()
 
         self.eps = 1e-5

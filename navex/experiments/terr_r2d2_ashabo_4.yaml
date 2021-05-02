@@ -1,14 +1,14 @@
 search:
   method: 'asha-bo'
   resume: ''
-  metric: 'loss'
-  mode: 'min'
-  samples: 1
-  nodes: 1
-  node_types: 'volta'
+  metric: 'tot_ratio'
+  mode: 'max'
+  samples: 243
+  nodes: 6
+  node_types: 'volta'   # volta for triton, type_gpu for csc
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
-  node_type_cpus: '6'
+  node_type_cpus: '8'
   grace_period: 1       # for asha only
   reduction_factor: 3   # for asha only
   username: ''
@@ -22,7 +22,7 @@ training:
   name: 'v0'
   cache: 'cache'
   output: 'output'
-  batch_size: !h_int 8
+  batch_size: 8
   batch_mem: 32000
   gpu: 1
   epochs: 15
@@ -33,19 +33,19 @@ training:
   evaluate: 0
   pretrained: ''
   early_stopping: 0
-  reduced_precision: !h_int 0
+  reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
 
 model:
-  arch: !h_str 'r2d2-own_vgg'
-  in_channels: !h_int 1
+  arch: 'r2d2-own_vgg'
+  in_channels: 1
   partial_residual: 0   # not in use
-  width_mult:       !h_float  1.0
+  width_mult: 1.0
   pretrained: 0         # not in use
   cache_dir: 'cache'    # not in use
   des_head:
-    dimensions:  !h_int    128
+    dimensions:  128
     hidden_ch:   128
     exp_coef:    0.0
     use_se:      0
@@ -65,42 +65,42 @@ model:
     dropout:     0.0
 
 loss:
-  loss_type: !h_str thresholded
-  wdt: !h_float -1.5      # weight for peakiness and cosim losses
-  wap: !h_float -2.0      # weight for expected ap loss
-  wqt: !h_float -1.0      # weight for expected ap loss
-  det_n: !h_int  16       # detector neighbourhood size
-  base: !h_float 0.1     # quality loss target mAP
+  loss_type: thresholded
+  wdt: -1.5       # weight for peakiness and cosim losses
+  wap: -2.0       # weight for expected ap loss
+  wqt: -1.0
+  det_n: !h_tune2_choice  '[16], [12, 16, 20, 24]'     # detector neighbourhood size
+  base: 0.1       # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    ngh: 7        # was 7       # neighbourhood size in descriptor cells
-    subq: -8      # was -8      # grid step size for positive samples
+    pos_d: !h_tune2_randint  '[3, 4], [1, 5]'   # was 3       # positive samples generated up to this far from ideal location
+    neg_d: !h_tune2_randint  '[5, 6], [5, 8]'   # was 5       # negative samples generated starting from distance from ideal location
+    ngh:   !h_tune2_randint  '[7, 8], [7, 11]'  # was 7       # neighbourhood size in descriptor cells
     subd: 1       # was 1       # neigbourhood sampling interval
-    pos_d: 3      # was 3       # positive samples generated up to this far from ideal location
-    neg_d: 5      # was 5       # negative samples generated starting from distance from ideal location
     border: 16    # was 16
+    subq: -8      # was -8      # grid step size for positive samples
     subd_neg: -8  # was -8      # grid step size for generating additional negative samples
     max_neg_b: 8                # distractors mined from max this number of images from same batch
     maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 5e-4
-  weight_decay: !h_float 5e-4
-  split_params: 0
-  eps: !h_float 1e-8
+  learning_rate: 0.0003    # for some reason cant use exp form, e.g. 3e-4
+  weight_decay:  !h_tune2_loguniform  '(4e-4, 6e-4), (1e-8, 1e-3)'
+  split_params:  0
+  eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'
 
 data:
-  max_sc:  !h_float 1.091    # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
-  max_rot: !h_float 0.0      # in degrees, synth pair warp related
-  max_shear: !h_float 0.0    # synth pair warp related
-  max_proj: !h_float 0.5     # synth pair warp related
-  noise_max: !h_float 0.1
-  rnd_gain: !h_float 1.2
-  image_size: !h_int 224
-  path: 'data'
+  max_sc:    1.091  # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
+  max_rot:   0.0    # in degrees, synth pair warp related
+  max_shear: 0.0    # synth pair warp related
+  max_proj:  !h_tune2_uniform '(0.45, 0.55), (0.20, 0.80)'    # synth pair warp related
+  noise_max: !h_tune2_uniform '(0.08, 0.12), (0.00, 0.20)'
+  rnd_gain:  !h_tune2_uniform '(1.1, 1.3), (1.0, 3.0)'
+  image_size: 256
+  path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
   trn_ratio: 0.85
   val_ratio: 0.10
   tst_ratio: 0.05
-  workers: 6
+  workers: 8

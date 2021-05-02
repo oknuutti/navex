@@ -378,7 +378,8 @@ class AugmentedConcatDataset(ConcatDataset):
         else:
             sample_idx = idx - self.cumulative_sizes[dataset_idx - 1]
 
-        self.datasets[dataset_idx].set_eval(idx in self.eval_indices)
+        if hasattr(self.datasets[dataset_idx], 'set_eval'):
+            self.datasets[dataset_idx].set_eval(idx in self.eval_indices)
         return self.datasets[dataset_idx][sample_idx]
 
     def split(self, *ratios, eval=tuple()):

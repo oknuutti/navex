@@ -117,9 +117,9 @@ class TerrestrialTrial(TrialBase):
             sconf = {k: v for k, v in self.data_conf.items() if k in ('max_rot', 'max_shear', 'max_proj')}
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})
 
-            ds = []
+            ds, dsp = [], []
             if 1:
-                ds.append(AachenFlowPairDataset(self.data_conf['path'], **common, **dconf))
+                dsp.append(AachenFlowPairDataset(self.data_conf['path'], **common, **dconf))
             if 1:
                 ds.append(WebImageSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
             if 1:
@@ -127,11 +127,23 @@ class TerrestrialTrial(TrialBase):
             if 1:
                 ds.append(AachenSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
 
-            fullset = AugmentedConcatDataset(ds)
-            datasets = fullset.split(self.data_conf.get('trn_ratio', 0.8),
-                                     self.data_conf.get('val_ratio', 0.1),
-                                     self.data_conf.get('tst_ratio', 0.1), eval=(1, 2))
+            pairs = AugmentedConcatDataset(dsp)
+            synths = AugmentedConcatDataset(ds)
 
-            self._tr_data, self._val_data, self._test_data = \
-                self.wrap_ds(datasets[0]), self.wrap_ds(datasets[1]), self.wrap_ds(datasets[2])
+            tot = len(pairs) + len(synths)
+            r0, r1, r2 = self.data_conf['trn_ratio'], self.data_conf['val_ratio'], self.data_conf['tst_ratio']
+
+            p1 = int(r1 * tot) / len(pairs)
+            p0 = (1 - p1) * r0 / (r0 + r2)
+            p2 = 1 - p0 - p1
+            s0 = (r0 * tot - p0 * len(pairs)) / len(synths)
+            s2 = 1 - s0
+
+            pairs_split = pairs.split(p0, p1, p2, eval=(1, 2))
+            synths_split = synths.split(s0, 0, s2, eval=(1, 2))
+
+            self._tr_data = self.wrap_ds(AugmentedConcatDataset([pairs_split[0], synths_split[0]]))
+            self._val_data = self.wrap_ds(pairs_split[1])
+            self._test_data = self.wrap_ds(AugmentedConcatDataset([synths_split[2], synths_split[2]]))
+
         return self._tr_data, self._val_data, self._test_data
