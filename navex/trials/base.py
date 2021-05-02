@@ -179,8 +179,8 @@ class TrialBase(abc.ABC, torch.nn.Module):
         _, _, H2, W2 = det2.shape
 
         if top_k is None:
-            # detect at most 0.002 features per pixel
-            top_k = int((H2 - border * 2) * (W2 - border * 2) * 0.002)
+            # detect at most 0.001 features per pixel
+            top_k = int((H2 - border * 2) * (W2 - border * 2) * 0.001)
 
         yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, det_lim=det_lim,
                                                      qlt_lim=qlt_lim, border=border)

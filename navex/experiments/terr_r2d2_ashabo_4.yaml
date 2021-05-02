@@ -69,14 +69,14 @@ loss:
   wdt: -1.5       # weight for peakiness and cosim losses
   wap: -2.0       # weight for expected ap loss
   wqt: -1.0
-  det_n: !h_tune2_choice  '[16], [12, 16, 20, 24]'     # detector neighbourhood size
+  det_n: !h_tune2_choice  '[32], [16, 24, 32, 48, 64]'     # detector neighbourhood size
   base: 0.1       # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    pos_d: !h_tune2_randint  '[3, 4], [1, 5]'   # was 3       # positive samples generated up to this far from ideal location
-    neg_d: !h_tune2_randint  '[5, 6], [5, 8]'   # was 5       # negative samples generated starting from distance from ideal location
-    ngh:   !h_tune2_randint  '[7, 8], [7, 11]'  # was 7       # neighbourhood size in descriptor cells
-    subd: 1       # was 1       # neigbourhood sampling interval
+    pos_d: !h_tune2_randint  '(3, 4), (1, 5)'   # was 3       # positive samples generated up to this far from ideal location
+    neg_d: !h_tune2_randint  '(5, 6), (5, 12)'   # was 5       # negative samples generated starting from distance from ideal location
+    ngh:   2      # was 7       # neighbourhood size in descriptor cells
+    subd:  1      # was 1       # neigbourhood sampling interval
     border: 16    # was 16
     subq: -8      # was -8      # grid step size for positive samples
     subd_neg: -8  # was -8      # grid step size for generating additional negative samples
@@ -88,7 +88,7 @@ optimizer:
   learning_rate: 0.0003    # for some reason cant use exp form, e.g. 3e-4
   weight_decay:  !h_tune2_loguniform  '(4e-4, 6e-4), (1e-8, 1e-3)'
   split_params:  0
-  eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'
+  eps:           1e-8   # tried to optimize, doesn't seem to affect much
 
 data:
   max_sc:    1.091  # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
@@ -96,7 +96,7 @@ data:
   max_shear: 0.0    # synth pair warp related
   max_proj:  !h_tune2_uniform '(0.45, 0.55), (0.20, 0.80)'    # synth pair warp related
   noise_max: !h_tune2_uniform '(0.08, 0.12), (0.00, 0.20)'
-  rnd_gain:  !h_tune2_uniform '(1.1, 1.3), (1.0, 3.0)'
+  rnd_gain:  1.2        # tried to optimize, doesn't seem to affect much
   image_size: 256
   path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
