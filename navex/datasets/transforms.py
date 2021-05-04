@@ -332,7 +332,7 @@ class PairCenterCrop(PairRandomCrop):
 
 class RandomHomography:
     def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, one_tranf_only=False, fill_value=np.nan,
-                 simple=False, image_only=False):
+                 simple=False, image_only=False, rnd_coef=2):
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
@@ -342,30 +342,39 @@ class RandomHomography:
         self.fill_value = fill_value
         self.simple = simple
         self.image_only = image_only
+        self.rnd_coef = rnd_coef
 
         self.transforms = (['tx', 'ty'] if self.max_tr>0 else []) \
                         + (['r'] if self.max_rot > 0 else []) \
                         + (['sx', 'sy'] if self.max_shear > 0 else []) \
                         + (['p1', 'p2'] if self.max_proj > 0 else [])
 
+    def rand(self, min_v, max_v, zero=0):
+        if self.rnd_coef == 1:
+            return random.uniform(min_v, max_v)
+
+        x = random.random() ** (1/self.rnd_coef)   # get values that are closer to extremes
+        a = (min_v - zero) if random.random() > 0.5 else (max_v - zero)
+        return a*x
+
     def random_H(self, w, h):
         trs = [random.choice(self.transforms)] if self.one_tranf_only else self.transforms
 
-        tr_x = random.uniform(-self.max_tr, self.max_tr) * w if 'tx' in trs else 0
-        tr_y = random.uniform(-self.max_tr, self.max_tr) * h if 'ty' in trs else 0
-        rot = random.uniform(-self.max_rot, self.max_rot) if 'r' in trs else 0
+        tr_x = self.rand(-self.max_tr, self.max_tr) * w if 'tx' in trs else 0
+        tr_y = self.rand(-self.max_tr, self.max_tr) * h if 'ty' in trs else 0
+        rot = self.rand(-self.max_rot, self.max_rot) if 'r' in trs else 0
         He = np.array([[math.cos(rot), -math.sin(rot), tr_x],
                        [math.sin(rot), math.cos(rot),  tr_y],
                        [0,             0,              1]], dtype=np.float32)
 
-        sh_x = random.uniform(-self.max_shear, self.max_shear) if 'sx' in trs else 0
-        sh_y = random.uniform(-self.max_shear, self.max_shear) if 'sy' in trs else 0
+        sh_x = self.rand(-self.max_shear, self.max_shear) if 'sx' in trs else 0
+        sh_y = self.rand(-self.max_shear, self.max_shear) if 'sy' in trs else 0
         Ha = np.array([[1, sh_x, 0],
                        [sh_y, 1, 0],
                        [0,    0, 1]], dtype=np.float32)
 
-        p1 = random.uniform(1/(1+self.max_proj) - 1, self.max_proj) / w if 'p1' in trs else 0
-        p2 = random.uniform(1/(1+self.max_proj) - 1, self.max_proj) / h if 'p2' in trs else 0
+        p1 = self.rand(1/(1+self.max_proj) - 1, self.max_proj) / w if 'p1' in trs else 0
+        p2 = self.rand(1/(1+self.max_proj) - 1, self.max_proj) / h if 'p2' in trs else 0
         Hp = np.array([[1,  0,  0],
                        [0,  1,  0],
                        [p1, p2, 1]], dtype=np.float32)

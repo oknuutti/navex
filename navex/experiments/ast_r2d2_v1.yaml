@@ -69,15 +69,15 @@ loss:
   wdt: !h_float -1.5      # weight for peakiness and cosim losses
   wap: !h_float -2.0      # weight for expected ap loss
   wqt: !h_float -1.0      # weight for expected ap loss
-  det_n: !h_int  16       # detector neighbourhood size
+  det_n: !h_int  32       # detector neighbourhood size
   base: !h_float 0.1     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    ngh: 7        # was 7       # neighbourhood size in descriptor cells
     subq: -8      # was -8      # grid step size for positive samples
     subd: 1       # was 1       # neigbourhood sampling interval
     pos_d: 3      # was 3       # positive samples generated up to this far from ideal location
     neg_d: 5      # was 5       # negative samples generated starting from distance from ideal location
+    ngh: 2        # was 7       # neighbourhood size in descriptor cells
     border: 16    # was 16
     subd_neg: -8  # was -8      # grid step size for generating additional negative samples
     max_neg_b: 8                # distractors mined from max this number of images from same batch
@@ -100,7 +100,7 @@ data:
   image_size: !h_int 224
   path: 'data'
   npy: 'false'
-  trn_ratio: 0.90
+  trn_ratio: 0.85
   val_ratio: 0.10
-  tst_ratio: 0.00   # different test set altogether (itokawa)
+  tst_ratio: 0.05   # different test set altogether (itokawa)
   workers: 6

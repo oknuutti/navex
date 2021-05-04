@@ -3,6 +3,7 @@ import math
 import os
 
 import torch
+from torch.utils.data import BufferedShuffleDataset
 
 from ..datasets.terrestrial.aachen import AachenFlowPairDataset, AachenSynthPairDataset, AachenStyleTransferPairDataset
 from ..datasets.base import AugmentedConcatDataset
@@ -77,7 +78,7 @@ class TerrestrialTrial(TrialBase):
     def training_epoch_end(self, loss, tot, inl, dst, map):
         # called after each training epoch
         if self.loss_fn.loss_type == 'thresholded':
-            self.loss_fn.update_conf({'base': 0.9 * map})
+            self.loss_fn.update_conf({'base': 0.7 * map})
 
     def log_values(self):
         log = {}
@@ -142,8 +143,12 @@ class TerrestrialTrial(TrialBase):
             pairs_split = pairs.split(p0, p1, p2, eval=(1, 2))
             synths_split = synths.split(s0, 0, s2, eval=(1, 2))
 
-            self._tr_data = self.wrap_ds(AugmentedConcatDataset([pairs_split[0], synths_split[0]]))
+            def concat(dss):
+                ds = AugmentedConcatDataset(dss)
+                return BufferedShuffleDataset(ds, buffer_size=len(ds))
+
+            self._tr_data = self.wrap_ds(concat([pairs_split[0], synths_split[0]]))
             self._val_data = self.wrap_ds(pairs_split[1])
-            self._test_data = self.wrap_ds(AugmentedConcatDataset([synths_split[2], synths_split[2]]))
+            self._test_data = self.wrap_ds(concat([synths_split[2], synths_split[2]]))
 
         return self._tr_data, self._val_data, self._test_data

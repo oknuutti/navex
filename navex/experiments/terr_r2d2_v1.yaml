@@ -73,11 +73,11 @@ loss:
   base: !h_float 0.1     # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    ngh: 7        # was 7       # neighbourhood size in descriptor cells
     subq: -8      # was -8      # grid step size for positive samples
     subd: 1       # was 1       # neigbourhood sampling interval
     pos_d: 3      # was 3       # positive samples generated up to this far from ideal location
     neg_d: 5      # was 5       # negative samples generated starting from distance from ideal location
+    ngh: 2        # was 7       # neighbourhood size in descriptor cells
     border: 16    # was 16
     subd_neg: -8  # was -8      # grid step size for generating additional negative samples
     max_neg_b: 8                # distractors mined from max this number of images from same batch
