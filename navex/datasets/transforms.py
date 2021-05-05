@@ -109,6 +109,10 @@ class RandomScale:
 
 
 class PairRandomScale(RandomScale):
+    def __init__(self, *args, resize_img2=False, **kwargs):
+        super(PairRandomScale, self).__init__(*args, **kwargs)
+        self.resize_img2 = resize_img2
+
     def __call__(self, imgs, aflow):
         img1, img2 = imgs
         w, h = img1.size
@@ -118,17 +122,25 @@ class PairRandomScale(RandomScale):
         if w != nw or h != nh:
             aflow = cv2.resize(aflow, (nw, nh), interpolation=cv2.INTER_NEAREST)
 
+        if self.resize_img2:
+            w, h = img2.size
+            img2 = super(PairRandomScale, self).__call__(img2)
+            nw, nh = img2.size
+
+            if w != nw or h != nh:
+                aflow *= nw / w
+
         return (img1, img2), aflow
 
 
 class ScaleToRange(RandomScale):
-    def __init__(self, min_size, max_size, max_sc):
-        super(ScaleToRange, self).__init__(min_size, max_size, max_sc, random=False)
+    def __init__(self, *args, **kwargs):
+        super(ScaleToRange, self).__init__(*args, random=False, **kwargs)
 
 
 class PairScaleToRange(PairRandomScale):
-    def __init__(self, min_size, max_size, max_sc):
-        super(PairScaleToRange, self).__init__(min_size, max_size, max_sc, random=False)
+    def __init__(self, *args, **kwargs):
+        super(PairScaleToRange, self).__init__(*args, random=False, **kwargs)
 
 
 class PairRandomHorizontalFlip:

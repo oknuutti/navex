@@ -7,10 +7,12 @@ import numpy as np
 import quaternion
 import scipy.interpolate as interp
 import cv2
+import PIL
 
 from navex.datasets.base import ImagePairDataset, SynthesizedPairDataset
 from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
     unit_aflow, show_pair, save_aflow, valid_asteriod_area, rotate_expand_border
+from navex.datasets.transforms import PairScaleToRange
 
 
 class AsteroidImagePairDataset(ImagePairDataset):
@@ -21,9 +23,11 @@ class AsteroidImagePairDataset(ImagePairDataset):
 
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
+        self.skip_preproc = os.path.exists(os.path.join(self.root, 'preprocessed.flag'))
         self.extra_crop = [0, 0, 0, 0] if extra_crop is None else extra_crop   # left, right, top, bottom
         self.aflow_rot_norm = aflow_rot_norm
         self.preproc_path = preproc_path
+
         self.cam_axis, self.cam_up = np.array(cam_axis), np.array(cam_up)
         self.model_north = np.array(model_north)
         self.trg_north_ra, self.trg_north_dec = trg_north_ra, trg_north_dec
@@ -57,29 +61,37 @@ class AsteroidImagePairDataset(ImagePairDataset):
         return samples
 
     def preprocess(self, idx, imgs, aflow):
-        if self.preproc_path is None:
-            d = [img.size for img in imgs]
-            left, right, top, bottom = self.extra_crop
-            right = np.array([d[0][0], d[1][0]]) - right
-            bottom = np.array([d[0][1], d[1][1]]) - bottom
-
-            aflow = aflow[top:bottom[0], left:right[0], :] - np.array([[[left, top]]], dtype=aflow.dtype)
-            imgs = [img.crop((left, top, right[i], bottom[i])) for i, img in enumerate(imgs)]
-
-        if self.preproc_path is None and not self.aflow_rot_norm:
+        if self.skip_preproc:
             return imgs, aflow
 
-        # TODO: query self.index for relevant params, transform img0, img1 accordingly
-        #  (1) Rotate so that image up aligns with up in equatorial (or ecliptic) frame (+z axis)
-        #  (2) Rotate so that the sun is directly to the left
-        #  (3) Rotate so that asteroid north pole is up
-        #  -- thinking by writing:
-        #       (3) would probably be the best but don't have the info
-        #       (2) would maybe be problematic if close to 0 phase angle as suddenly would maybe need to rotate 180 deg
-        #       (1) if know the orientation of the target body rotation axis, could do (3) with only having sc_q!
+        # # force grayscale and resize to max size
+        # imgs = [img.getchannel(0) for img in imgs]
+        # imgs, aflow = PairScaleToRange(min_size=256, max_size=1024, max_sc=1.0, resize_img2=True)(imgs, aflow)
 
-        if not self.aflow_rot_norm:
-            # calculate north vector
+        # possibly crop some bad borders
+        d = [img.size for img in imgs]
+        left, right, top, bottom = self.extra_crop
+        right = np.array([d[0][0], d[1][0]]) - right
+        bottom = np.array([d[0][1], d[1][1]]) - bottom
+
+        aflow = aflow[top:bottom[0], left:right[0], :] - np.array([[[left, top]]], dtype=aflow.dtype)
+        imgs = [img.crop((left, top, right[i], bottom[i])) for i, img in enumerate(imgs)]
+
+        if self.aflow_rot_norm:
+            # calculate rotation angle directly from aflow
+            angles = []
+            for af, img in zip((unit_aflow(*imgs[0].size), aflow), imgs):
+                af = af.reshape((-1, 2))[np.logical_not(np.isnan(aflow[:, :, 0])).flatten(), :]
+                v = af - np.mean(af, axis=0)
+                angles.append(np.arctan2(v[:, 1], v[:, 0]))
+            angle = np.median(((angles[1] - angles[0] + 3 * np.pi) % (2 * np.pi)) - np.pi)
+            img2 = rotate_expand_border(imgs[1], angle, fullsize=True, lib='opencv', to_pil=True)
+            proc_imgs = [(np.eye(2, dtype=np.float32), imgs[0]),
+                         (np.array([[math.cos(-angle), -math.sin(-angle)],
+                                    [math.sin(-angle), math.cos(-angle)]], dtype=np.float32), img2)]
+        else:
+            # Query self.index for relevant params, transform img0, img1 so that north is up.
+            # First, calculate north vector
             north_v = spherical2cartesian(self.trg_north_dec, self.trg_north_ra, 1)
             proc_imgs = []
             for j, (i, img) in enumerate(zip(self.indices[idx], imgs)):
@@ -105,25 +117,13 @@ class AsteroidImagePairDataset(ImagePairDataset):
                 # project to image plane
                 img_north = vector_rejection(sc_north, self.cam_axis)
 
-                # calculate angle between projected north vector and image up  # TODO: correct sign on angle?
+                # calculate angle between projected north vector and image up
                 angle = -angle_between_v(self.cam_up, img_north, direction=self.cam_axis)
 
                 # rotate image based on this angle
-                img = img.rotate(-math.degrees(angle), expand=True, fillcolor=(0, 0, 0))
+                img = rotate_expand_border(img, -angle, fullsize=True, lib='opencv', to_pil=True)
                 proc_imgs.append((np.array([[math.cos(angle), -math.sin(angle)],
                                             [math.sin(angle),  math.cos(angle)]], dtype=np.float32), img))
-        else:
-            # calculate rotation angle directly from aflow
-            angles = []
-            for af, img in zip((unit_aflow(*imgs[0].size), aflow), imgs):
-                af = af.reshape((-1, 2))[np.logical_not(np.isnan(aflow[:, :, 0])).flatten(), :]
-                v = af - np.mean(af, axis=0)
-                angles.append(np.arctan2(v[:, 1], v[:, 0]))
-            angle = np.median(((angles[1] - angles[0] + 3*np.pi) % (2*np.pi)) - np.pi)
-            img2 = rotate_expand_border(imgs[1], angle, fullsize=True, lib='opencv', to_pil=True)
-            proc_imgs = [(np.eye(2, dtype=np.float32), imgs[0]),
-                         (np.array([[math.cos(-angle), -math.sin(-angle)],
-                                    [math.sin(-angle), math.cos(-angle)]], dtype=np.float32), img2)]
 
         # rotate aflow content so that points to new rotated img1
         (ow1, oh1), (ow2, oh2) = imgs[0].size, imgs[1].size
@@ -142,10 +142,10 @@ class AsteroidImagePairDataset(ImagePairDataset):
         n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
 
         img1, img2 = [t[1] for t in proc_imgs]
-        if 1:
+        if 0:
             show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10, file1=self.samples[idx][0][0],
                                                                    file2=self.samples[idx][0][1])
-        if self.aflow_rot_norm:
+        if self.preproc_path is None:
             return (img1, img2), n_aflow
 
         (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]

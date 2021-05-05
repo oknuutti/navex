@@ -3,6 +3,8 @@ import os
 import pickle
 import re
 import math
+from shutil import copyfile
+
 import psutil
 
 import torch
@@ -131,20 +133,36 @@ def preprocess_data(model, config):
     val_dl = model.build_validation_data_loader(rgb=rgb)
     tst_dl = model.build_test_data_loader(rgb=rgb)
 
-    for name, dl in {'trn': trn_dl, 'val': val_dl, 'tst': tst_dl}.items():
-        logging.info('starting %s' % name)
-        try:
-            for ds in dl.dataset.dataset.datasets:
-                ds.preproc_path = config.preproc_path
-        except:
-            if hasattr(dl.dataset, 'preproc_path'):
-                dl.dataset.preproc_path = config.preproc_path
-            else:
-                assert hasattr(dl.dataset.dataset, 'preproc_path')
-                dl.dataset.dataset.preproc_path = config.preproc_path
+    def walk(p, dss):
+        if hasattr(p, 'dataset'):
+            walk(p.dataset, dss)
+        elif hasattr(p, 'datasets'):
+            for c in p.datasets:
+                walk(c, dss)
+        else:
+            exists = False
+            for ds in dss:
+                exists = exists or p is ds
+            if not exists:
+                dss.append(p)
 
-        for (img1, img2), aflow in tqdm.tqdm(dl):
-            pass
+    dss = []
+    for name, dl in {'trn': trn_dl, 'val': val_dl, 'tst': tst_dl}.items():
+        walk(dl.dataset, dss)
+
+    for ds in dss:
+        if hasattr(ds, 'preproc_path'):
+            logging.info('started with %s' % ds)
+            ds.preproc_path = config.preproc_path
+            for i in tqdm.trange(len(ds)):
+                imgs, aflow = ds[i]
+
+            outpath = os.path.join(config.preproc_path, ds.folder)
+            with open(os.path.join(outpath, "preprocessed.flag"), 'w') as fh:
+                fh.write('')
+
+            copyfile(os.path.join(outpath, "dataset_all.sqlite"),
+                     os.path.join(config.preproc_path, "dataset_all.sqlite"))
 
 
 if __name__ == '__main__':
