@@ -100,7 +100,7 @@ data:
   image_size: !h_int 224
   path: 'data'
   npy: 'false'
-  trn_ratio: 0.85
+  trn_ratio: 0.90
   val_ratio: 0.10
-  tst_ratio: 0.05   # different test set altogether (itokawa)
+  tst_ratio: 0.00   # different test set altogether (itokawa)
   workers: 6

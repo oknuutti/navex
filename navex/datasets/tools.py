@@ -238,6 +238,56 @@ def angle_between_v(v1, v2, direction=False):
     return angle
 
 
+def rotate_expand_border(img, angle, fullsize=False, lib='opencv', to_pil=False):
+    """
+    opencv (v4.0.1) is fastest, pytorch (v1.8.1) on cpu is x20-25 slower, scipy (v1.6.0) is x28-36 slower
+    """
+
+    img = np.array(img).squeeze()
+    h, w, *c = img.shape
+    c = c[0] if len(c) > 0 else 1
+
+    if fullsize:
+        rw = int((h * abs(math.sin(angle))) + (w * abs(math.cos(angle))))
+        rh = int((h * abs(math.cos(angle))) + (w * abs(math.sin(angle))))
+    else:
+        rw, rh = w, h
+
+    if lib == 'opencv':
+        cx, cy = w / 2, h / 2
+        mx = cv2.getRotationMatrix2D((cx, cy), math.degrees(angle), 1)
+        mx[0, 2] += rw / 2 - cx
+        mx[1, 2] += rh / 2 - cy
+        rimg = cv2.warpAffine(img, mx, (rw, rh), flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_REPLICATE)
+
+    elif lib == 'scipy':
+        from scipy import ndimage
+        rimg = ndimage.rotate(img, math.degrees(angle), reshape=fullsize, order=0, mode='nearest', prefilter=False)
+
+    elif lib == 'pytorch':
+        import torch
+        import torch.nn.functional as F
+        import torchvision.transforms.functional as TF
+        img = TF.to_tensor(img)[None, ...]
+        img.requires_grad = False
+
+        theta = torch.tensor(angle)
+        mx = torch.tensor([[[torch.cos(theta), -torch.sin(theta), 0],
+                            [torch.sin(theta), torch.cos(theta), 0]]])
+
+        grid = F.affine_grid(mx, [1, c, rh, rw], align_corners=False).type(img.dtype)
+        rimg = F.grid_sample(img, grid, mode="nearest", padding_mode="border", align_corners=False)
+        rimg = (rimg.permute([0, 2, 3, 1]).squeeze().numpy()*255 + 0.5).astype(np.uint8)
+    else:
+        assert False, 'invalid library selected for rotation: %s' % lib
+
+    if to_pil:
+        import PIL
+        rimg = PIL.Image.fromarray(rimg)
+
+    return rimg
+
+
 class Camera:
     def __init__(self, matrix=None, resolution=None, pixel_size=None, focal_length=None,
                  center=None, f_num=None, dist_coefs=None):

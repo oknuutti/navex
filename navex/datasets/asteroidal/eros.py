@@ -16,7 +16,7 @@ class ErosPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
                                            max_sc=1.0, margin=margin, fill_value=0, resize_max_sc=1.0,
                                            eval=eval, rgb=False, blind_crop=True)
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
-                                          aflow_rot_norm=aflow_rot_norm,
+                                          aflow_rot_norm=aflow_rot_norm, extra_crop=[0, 0, 10, 6],
                                           trg_north_ra=math.radians(11.38), trg_north_dec=math.radians(17.18),
                                           model_north=[1, 0, 0])
         # axis ra & dec from https://science.sciencemag.org/content/289/5487/2097/tab-figures-data

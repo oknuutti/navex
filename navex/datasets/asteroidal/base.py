@@ -10,16 +10,18 @@ import cv2
 
 from navex.datasets.base import ImagePairDataset, SynthesizedPairDataset
 from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
-    unit_aflow, show_pair, save_aflow, valid_asteriod_area
+    unit_aflow, show_pair, save_aflow, valid_asteriod_area, rotate_expand_border
 
 
 class AsteroidImagePairDataset(ImagePairDataset):
     def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, model_north=(0, 0, 1),
-                 cam_axis=(0, 0, 1), cam_up=(0, -1, 0), aflow_rot_norm=True, preproc_path=None, **kwargs):
+                 cam_axis=(0, 0, 1), cam_up=(0, -1, 0), aflow_rot_norm=True, preproc_path=None,
+                 extra_crop=None, **kwargs):
         self.indices, self.index = None, None
 
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
+        self.extra_crop = [0, 0, 0, 0] if extra_crop is None else extra_crop   # left, right, top, bottom
         self.aflow_rot_norm = aflow_rot_norm
         self.preproc_path = preproc_path
         self.cam_axis, self.cam_up = np.array(cam_axis), np.array(cam_up)
@@ -55,6 +57,15 @@ class AsteroidImagePairDataset(ImagePairDataset):
         return samples
 
     def preprocess(self, idx, imgs, aflow):
+        if self.preproc_path is None:
+            d = [img.size for img in imgs]
+            left, right, top, bottom = self.extra_crop
+            right = np.array([d[0][0], d[1][0]]) - right
+            bottom = np.array([d[0][1], d[1][1]]) - bottom
+
+            aflow = aflow[top:bottom[0], left:right[0], :] - np.array([[[left, top]]], dtype=aflow.dtype)
+            imgs = [img.crop((left, top, right[i], bottom[i])) for i, img in enumerate(imgs)]
+
         if self.preproc_path is None and not self.aflow_rot_norm:
             return imgs, aflow
 
@@ -109,7 +120,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
                 v = af - np.mean(af, axis=0)
                 angles.append(np.arctan2(v[:, 1], v[:, 0]))
             angle = np.median(((angles[1] - angles[0] + 3*np.pi) % (2*np.pi)) - np.pi)
-            img2 = imgs[1].rotate(math.degrees(angle), expand=True, fillcolor=(0, 0, 0))
+            img2 = rotate_expand_border(imgs[1], angle, fullsize=True, lib='opencv', to_pil=True)
             proc_imgs = [(np.eye(2, dtype=np.float32), imgs[0]),
                          (np.array([[math.cos(-angle), -math.sin(-angle)],
                                     [math.sin(-angle), math.cos(-angle)]], dtype=np.float32), img2)]
@@ -131,7 +142,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
         n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
 
         img1, img2 = [t[1] for t in proc_imgs]
-        if 0:
+        if 1:
             show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10, file1=self.samples[idx][0][0],
                                                                    file2=self.samples[idx][0][1])
         if self.aflow_rot_norm:

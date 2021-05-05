@@ -3,13 +3,12 @@ import math
 import os
 import re
 import random
-from typing import Sized
 
 import numpy as np
 import PIL
 
 import torch
-from torch.utils.data import ConcatDataset, BufferedShuffleDataset, Subset
+from torch.utils.data import ConcatDataset, Subset
 from torch.utils.data.dataset import random_split
 from torchvision.datasets import VisionDataset
 from torchvision.datasets.folder import default_loader
