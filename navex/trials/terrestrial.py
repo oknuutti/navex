@@ -3,10 +3,9 @@ import math
 import os
 
 import torch
-from torch.utils.data import BufferedShuffleDataset
 
 from ..datasets.terrestrial.aachen import AachenFlowPairDataset, AachenSynthPairDataset, AachenStyleTransferPairDataset
-from ..datasets.base import AugmentedConcatDataset
+from ..datasets.base import AugmentedConcatDataset, ShuffledDataset
 from ..datasets.terrestrial.revisitop1m import WebImageSynthPairDataset
 from ..losses.r2d2 import R2D2Loss
 from ..models.astropoint import AstroPoint
@@ -144,8 +143,7 @@ class TerrestrialTrial(TrialBase):
             synths_split = synths.split(s0, 0, s2, eval=(1, 2))
 
             def concat(dss):
-                ds = AugmentedConcatDataset(dss)
-                return BufferedShuffleDataset(ds, buffer_size=len(ds))
+                return ShuffledDataset(AugmentedConcatDataset(dss))
 
             self._tr_data = self.wrap_ds(concat([pairs_split[0], synths_split[0]]))
             self._val_data = self.wrap_ds(pairs_split[1])
