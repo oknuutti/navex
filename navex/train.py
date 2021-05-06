@@ -153,6 +153,10 @@ def preprocess_data(model, config):
     for ds in dss:
         if hasattr(ds, 'preproc_path'):
             logging.info('started with %s' % ds)
+
+            copyfile(os.path.join(ds.root, "dataset_all.sqlite"),
+                     os.path.join(outpath, "dataset_all.sqlite"))
+
             ds.preproc_path = config.preproc_path
             for i in tqdm.trange(len(ds)):
                 imgs, aflow = ds[i]
@@ -160,9 +164,6 @@ def preprocess_data(model, config):
             outpath = os.path.join(config.preproc_path, ds.folder)
             with open(os.path.join(outpath, "preprocessed.flag"), 'w') as fh:
                 fh.write('')
-
-            copyfile(os.path.join(outpath, "dataset_all.sqlite"),
-                     os.path.join(config.preproc_path, "dataset_all.sqlite"))
 
 
 if __name__ == '__main__':
