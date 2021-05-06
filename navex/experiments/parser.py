@@ -118,22 +118,20 @@ class ExperimentConfigParser(ArgumentParser):
                     _hp_subtree(hparam_paths, hparams[k], path_k, v)
         _hp_subtree(hparam_paths, f_hparams, '', args)
 
-        hparams = {}
-        def _prune_subtree(pruned, path, full):
-            keep_p = False
+        def _prune_subtree(full):
+            keep_p, pruned_p = False, {}
             for k, v in full.items():
                 if isinstance(v, dict):
                     if len(v) > 0:
-                        path[k] = {}
-                        keep_c = _prune_subtree(pruned, path[k], v)
+                        keep_c, pruned_c = _prune_subtree(v)
                         if keep_c:
-                            pruned[k] = path[k]
+                            pruned_p[k] = pruned_c
                             keep_p = True
                 else:
-                    path[k] = v
+                    pruned_p[k] = v
                     keep_p = True
-            return keep_p
-        _prune_subtree(hparams, {}, f_hparams)
+            return keep_p, pruned_p
+        _, hparams = _prune_subtree(f_hparams)
 
         if not 'hparams' in args:
             args['hparams'] = hparams

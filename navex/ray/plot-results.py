@@ -2,6 +2,7 @@ import os
 import argparse
 from collections import OrderedDict
 
+import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import skopt.plots as skplt
@@ -25,23 +26,36 @@ def main():
     X, y = search_alg._skopt_opt.Xi, search_alg._skopt_opt.yi
     len_sc = search_alg._skopt_opt.base_estimator_.kernel.k2.length_scale
 
-    if search_alg._parameters is None or len(search_alg._parameters) == 0:
-        search_alg._parameters = [
-            'loss/det_n', 'loss/base',
-            'optimizer/learning_rate', 'optimizer/weight_decay', 'optimizer/eps',
-            'data/noise_max', 'data/rnd_gain']
-        search_alg.save(os.path.join(args.path, 'new-searcher-state.pkl'))
+    if args.config:
+        # Massage old results so that can be used with new search config,
+        # also show old results as if run with new config.
+        # NOTE: the best X and y iterations might be missing as those experiments run the longest and are likely
+        #       to not be ready yet
 
-    if 0 and args.config:
         def_file = os.path.join(os.path.dirname(__file__), '..', 'experiments', 'definition.yaml')
         parser = ExperimentConfigParser(definition=def_file)
         parser.add_argument('--path')
         full_conf = to_dict(parser.parse_args())
         initial, hparams = split_double_samplers(full_conf['hparams'])
-        hparams = flatten_dict(hparams, sep='/')
-        hparams = OrderedDict([(p.replace('/', '.'), hparams[p]) for p in search_alg._parameters])
-        search_alg = MySkOptSearch(space=hparams, metric=search_alg.metric, mode=search_alg.mode,
-                                   points_to_evaluate=X, evaluated_rewards=y)
+        hparams = flatten_dict(hparams, sep='.')
+        hparams = OrderedDict(hparams)
+        #hparams = OrderedDict([(p.replace('/', '.'), hparams[p]) for p in search_alg._parameters if p in hparams])
+
+        # -- as search_alg.metric is not saved, can't do following check:
+        # if search_alg.metric != full_conf['search']['metric'] or search_alg.mode != full_conf['search']['mode']:
+        #     print('WARNING: new config has different search metric, new rewards NOT acquired from json files')
+
+        defaults = {'data.max_rot': 0.0}  # TODO: remove hardcoding
+        X = np.array(X)
+        Xn = np.stack([X[:, search_alg._parameters.index(p.replace('.', '/'))]
+                          if p.replace('.', '/') in search_alg._parameters
+                          else np.ones((len(X),)) * defaults[p]
+                       for p in hparams.keys()], axis=1)
+        space = MySkOptSearch.convert_search_space(hparams)
+        search_alg = MySkOptSearch(space=space, metric=full_conf['search']['metric'],
+                                   mode=full_conf['search']['mode'], points_to_evaluate=Xn.tolist(),
+                                   evaluated_rewards=y)
+        search_alg.save(os.path.join(args.path, 'new-searcher-state.pkl'))
 
     res = search_alg._skopt_opt.get_result()
 

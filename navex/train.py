@@ -155,6 +155,7 @@ def preprocess_data(model, config):
             logging.info('started with %s' % ds)
 
             outpath = os.path.join(config.preproc_path, ds.folder)
+            os.makedirs(outpath, exist_ok=True)
             copyfile(os.path.join(ds.root, "dataset_all.sqlite"),
                      os.path.join(outpath, "dataset_all.sqlite"))
 
