@@ -184,10 +184,10 @@ def tune_asha(search_conf, hparams, full_conf):
                        'or bayesian optimization (bo) supported') % tmp[1]
 
     scheduler = ASHAScheduler(
-        # time_attr="epoch",    # the default, "training_iteration" equals epoch??
+        time_attr="training_iteration",    # the default, "training_iteration" equals epoch??
         metric=search_conf['metric'],
         mode=search_conf['mode'],
-        max_t=train_conf['epochs'],
+        max_t=train_conf['epochs'],         # TODO: (1) change name of this config variable
         grace_period=search_conf['grace_period'],
         reduction_factor=search_conf['reduction_factor'])
 
@@ -235,7 +235,8 @@ def tune_pbs(search_conf, hparams, full_conf):
     hparams, mutations = split_double_samplers(hparams)
 
     scheduler = PopulationBasedTraining(
-        perturbation_interval=1,
+        time_attr="training_iteration",
+        perturbation_interval=search_conf['grace_period'],
         hyperparam_mutations=mutations,
         metric=search_conf['metric'],
         mode=search_conf['mode']

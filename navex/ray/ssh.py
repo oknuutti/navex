@@ -42,7 +42,7 @@ class Connection:
             c = paramiko.SSHClient()
             c.load_system_host_keys()
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
-            c.connect(self._proxy, username=self._username, key_filename=self._keyfile)
+            c.connect(self._proxy, username=self._username, key_filename=self._keyfile, banner_timeout=60)
             Connection._forward_tunnel(self.local_forwarded_port, self.host, 22, c.get_transport(), timeout=None)
 
         self._forwarding_thread = threading.Thread(target=forward, daemon=True)
@@ -59,7 +59,7 @@ class Connection:
             c.set_missing_host_key_policy(paramiko.WarningPolicy())
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message=r"Unknown \S+ host key")
-                c.connect(host, port=port, username=self._username, key_filename=self._keyfile)
+                c.connect(host, port=port, username=self._username, key_filename=self._keyfile, banner_timeout=60)
             self._host_client = c
 
     def _close_connection(self):

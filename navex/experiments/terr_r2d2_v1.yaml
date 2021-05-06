@@ -9,7 +9,7 @@ search:
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
   node_type_cpus: '6'
-  grace_period: 1       # for asha only
+  grace_period: 1500       # for asha only
   reduction_factor: 3   # for asha only
   username: ''
   keyfile: ''
@@ -27,7 +27,7 @@ training:
   gpu: 1
   epochs: 15
   print_freq: 5
-  test_freq: 1
+  test_freq: 1500  # validation interval in steps
   save_freq: 1
   resume: null
   evaluate: 0

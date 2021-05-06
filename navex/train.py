@@ -73,7 +73,7 @@ def main():
                                    verbose=True,
                                    period=args.save_freq,
                                    dirpath=os.path.join(args.output, 'version_%d' % logger.version),
-                                   filename='%s-%s-r%d-{epoch}-{val_loss_epoch:.3f}'
+                                   filename='%s-%s-r%d-{epoch}-{step}-{val_loss_epoch:.3f}'
                                              % (config.model.arch, args.name, logger.version))]
 
     if args.early_stopping:
@@ -89,7 +89,7 @@ def main():
                          accumulate_grad_batches=acc_grad_batches,
                          max_epochs=1 if PROFILING_ONLY else args.epochs,
                          progress_bar_refresh_rate=args.print_freq,
-                         check_val_every_n_epoch=args.test_freq,
+                         val_check_interval=args.test_freq,
                          resume_from_checkpoint=getattr(args, 'resume', None),
                          log_every_n_steps=args.print_freq,
                          flush_logs_every_n_steps=10,
