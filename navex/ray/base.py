@@ -351,6 +351,10 @@ class MySkOptSearch(SkOptSearch):
 
         return space
 
+    def _process_result(self, trial_id: str, result: Dict):
+        logging.info('trial %s result: %s' % (trial_id, result))
+        super(MySkOptSearch, self)._process_result(trial_id, result)
+
         # class _MyTuneCheckpointCallback(_TuneCheckpointCallback):
 #     def _handle(self, trainer: Trainer, pl_module: LightningModule):
 #         if trainer.running_sanity_check:
