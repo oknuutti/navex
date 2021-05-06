@@ -87,7 +87,7 @@ def main():
                          logger=logger,
                          callbacks=callbacks,
                          accumulate_grad_batches=acc_grad_batches,
-                         max_epochs=1 if PROFILING_ONLY else args.epochs,
+                         max_steps=10 if PROFILING_ONLY else args.epochs,  # TODO (1): rename param
                          progress_bar_refresh_rate=args.print_freq,
                          val_check_interval=args.test_freq,
                          resume_from_checkpoint=getattr(args, 'resume', None),
