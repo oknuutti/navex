@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=0-11:59:00        # estimated execution time (~80s/epoch)
-#SBATCH --mem-per-cpu=2560M        # memory needed (~2Gb/core)
+#SBATCH --mem-per-cpu=3584M        # memory needed (~2Gb/core)
 #SBATCH --gres=gpu:1            # GPUs needed
 #SBATCH --constraint='volta'    # 'kepler|pascal|volta'
 #SBATCH --signal=SIGUSR1@120    # wall time auto-resubmit

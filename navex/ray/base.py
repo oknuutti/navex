@@ -5,6 +5,7 @@ import socket
 import os
 import pickle
 import logging
+import sys
 from collections import OrderedDict
 from functools import partial
 from typing import Union, List, Dict
@@ -29,7 +30,7 @@ from ray.tune.utils import flatten_dict
 from skopt import space as sko_sp
 
 from ..experiments.parser import nested_update, split_double_samplers
-from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector
+from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector, ValEveryNSteps
 from ..trials.aerial import AerialTrial
 from ..trials.asteroidal import AsteroidalTrial
 from ..trials.terrastudent import TerraStudentTrial
@@ -61,6 +62,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
     logger = MyLogger(train_conf['output'], name='', version='')
 
     callbacks = [
+        ValEveryNSteps(every_n_step=train_conf['test_freq']),
         TuneReportCheckpointCallback(metrics={
             "rloss": "val_rloss_epoch",
             "loss": "val_loss_epoch",
@@ -91,7 +93,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
         accumulate_grad_batches=acc_grad_batches,
         max_steps=train_conf['epochs'],  # TODO (1): rename param
         progress_bar_refresh_rate=0,
-        check_val_every_n_epoch=train_conf['test_freq'],
+        check_val_every_n_epoch=sys.maxsize,
         resume_from_checkpoint=train_conf.get('resume', None),
         log_every_n_steps=train_conf['print_freq'],
         flush_logs_every_n_steps=10,

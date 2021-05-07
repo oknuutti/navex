@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=project_2004227
 #SBATCH --time=0-11:59:00
-#SBATCH --mem-per-cpu=2560M
+#SBATCH --mem-per-cpu=3584M
 #SBATCH --ntasks=1
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:v100:1,nvme:10  # nvme in GB, adjust based on actual need

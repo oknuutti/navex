@@ -175,3 +175,13 @@ class MyModelCheckpoint(ModelCheckpoint):
     def _save_top_k_checkpoints(self, trainer, pl_module, metrics):
         metrics = {k: v[0] if isinstance(v, Tensor) and len(v.shape) > 0 and len(v) == 1 else v for k, v in metrics.items()}
         super(MyModelCheckpoint, self)._save_top_k_checkpoints(trainer, pl_module, metrics)
+
+
+class ValEveryNSteps(pl.Callback):
+    def __init__(self, every_n_step):
+        self.every_n_step = every_n_step
+
+    def on_batch_end(self, trainer, pl_module):
+        if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
+            trainer.run_evaluation()
+            trainer.logger_connector.set_stage("train")

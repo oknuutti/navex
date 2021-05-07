@@ -356,7 +356,7 @@ class RandomHomography:
         self.image_only = image_only
         self.rnd_coef = rnd_coef
 
-        self.transforms = (['tx', 'ty'] if self.max_tr>0 else []) \
+        self.transforms = (['tx', 'ty'] if self.max_tr > 0 else []) \
                         + (['r'] if self.max_rot > 0 else []) \
                         + (['sx', 'sy'] if self.max_shear > 0 else []) \
                         + (['p1', 'p2'] if self.max_proj > 0 else [])

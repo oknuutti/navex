@@ -424,7 +424,7 @@ def split_tiered_data(primary, secondary, r_trn, r_val, r_tst):
     p0 = (1 - p1) * r0 / (r0 + r2)
     p2 = (1 - p0 - p1,) if r_tst > 0 else tuple()
     s0 = (r0 * tot - p0 * len(ds1)) / len(ds2)
-    s2 = (1 - s0,) if r_tst > 0 else tuple()
+    s2 = (1 - s0) if r_tst > 0 else tuple()
 
     ds1_split = ds1.split(p0, p1, *p2, eval=(1,) + ((2,) if r_tst > 0 else tuple()))
     ds2_split = ds2.split(s0, 0, s2, eval=(1, 2)) if r_tst > 0 else [ds2]
