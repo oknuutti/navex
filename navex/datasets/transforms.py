@@ -232,6 +232,10 @@ class PairRandomCrop:
             if ratio_valid > 0.05:
                 break
 
+        assert i1 + m <= aflow.shape[1] and j1 + n <= aflow.shape[0], \
+            'invalid crop origin (%d, %d) for window size (%d, %d) and image size (%d, %d), is_random: %s' % (
+                i1, j1, m, n, aflow.shape[1], aflow.shape[0], is_random)
+
         if ratio_valid == 0:
             # if this becomes a real problem, use SafeDataset and SafeDataLoader from nonechucks, then return None here
             # from navex.datasets.base import DataLoadingException
@@ -315,20 +319,19 @@ class PairRandomCrop:
         return (c_img1, c_img2), c_aflow
 
     def _pad(self, min_size, img, aflow, first):
-        n_ch = len(img.getbands())
         w, h = img.size
         nw, nh = max(min_size[0], w), max(min_size[1], h)
-        psi, psj = (nw - w) // 2, (nh - h) // 2
-        img_arr = np.array(img)
-        p_img = np.ones((nh, nw, n_ch), dtype=img_arr.dtype) * self.fill_value
-        p_img[psj:psj + h, psi:psi + w, :] = np.atleast_3d(img_arr)
+        pl, pt = (nw - w) // 2, (nh - h) // 2
+        pr, pb = nw - w - pl, nh - h - pt
+
+        p_img = np.pad(np.atleast_3d(np.array(img)), ((pt, pb), (pl, pr), (0, 0)), mode='edge')
         p_img = PIL.Image.fromarray(p_img.squeeze())
 
         if first:
             p_aflow = np.ones((nh, nw, 2), dtype=np.float32) * np.nan
-            p_aflow[psj:psj + h, psi:psi + w, :] = aflow
+            p_aflow[pt:pt + h, pl:pl + w, :] = aflow
         else:
-            p_aflow = aflow + np.array([psi, psj], dtype=np.float32)
+            p_aflow = aflow + np.array([pl, pt], dtype=np.float32)
 
         return p_img, p_aflow
 
