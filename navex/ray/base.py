@@ -31,6 +31,7 @@ from skopt import space as sko_sp
 
 from ..experiments.parser import nested_update, split_double_samplers
 from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector, ValEveryNSteps
+from ..models.tools import ordered_nested_dict, reorder_cols
 from ..trials.aerial import AerialTrial
 from ..trials.asteroidal import AsteroidalTrial
 from ..trials.terrastudent import TerraStudentTrial
@@ -164,14 +165,14 @@ def tune_asha(search_conf, hparams, full_conf):
     elif search_method == 'bo':
         # need to:  pip install scikit-optimize
         initial, hparams = split_double_samplers(hparams)
-        hparams = OrderedDict(hparams)
+        hparams = ordered_nested_dict(hparams)
 
         initial = flatten_dict(initial, prevent_delimiter=True)
         key_order = list(flatten_dict(hparams, prevent_delimiter=True).keys())
         if search_conf['resume']:
             search_alg = MySkOptSearch()
             search_alg.restore(search_conf['resume'])
-            start_config = search_alg._skopt_opt.Xi
+            start_config = reorder_cols(search_alg._skopt_opt.Xi, search_alg._parameters, key_order)
             evaluated_rewards = search_alg._skopt_opt.yi
         else:
             start_config = [[initial[k].sample() for k in key_order if k in initial]

@@ -1,5 +1,6 @@
 import math
 import os
+from collections import OrderedDict
 
 import numpy as np
 
@@ -183,6 +184,27 @@ def is_rgb_model(model):
             rgb = fst.in_channels == 3
             break
     return rgb
+
+
+def ordered_nested_dict(input):
+    output = OrderedDict()
+    for k, v in input.items():
+        if isinstance(v, dict):
+            output[k] = ordered_nested_dict(v)
+        elif isinstance(v, set):
+            assert False, 'sets not supported yet'
+        else:
+            output[k] = v
+    return output
+
+
+def reorder_cols(X, src_cols, trg_cols, defaults=None):
+    defaults = defaults or {}
+    Xn = np.stack([np.array(X)[:, src_cols.index(p)]
+                   if p in src_cols
+                   else np.ones((len(X),)) * defaults[p]
+                   for p in trg_cols], axis=1)
+    return Xn.tolist()
 
 
 def max_rect_bounded_by_quad_mask(mask: np.ndarray = None):
