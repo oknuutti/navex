@@ -70,7 +70,7 @@ class RayTuneHeadNode:
         w_m, os_m, r_m = [None] * 3
         if self.maxmem is not None:
             w_m = 3 * 1024**3
-            os_m, r_m = (self.maxmem - w_m)*2/3, (self.maxmem - w_m)/3
+            os_m, r_m = int((self.maxmem - w_m)*2/3), int((self.maxmem - w_m)/3)
 
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
                                port=self.local_ports[0], redis_shard_ports='%d' % self.local_ports[1],
