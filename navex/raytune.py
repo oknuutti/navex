@@ -67,12 +67,17 @@ class RayTuneHeadNode:
         """
         start a ray cluster by creating the head, connect to it
         """
+        w_m, os_m, r_m = [None] * 3
+        if self.maxmem is not None:
+            w_m = 3 * 1024**3
+            os_m, r_m = (self.maxmem - w_m)*2/3, (self.maxmem - w_m)/3
+
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
                                port=self.local_ports[0], redis_shard_ports='%d' % self.local_ports[1],
                                redis_password=self.redis_pwd,
                                node_manager_port=self.local_ports[2], object_manager_port=self.local_ports[3],
                                gcs_server_port=self.local_ports[4],
-                               memory=self.maxmem, object_store_memory=self.maxmem, redis_max_memory=self.maxmem,
+                               memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
                                raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
                                plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[6] if not self.local_linux else None,
                                include_dashboard=False, verbose=True, temp_dir='/tmp/ray/', min_worker_port=self.min_wport,

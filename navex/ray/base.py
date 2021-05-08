@@ -310,7 +310,7 @@ class MySkOptSearch(SkOptSearch):
 
     @staticmethod
     def convert_search_space(spec: Dict, join: bool = False) -> Dict:
-        spec = flatten_dict(spec, prevent_delimiter=True)
+        spec = flatten_dict(spec, prevent_delimiter=False)  # dont prevent delimeter!
         resolved_vars, domain_vars, grid_vars = parse_spec_vars(spec)
 
         if grid_vars:

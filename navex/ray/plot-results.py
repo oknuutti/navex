@@ -37,7 +37,7 @@ def main():
         parser.add_argument('--path')
         full_conf = to_dict(parser.parse_args())
         initial, hparams = split_double_samplers(full_conf['hparams'])
-        hparams = flatten_dict(hparams, sep='.')
+        hparams = flatten_dict(hparams, sep='/')
         hparams = OrderedDict(hparams)
         #hparams = OrderedDict([(p.replace('/', '.'), hparams[p]) for p in search_alg._parameters if p in hparams])
 
@@ -45,12 +45,13 @@ def main():
         # if search_alg.metric != full_conf['search']['metric'] or search_alg.mode != full_conf['search']['mode']:
         #     print('WARNING: new config has different search metric, new rewards NOT acquired from json files')
 
-        defaults = {'data.max_rot': 0.0}  # TODO: remove hardcoding
+        defaults = {'data/max_rot': 0.0}  # TODO: remove hardcoding
         X = np.array(X)
-        Xn = np.stack([X[:, search_alg._parameters.index(p.replace('.', '/'))]
-                          if p.replace('.', '/') in search_alg._parameters
+        Xn = np.stack([X[:, search_alg._parameters.index(p)]
+                          if p in search_alg._parameters
                           else np.ones((len(X),)) * defaults[p]
                        for p in hparams.keys()], axis=1)
+
         space = MySkOptSearch.convert_search_space(hparams)
         search_alg = MySkOptSearch(space=space, metric=full_conf['search']['metric'],
                                    mode=full_conf['search']['mode'], points_to_evaluate=Xn.tolist(),
