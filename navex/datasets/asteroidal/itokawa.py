@@ -14,7 +14,7 @@ class ItokawaPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                            margin=margin, max_sc=1.0, fill_value=0, eval=eval, rgb=False,
-                                           resize_max_sc=1.0, blind_crop=True)
+                                           resize_max_sc=1.0, blind_crop=False)
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           aflow_rot_norm=aflow_rot_norm,
                                           trg_north_ra=math.radians(90.53), trg_north_dec=math.radians(-66.30),

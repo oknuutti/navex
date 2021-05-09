@@ -185,8 +185,11 @@ class PairRandomCrop:
         res[res < np.max(res) * 0.5] = 0  # only possible to select windows that are at most half as bad as best window
 
         a = np.cumsum(res.flatten())
-        rnd_idx = np.argmax(a > np.random.uniform(0, a[-1]))
-        bst_idx = np.argmax(res.flatten())
+        if a[-1] > 0:
+            rnd_idx = np.argmax(a > np.random.uniform(0, a[-1]))
+            bst_idx = np.argmax(res.flatten())
+        else:
+            rnd_idx = bst_idx = 0
 
         rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc
         bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc
@@ -225,7 +228,7 @@ class PairRandomCrop:
             else:
                 j1, i1 = rnd_idxs
                 is_random = True
-            c_aflow = aflow[j1:j1+m, i1:i1+n, :]
+            c_aflow = aflow[j1:j1+n, i1:i1+m, :]
 
             # if too few valid correspondences, pick the central crop instead
             ratio_valid = 1 - np.mean(np.isnan(c_aflow[:, :, 0]))
@@ -246,7 +249,7 @@ class PairRandomCrop:
             return (c_img1, c_img2), c_aflow
 
         c_img1 = img1.crop((i1, j1, i1+m, j1+n))
-        c_mask = mask[j1:j1+m, i1:i1+n]
+        c_mask = mask[j1:j1+n, i1:i1+m]
 
         # determine current scale of cropped img1 relative to cropped img0 based on aflow
         xy1 = np.stack(np.meshgrid(range(m), range(n)), axis=2).reshape((-1, 2))

@@ -14,7 +14,7 @@ class ErosPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                            max_sc=1.0, margin=margin, fill_value=0, resize_max_sc=1.0,
-                                           eval=eval, rgb=False, blind_crop=True)
+                                           eval=eval, rgb=False, blind_crop=False)
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           aflow_rot_norm=aflow_rot_norm, extra_crop=[0, 0, 10, 6],
                                           trg_north_ra=math.radians(11.38), trg_north_dec=math.radians(17.18),

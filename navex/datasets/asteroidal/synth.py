@@ -13,5 +13,5 @@ class SynthBennuPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin)
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                            max_sc=1.0, margin=margin, fill_value=0, eval=eval, rgb=False,
-                                           blind_crop=True)
+                                           blind_crop=False)
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms)
