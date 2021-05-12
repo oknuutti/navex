@@ -28,13 +28,22 @@ class TrialWrapperBase(pl.LightningModule):
             self.trial.step_optimizer_fn = _fn_none
             self.trial.hparams.update(extra_hparams or {})
             self.save_hyperparameters(self.trial.hparams)
+        self._restored_global_step = None
 
     def on_save_checkpoint(self, checkpoint):
         checkpoint['trial'] = self.trial
+        checkpoint['global_step'] = int(self.global_step)
 
     def on_load_checkpoint(self, checkpoint):
         if self.trial is None and 'trial' in checkpoint:
             self.trial = checkpoint['trial']
+        if 'global_step' in checkpoint:
+            self._restored_global_step = int(checkpoint['global_step'])
+
+    def on_train_start(self):
+        if self._restored_global_step is not None:
+            self.trainer.global_step = self._restored_global_step
+            self._restored_global_step = None
 
     def forward(self, x):
         return self.trial.model(x)
@@ -104,6 +113,7 @@ class TrialWrapperBase(pl.LightningModule):
         postfix = '_epoch' if lp == 'val' else ''
 
         log_values = {
+            'global_step': self.trainer.global_step,
             lp + '_loss' + postfix: loss.sum(dim=1),
             lp + '_tot' + postfix: tot * 100,
             lp + '_inl' + postfix: inl * 100,

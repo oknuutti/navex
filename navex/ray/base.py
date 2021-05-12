@@ -71,6 +71,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
             "inl_ratio": "val_inl_epoch",
             "px_err": "val_dst_epoch",
             "mAP": "val_map_epoch",
+            "global_step": "global_step",
         }, filename="checkpoint", on="validation_end"),
 #        CheckOnSLURM(),
     ]
@@ -187,7 +188,7 @@ def tune_asha(search_conf, hparams, full_conf):
                        'or bayesian optimization (bo) supported') % tmp[1]
 
     scheduler = ASHAScheduler(
-        time_attr="training_iteration",    # the default, "training_iteration" equals epoch??
+        time_attr="global_step",    # the default is "training_iteration" which equals epoch!!
         metric=search_conf['metric'],
         mode=search_conf['mode'],
         max_t=train_conf['epochs'],         # TODO: (1) change name of this config variable
