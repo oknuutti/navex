@@ -21,7 +21,7 @@ from .trials.terrestrial import TerrestrialTrial
 from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint, ValEveryNSteps
 
 PROFILING_ONLY = 0
-DEBUG = 1
+DEBUG = 0
 
 
 def main():

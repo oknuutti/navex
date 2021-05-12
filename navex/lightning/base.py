@@ -198,6 +198,6 @@ class ValEveryNSteps(pl.Callback):
         self.every_n_step = every_n_step
 
     def on_batch_end(self, trainer, pl_module):
-        if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
+        if (trainer.global_step + 1) % self.every_n_step == 0:
             trainer.run_evaluation()
             trainer.logger_connector.set_stage("train")

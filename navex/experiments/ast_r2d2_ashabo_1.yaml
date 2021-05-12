@@ -25,7 +25,7 @@ training:
   batch_size: 8
   batch_mem: 32000
   gpu: 1
-  epochs: 24001   # actually steps
+  epochs: 24000   # actually steps
   print_freq: 5
   test_freq: 1500
   save_freq: 1

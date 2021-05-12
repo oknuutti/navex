@@ -239,7 +239,7 @@ def tune_pbs(search_conf, hparams, full_conf):
     hparams, mutations = split_double_samplers(hparams)
 
     scheduler = PopulationBasedTraining(
-        time_attr="training_iteration",
+        time_attr="global_step",
         perturbation_interval=search_conf['grace_period'],
         hyperparam_mutations=mutations,
         metric=search_conf['metric'],
