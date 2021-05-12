@@ -35,10 +35,15 @@ class TrialWrapperBase(pl.LightningModule):
         checkpoint['global_step'] = int(self.global_step)
 
     def on_load_checkpoint(self, checkpoint):
+        checkpoint['state_dict'].pop('trial.model.total_ops', None)
+        checkpoint['state_dict'].pop('trial.model.total_params', None)
+        checkpoint['state_dict'].pop('trial.model.backbone.total_ops', None)
+        checkpoint['state_dict'].pop('trial.model.backbone.total_params', None)
+
         if self.trial is None and 'trial' in checkpoint:
             self.trial = checkpoint['trial']
         if 'global_step' in checkpoint:
-            self._restored_global_step = int(checkpoint['global_step'])
+            self._restored_global_step = int(checkpoint['global_step']) + 1
 
     def on_train_start(self):
         if self._restored_global_step is not None:
@@ -113,7 +118,6 @@ class TrialWrapperBase(pl.LightningModule):
         postfix = '_epoch' if lp == 'val' else ''
 
         log_values = {
-            'global_step': self.trainer.global_step,
             lp + '_loss' + postfix: loss.sum(dim=1),
             lp + '_tot' + postfix: tot * 100,
             lp + '_inl' + postfix: inl * 100,
@@ -139,6 +143,8 @@ class TrialWrapperBase(pl.LightningModule):
 
         # logger only
         self.log_dict(log_values, prog_bar=False, logger=True, on_step=None, on_epoch=True, reduce_fx=self.nanmean)
+        self.log_dict({'global_step': self.trainer.global_step},
+                      prog_bar=False, logger=True, on_step=None, on_epoch=False)
 
         # progress bar only
         self.log_dict({

@@ -21,6 +21,7 @@ from .trials.terrestrial import TerrestrialTrial
 from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint, ValEveryNSteps
 
 PROFILING_ONLY = 0
+DEBUG = 1
 
 
 def main():
@@ -69,14 +70,15 @@ def main():
     logger = MyLogger(args.output, name='', version=version)
 
     monitor, monitor_mode = 'val_loss_epoch', 'min'
-    callbacks = [MyModelCheckpoint(monitor=monitor,
+    callbacks = [ValEveryNSteps(every_n_step=10 if DEBUG else args.test_freq),
+                 MyModelCheckpoint(monitor=monitor,
                                    mode=monitor_mode,
                                    verbose=True,
                                    period=args.save_freq,
                                    dirpath=os.path.join(args.output, 'version_%d' % logger.version),
                                    filename='%s-%s-r%d-{epoch}-{step}-{val_loss_epoch:.3f}'
                                              % (config.model.arch, args.name, logger.version)),
-                 ValEveryNSteps(every_n_step=args.test_freq)]
+                ]
 
     if args.early_stopping:
         callbacks.append(EarlyStopping(monitor=monitor,
@@ -89,15 +91,15 @@ def main():
                          logger=logger,
                          callbacks=callbacks,
                          accumulate_grad_batches=acc_grad_batches,
-                         max_steps=10 if PROFILING_ONLY else args.epochs,  # TODO (1): rename param
+                         max_steps=30 if PROFILING_ONLY else args.epochs,  # TODO (1): rename param
                          progress_bar_refresh_rate=args.print_freq,
                          check_val_every_n_epoch=sys.maxsize,
                          resume_from_checkpoint=getattr(args, 'resume', None),
                          log_every_n_steps=args.print_freq,
                          flush_logs_every_n_steps=10,
                          gpus=1 if args.gpu else 0,
-                         limit_train_batches=0.002 if PROFILING_ONLY else 1.0,
-                         limit_val_batches=0.004 if PROFILING_ONLY else 1.0,
+                         limit_train_batches=0.002 if DEBUG or PROFILING_ONLY else 1.0,
+                         limit_val_batches=0.004 if DEBUG or PROFILING_ONLY else 1.0,
                          auto_select_gpus=bool(args.gpu),
                          deterministic=bool(args.deterministic),
                          auto_lr_find=bool(args.auto_lr_find),
