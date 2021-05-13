@@ -6,9 +6,8 @@ import os
 import pickle
 import logging
 import sys
-from collections import OrderedDict
 from functools import partial
-from typing import Union, List, Dict
+from typing import Dict
 
 import torch
 
@@ -22,7 +21,7 @@ from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.sample import Domain, Quantized, Float, Integer, Categorical, Normal, LogUniform
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
-from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, _TuneCheckpointCallback, TuneCallback
+from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, TuneCallback
 from ray.tune.suggest import BasicVariantGenerator, ConcurrencyLimiter
 from ray.tune.suggest.skopt import SkOptSearch, logger as sk_logger
 from ray.tune.suggest.variant_generator import parse_spec_vars
@@ -36,6 +35,8 @@ from ..trials.aerial import AerialTrial
 from ..trials.asteroidal import AsteroidalTrial
 from ..trials.terrastudent import TerraStudentTrial
 from ..trials.terrestrial import TerrestrialTrial
+
+DEBUG = 0
 
 
 def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=False):
@@ -96,6 +97,8 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
         max_steps=train_conf['epochs'],  # TODO (1): rename param
         progress_bar_refresh_rate=0,
         check_val_every_n_epoch=sys.maxsize,
+        limit_train_batches=0.002 if DEBUG else 1.0,
+        limit_val_batches=0.004 if DEBUG else 1.0,
         resume_from_checkpoint=train_conf.get('resume', None),
         log_every_n_steps=train_conf['print_freq'],
         flush_logs_every_n_steps=10,
