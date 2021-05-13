@@ -25,7 +25,7 @@ training:
   batch_size: !h_int 8
   batch_mem: 32000
   gpu: 1
-  epochs: 24000
+  epochs: 24001
   print_freq: 5
   test_freq: 1500   # validation interval in steps
   save_freq: 1
