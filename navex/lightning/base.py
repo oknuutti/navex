@@ -143,7 +143,7 @@ class TrialWrapperBase(pl.LightningModule):
 
         # logger only
         self.log_dict(log_values, prog_bar=False, logger=True, on_step=None, on_epoch=True, reduce_fx=self.nanmean)
-        self.log_dict({'global_step': self.trainer.global_step},
+        self.log_dict({'global_step': Tensor([self.trainer.global_step]).to(loss.device)},
                       prog_bar=False, logger=True, on_step=None, on_epoch=False)
 
         # progress bar only
