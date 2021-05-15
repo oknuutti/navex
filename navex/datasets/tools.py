@@ -72,7 +72,7 @@ def load_aflow(fname, img1_size=None, img2_size=None):
     return aflow.reshape((h, w, 2)) / 8
 
 
-def show_pair(img1, img2, aflow, file1='', file2='', pts=8):
+def show_pair(img1, img2, aflow, file1='', file2='', afile='', pts=8):
     fig, axs = plt.subplots(1, 2, figsize=(10, 5))
     axs[0].imshow(np.array(img1))
     axs[1].imshow(np.array(img2))
@@ -85,6 +85,9 @@ def show_pair(img1, img2, aflow, file1='', file2='', pts=8):
         axs[1].plot(aflow[y0, x0, 0], aflow[y0, x0, 1], 'x')
         axs[1].set_title(file2)
 
+    if afile:
+        fig.suptitle(afile)
+    plt.tight_layout()
     plt.show()
 
 

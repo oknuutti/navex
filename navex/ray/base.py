@@ -29,7 +29,7 @@ from ray.tune.utils import flatten_dict
 from skopt import space as sko_sp
 
 from ..experiments.parser import nested_update, split_double_samplers
-from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector, ValEveryNSteps
+from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector, ValEveryNSteps, MyModelCheckpoint
 from ..models.tools import ordered_nested_dict, reorder_cols
 from ..trials.aerial import AerialTrial
 from ..trials.asteroidal import AsteroidalTrial
@@ -39,7 +39,9 @@ from ..trials.terrestrial import TerrestrialTrial
 DEBUG = 0
 
 
-def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=False):
+def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=False,
+                  hp_metric='val_tot_epoch', hp_metric_mode='max'):
+
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
     host = socket.gethostname()
@@ -65,21 +67,29 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
 
     callbacks = [
         ValEveryNSteps(every_n_step=train_conf['test_freq']),
+
         TuneReportCheckpointCallback(metrics={
-            "rloss": "val_rloss_epoch",
+            # "rloss": "val_rloss_epoch",
             "loss": "val_loss_epoch",
             "tot_ratio": "val_tot_epoch",
             "inl_ratio": "val_inl_epoch",
             "px_err": "val_dst_epoch",
             "mAP": "val_map_epoch",
             "global_step": "global_step",
+            "hp_metric": "hp_metric",
+            "hp_metric_max": "hp_metric_max",
         }, filename="checkpoint", on="validation_end"),
-#        CheckOnSLURM(),
+
+        MyModelCheckpoint(monitor='hp_metric',
+                          mode='max',
+                          verbose=True,
+                          dirpath=os.path.join(train_conf['output'], 'version_%s' % logger.version),
+                          filename='checkpoint-{global_step}-{hp_metric:.3f}'),
     ]
 
     if train_conf['early_stopping']:
-        callbacks.append(EarlyStopping(monitor='val_loss_epoch',
-                                       mode='min',
+        callbacks.append(EarlyStopping(monitor='hp_metric',
+                                       mode='max',
                                        min_delta=0.00,
                                        patience=train_conf['early_stopping'],
                                        verbose=True))
@@ -142,6 +152,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
                            gpu_batch_size, acc_grad_batches, hparams)
         model = TrialWrapperBase(trial)
 
+    model.hp_metric, model.hp_metric_mode = hp_metric, {'max': 1, 'min': -1}[hp_metric_mode]
     trn_dl = model.trial.build_training_data_loader()
     val_dl = model.trial.build_validation_data_loader()
 
@@ -183,7 +194,7 @@ def tune_asha(search_conf, hparams, full_conf):
                              for _ in range(max(1, search_conf['nodes']))]
             evaluated_rewards = None
 
-        search_alg = MySkOptSearch(metric=search_conf['metric'], mode=search_conf['mode'],
+        search_alg = MySkOptSearch(metric='hp_metric_max', mode='max',
                                    points_to_evaluate=start_config, evaluated_rewards=evaluated_rewards)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
     else:
@@ -192,8 +203,8 @@ def tune_asha(search_conf, hparams, full_conf):
 
     scheduler = ASHAScheduler(
         time_attr="global_step",    # the default is "training_iteration" which equals epoch!!
-        metric=search_conf['metric'],
-        mode=search_conf['mode'],
+        metric='hp_metric',
+        mode='max',
         max_t=train_conf['epochs'],         # TODO: (1) change name of this config variable
         grace_period=search_conf['grace_period'],
         reduction_factor=search_conf['reduction_factor'])
@@ -207,7 +218,8 @@ def tune_asha(search_conf, hparams, full_conf):
         metric_columns=["loss", "tot_ratio", "mAP"])
 
     tune.run(
-        partial(execute_trial, full_conf=full_conf, update_conf=False),
+        partial(execute_trial, full_conf=full_conf, update_conf=False,
+                hp_metric=search_conf['metric'], hp_metric_mode=search_conf['mode']),
         resources_per_trial={
             "cpu": full_conf['data']['workers'],
             "gpu": train_conf['gpu'],
@@ -245,8 +257,8 @@ def tune_pbs(search_conf, hparams, full_conf):
         time_attr="global_step",
         perturbation_interval=search_conf['grace_period'],
         hyperparam_mutations=mutations,
-        metric=search_conf['metric'],
-        mode=search_conf['mode']
+        metric='hp_metric',
+        mode='max'
     )
 
     class MyReporter(CLIReporter):
@@ -258,7 +270,8 @@ def tune_pbs(search_conf, hparams, full_conf):
         metric_columns=["loss", "tot_ratio", "mAP"])
 
     tune.run(
-        partial(execute_trial, full_conf=full_conf, update_conf=True),
+        partial(execute_trial, full_conf=full_conf, update_conf=True,
+                hp_metric=search_conf['metric'], hp_metric_mode=search_conf['mode']),
         resources_per_trial={
             "cpu": full_conf['data']['workers'],
             "gpu": train_conf['gpu'],

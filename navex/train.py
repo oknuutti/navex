@@ -55,7 +55,8 @@ def main():
                        to_dict(config.optimizer), to_dict(config.data),
                        gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
 
-    model = TrialWrapperBase(trial, use_gpu=bool(args.gpu))
+    model = TrialWrapperBase(trial, use_gpu=bool(args.gpu), hp_metric=config.search.metric,
+                             hp_metric_mode=config.search.mode)
     if config.preproc_path:
         preprocess_data(model, config)
         return
@@ -69,20 +70,19 @@ def main():
         version = int(m[-1]) if m else None
     logger = MyLogger(args.output, name='', version=version)
 
-    monitor, monitor_mode = 'val_loss_epoch', 'min'
     callbacks = [ValEveryNSteps(every_n_step=10 if DEBUG else args.test_freq),
-                 MyModelCheckpoint(monitor=monitor,
-                                   mode=monitor_mode,
+                 MyModelCheckpoint(monitor='hp_metric',
+                                   mode='max',
                                    verbose=True,
                                    period=args.save_freq,
                                    dirpath=os.path.join(args.output, 'version_%d' % logger.version),
-                                   filename='%s-%s-r%d-{epoch}-{step}-{val_loss_epoch:.3f}'
+                                   filename='%s-%s-r%d-{global_step}-{hp_metric:.3f}'
                                              % (config.model.arch, args.name, logger.version)),
                 ]
 
     if args.early_stopping:
-        callbacks.append(EarlyStopping(monitor=monitor,
-                                       mode=monitor_mode,
+        callbacks.append(EarlyStopping(monitor='hp_metric',
+                                       mode='max',
                                        min_delta=0.00,
                                        patience=args.early_stopping,
                                        verbose=True))
@@ -94,12 +94,12 @@ def main():
                          max_steps=30 if PROFILING_ONLY else args.epochs,  # TODO (1): rename param
                          progress_bar_refresh_rate=args.print_freq,
                          check_val_every_n_epoch=sys.maxsize,
+                         limit_train_batches=0.002 if DEBUG or PROFILING_ONLY else 1.0,
+                         limit_val_batches=0.004 if DEBUG or PROFILING_ONLY else 1.0,
                          resume_from_checkpoint=getattr(args, 'resume', None),
                          log_every_n_steps=args.print_freq,
                          flush_logs_every_n_steps=10,
                          gpus=1 if args.gpu else 0,
-                         limit_train_batches=0.002 if DEBUG or PROFILING_ONLY else 1.0,
-                         limit_val_batches=0.004 if DEBUG or PROFILING_ONLY else 1.0,
                          auto_select_gpus=bool(args.gpu),
                          deterministic=bool(args.deterministic),
                          auto_lr_find=bool(args.auto_lr_find),

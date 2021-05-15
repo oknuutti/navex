@@ -1,8 +1,8 @@
 search:
   method: 'asha-bo'
   resume: ''
-  metric: 'loss'
-  mode: 'min'
+  metric: 'val_tot_epoch'
+  mode: 'max'
   samples: 1
   nodes: 1
   node_types: 'volta'

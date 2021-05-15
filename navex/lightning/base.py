@@ -19,20 +19,27 @@ def _fn_none(x):
 
 
 class TrialWrapperBase(pl.LightningModule):
-    def __init__(self, trial: TrialBase = None, extra_hparams=None, use_gpu=True):
+    def __init__(self, trial: TrialBase = None, extra_hparams=None, use_gpu=True,
+                 hp_metric='val_loss_epoch', hp_metric_mode=-1):
         super(TrialWrapperBase, self).__init__()
         self.use_gpu = use_gpu
+        self.hp_metric = hp_metric
+        self.hp_metric_mode = {'max': 1, 'min': -1}[hp_metric_mode] if isinstance(hp_metric_mode, str) else hp_metric_mode
+        self.hp_metric_max = None
+        self._restored_global_step = None
+
         self.trial = trial
         if self.trial is not None:
             self.trial.loss_backward_fn = _fn_none
             self.trial.step_optimizer_fn = _fn_none
             self.trial.hparams.update(extra_hparams or {})
             self.save_hyperparameters(self.trial.hparams)
-        self._restored_global_step = None
 
     def on_save_checkpoint(self, checkpoint):
         checkpoint['trial'] = self.trial
         checkpoint['global_step'] = int(self.global_step)
+        if self.hp_metric_max is not None:
+            checkpoint['hp_metric_max'] = float(self.hp_metric_max)
 
     def on_load_checkpoint(self, checkpoint):
         checkpoint['state_dict'].pop('trial.model.total_ops', None)
@@ -44,6 +51,8 @@ class TrialWrapperBase(pl.LightningModule):
             self.trial = checkpoint['trial']
         if 'global_step' in checkpoint:
             self._restored_global_step = int(checkpoint['global_step']) + 1
+        if 'hp_metric_max' in checkpoint:
+            self.hp_metric_max = float(checkpoint['hp_metric_max'])
 
     def on_train_start(self):
         if self._restored_global_step is not None:
@@ -113,38 +122,48 @@ class TrialWrapperBase(pl.LightningModule):
         self._log(log_prefix, loss, acc, self.trial.log_values())
         return {'loss': loss.sum(dim=1), 'acc': acc}
 
-    def _log(self, lp, loss, acc, trial_params=None):
-        tot, inl, dst, map = self.nanmean(acc)
+    def _gather_metrics(self, losses, acc, lp=None, extra=None):
         postfix = '_epoch' if lp == 'val' else ''
+        lp = (lp + '_') if lp else ''
+        tot, inl, dst, map = self.nanmean(acc)
+        losses = torch.atleast_2d(self.nanmean(losses, dim=0))
+        loss = losses.sum(dim=1)
 
         log_values = {
-            lp + '_loss' + postfix: loss.sum(dim=1),
-            lp + '_tot' + postfix: tot * 100,
-            lp + '_inl' + postfix: inl * 100,
-            lp + '_dst' + postfix: dst,
-            lp + '_map' + postfix: map * 100,
+            lp + 'loss' + postfix: loss,
+            lp + 'tot' + postfix: tot * 100,
+            lp + 'inl' + postfix: inl * 100,
+            lp + 'dst' + postfix: dst,
+            lp + 'map' + postfix: map * 100,
         }
 
-        if loss.shape[1] == 3:
-            log_values[lp + '_des_loss' + postfix] = loss[:, 0]
-            log_values[lp + '_det_loss' + postfix] = loss[:, 1]
-            log_values[lp + '_qlt_loss' + postfix] = loss[:, 2]
-        elif loss.shape[1] == 4:
-            log_values[lp + '_peak_loss' + postfix] = loss[:, 0]
-            log_values[lp + '_cosim_loss' + postfix] = loss[:, 1]
-            log_values[lp + '_ap_loss' + postfix] = loss[:, 2]
-            log_values[lp + '_qlt_loss' + postfix] = loss[:, 3]
+        if losses.shape[1] == 3:
+            log_values.update({
+                lp + 'des_loss' + postfix: losses[:, 0],
+                lp + 'det_loss' + postfix: losses[:, 1],
+                lp + 'qlt_loss' + postfix: losses[:, 2],
+            })
+        elif losses.shape[1] == 4:
+            log_values.update({
+                lp + 'peak_loss' + postfix: losses[:, 0],
+                lp + 'cosim_loss' + postfix: losses[:, 1],
+                lp + 'ap_loss' + postfix: losses[:, 2],
+                lp + 'qlt_loss' + postfix: losses[:, 3],
+            })
 
         if hasattr(self.trial, 'resource_loss'):
-            log_values[lp + '_rloss' + postfix] = self.trial.resource_loss(loss.sum(dim=1))
+            log_values[lp + 'rloss' + postfix] = self.trial.resource_loss(losses.sum(dim=1))
 
-        if trial_params is not None:
-            log_values.update({'%s_%s%s' % (lp, p, postfix): v for p, v in trial_params.items()})
+        if extra is not None:
+            log_values.update({lp + p + postfix: v for p, v in extra.items()})
+
+        return log_values, (loss, tot, inl, dst, map)
+
+    def _log(self, lp, losses, acc, trial_params=None):
+        log_values, (loss, tot, inl, dst, map) = self._gather_metrics(losses, acc, lp=lp, extra=trial_params)
 
         # logger only
-        self.log_dict(log_values, prog_bar=False, logger=True, on_step=None, on_epoch=True, reduce_fx=self.nanmean)
-        self.log_dict({'global_step': Tensor([self.trainer.global_step]).to(loss.device)},
-                      prog_bar=False, logger=True, on_step=False, on_epoch=True, reduce_fx=torch.max)
+        self.log_dict(log_values, on_step=None, on_epoch=True, reduce_fx=self.nanmean)
 
         # progress bar only
         self.log_dict({
@@ -165,13 +184,21 @@ class TrialWrapperBase(pl.LightningModule):
         self.trial.training_epoch_end(loss, tot, inl, dst, map)
 
     def validation_epoch_end(self, outputs):
-        val_losses = torch.stack([o['loss'] for o in outputs])
-        hp_metric = -self.nanmean(val_losses)
-        self.log('hp_metric', hp_metric)
+        metrics, _ = self._gather_metrics(torch.cat([o['loss'] for o in outputs], dim=0),
+                                          torch.cat([o['acc'] for o in outputs], dim=0), lp='val')
+        device = _[0].device
+
+        # end of epoch only
+        self.log('global_step', Tensor([self.trainer.global_step]).to(device))
+
+        if self.hp_metric in metrics:
+            hpmval = metrics[self.hp_metric] * self.hp_metric_mode
+            self.hp_metric_max = hpmval if self.hp_metric_max is None else max(self.hp_metric_max, hpmval.item())
+            self.log_dict({'hp_metric': hpmval, 'hp_metric_max': Tensor([self.hp_metric_max]).to(device)})
 
     @staticmethod
-    def nanmean(x: Tensor):
-        return torch.nansum(x, dim=0) / torch.sum(torch.logical_not(torch.isnan(x)), dim=0)
+    def nanmean(x: Tensor, dim=0):
+        return torch.nansum(x, dim=dim) / torch.sum(torch.logical_not(torch.isnan(x)), dim=dim)
 
 
 class MyLogger(TensorBoardLogger):

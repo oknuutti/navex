@@ -7,12 +7,10 @@ import numpy as np
 import quaternion
 import scipy.interpolate as interp
 import cv2
-import PIL
 
 from navex.datasets.base import ImagePairDataset, SynthesizedPairDataset
 from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
     unit_aflow, show_pair, save_aflow, valid_asteriod_area, rotate_expand_border
-from navex.datasets.transforms import PairScaleToRange
 
 
 class AsteroidImagePairDataset(ImagePairDataset):
@@ -23,9 +21,10 @@ class AsteroidImagePairDataset(ImagePairDataset):
 
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
-        self.skip_preproc = os.path.exists(os.path.join(self.root, 'preprocessed.flag'))
-        self.extra_crop = [0, 0, 0, 0] if extra_crop is None else extra_crop   # left, right, top, bottom
+        # NOTE: impossible to cache aflow rotated images as rotations depend on each pair
         self.aflow_rot_norm = aflow_rot_norm
+        self.skip_preproc = not self.aflow_rot_norm and os.path.exists(os.path.join(self.root, 'preprocessed.flag'))
+        self.extra_crop = [0, 0, 0, 0] if extra_crop is None else extra_crop   # left, right, top, bottom
         self.preproc_path = preproc_path
 
         self.cam_axis, self.cam_up = np.array(cam_axis), np.array(cam_up)
@@ -61,12 +60,11 @@ class AsteroidImagePairDataset(ImagePairDataset):
         return samples
 
     def preprocess(self, idx, imgs, aflow):
+        assert tuple(np.flip(aflow.shape[:2])) == imgs[0].size, \
+            'aflow dimensions do not match with img1 dimensions: %s vs %s' % (np.flip(aflow.shape[:2]), imgs[0].size)
+
         if self.skip_preproc:
             return imgs, aflow
-
-        # # force grayscale and resize to max size
-        # imgs = [img.getchannel(0) for img in imgs]
-        # imgs, aflow = PairScaleToRange(min_size=256, max_size=1024, max_sc=1.0, resize_img2=True)(imgs, aflow)
 
         # possibly crop some bad borders
         d = [img.size for img in imgs]
@@ -142,27 +140,25 @@ class AsteroidImagePairDataset(ImagePairDataset):
         n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
 
         img1, img2 = [t[1] for t in proc_imgs]
-        if 0:
-            show_pair(*[t[1] for t in proc_imgs], n_aflow, pts=10, file1=self.samples[idx][0][0],
-                                                                   file2=self.samples[idx][0][1])
         if self.preproc_path is None:
             return (img1, img2), n_aflow
 
         (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]
+        if 0:
+            show_pair(img1, img2, n_aflow, pts=20, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
         folder = getattr(self, 'folder', r_aflow_pth[len(self.root):].strip(os.sep).split(os.sep)[0])
-        img1_pth = os.path.join(self.preproc_path, folder, r_img1_pth[len(self.root):].strip(os.sep))
-        img2_pth = os.path.join(self.preproc_path, folder, r_img2_pth[len(self.root):].strip(os.sep))
-        aflow_pth = os.path.join(self.preproc_path, folder, r_aflow_pth[len(self.root):].strip(os.sep))
 
-        if not os.path.exists(img1_pth):
-            os.makedirs(os.path.dirname(img1_pth), exist_ok=True)
-            cv2.imwrite(img1_pth, np.array(img1)[:, :, 0], (cv2.IMWRITE_PNG_COMPRESSION, 9))
-        if not os.path.exists(img2_pth):
-            os.makedirs(os.path.dirname(img2_pth), exist_ok=True)
-            cv2.imwrite(img2_pth, np.array(img2)[:, :, 0], (cv2.IMWRITE_PNG_COMPRESSION, 9))
-        if not os.path.exists(aflow_pth):
-            os.makedirs(os.path.dirname(aflow_pth), exist_ok=True)
-            save_aflow(aflow_pth, n_aflow)
+        img1_pth = os.path.join(self.preproc_path, folder, r_img1_pth[len(self.root):].strip(os.sep))
+        os.makedirs(os.path.dirname(img1_pth), exist_ok=True)
+        cv2.imwrite(img1_pth, np.array(img1)[:, :, 0], (cv2.IMWRITE_PNG_COMPRESSION, 9))
+
+        img2_pth = os.path.join(self.preproc_path, folder, r_img2_pth[len(self.root):].strip(os.sep))
+        os.makedirs(os.path.dirname(img2_pth), exist_ok=True)
+        cv2.imwrite(img2_pth, np.array(img2)[:, :, 0], (cv2.IMWRITE_PNG_COMPRESSION, 9))
+
+        aflow_pth = os.path.join(self.preproc_path, folder, r_aflow_pth[len(self.root):].strip(os.sep))
+        os.makedirs(os.path.dirname(aflow_pth), exist_ok=True)
+        save_aflow(aflow_pth, n_aflow)
 
         return (img1, img2), n_aflow
 
