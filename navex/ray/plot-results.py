@@ -60,6 +60,11 @@ def main():
 
     res = search_alg._skopt_opt.get_result()
 
+    best_idx = np.argmin(res.func_vals)
+    best_hparams = dict(zip(search_alg._parameters, res.x))
+    best_fval = res.fun
+    print(f'best trial is #{best_idx} with fval={best_fval}: {best_hparams}')
+
     if 1:
         skplt.plot_convergence(res)
 

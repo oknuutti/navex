@@ -92,7 +92,7 @@ optimizer:
 
 data:
   max_sc:  !h_float 1.091    # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
-  max_rot: !h_float 0.0      # in degrees, synth pair warp related
+  max_rot: !h_float 10.0      # in degrees, synth pair warp related
   max_shear: !h_float 0.0    # synth pair warp related
   max_proj: !h_float 0.5     # synth pair warp related
   noise_max: !h_float 0.1

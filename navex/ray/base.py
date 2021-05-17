@@ -29,7 +29,7 @@ from ray.tune.utils import flatten_dict
 from skopt import space as sko_sp
 
 from ..experiments.parser import nested_update, split_double_samplers
-from ..lightning.base import TrialWrapperBase, MyLogger, MySLURMConnector, ValEveryNSteps, MyModelCheckpoint
+from ..lightning.base import TrialWrapperBase, MySLURMConnector, MyModelCheckpoint, MyTrainer, MyLogger
 from ..models.tools import ordered_nested_dict, reorder_cols
 from ..trials.aerial import AerialTrial
 from ..trials.asteroidal import AsteroidalTrial
@@ -66,8 +66,14 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
     logger = MyLogger(train_conf['output'], name='', version='')
 
     callbacks = [
-        ValEveryNSteps(every_n_step=train_conf['test_freq']),
+        # on_validation_end, run #1
+        MyModelCheckpoint(monitor='hp_metric',
+                          mode='max',
+                          verbose=True,
+                          dirpath=os.path.join(train_conf['output'], 'version_%s' % logger.version),
+                          filename='checkpoint-{global_step}-{hp_metric:.3f}'),
 
+        # on_validation_end, run #2
         TuneReportCheckpointCallback(metrics={
             # "rloss": "val_rloss_epoch",
             "loss": "val_loss_epoch",
@@ -79,12 +85,6 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
             "hp_metric": "hp_metric",
             "hp_metric_max": "hp_metric_max",
         }, filename="checkpoint", on="validation_end"),
-
-        MyModelCheckpoint(monitor='hp_metric',
-                          mode='max',
-                          verbose=True,
-                          dirpath=os.path.join(train_conf['output'], 'version_%s' % logger.version),
-                          filename='checkpoint-{global_step}-{hp_metric:.3f}'),
     ]
 
     if train_conf['early_stopping']:
@@ -99,7 +99,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
     acc_grad_batches = 2 ** max(0, math.ceil(math.log2((train_conf['batch_mem'] * 1024 * 1024) / totmem)))  # in MB
     gpu_batch_size = train_conf['batch_size'] // acc_grad_batches
 
-    trainer = pl.Trainer(
+    trainer = MyTrainer(
         default_root_dir=tune.get_trial_dir(),  # was train_conf['output'],
         logger=logger,
         callbacks=callbacks,
@@ -107,6 +107,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
         max_steps=train_conf['epochs'],  # TODO (1): rename param
         progress_bar_refresh_rate=0,
         check_val_every_n_epoch=sys.maxsize,
+        val_check_interval=train_conf['test_freq'],
         limit_train_batches=0.002 if DEBUG else 1.0,
         limit_val_batches=0.004 if DEBUG else 1.0,
         resume_from_checkpoint=train_conf.get('resume', None),

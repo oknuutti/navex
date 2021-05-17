@@ -8,9 +8,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from navex.models.tools import is_rgb_model, load_model
-from .datasets.base import ExtractionImageDataset
-from .lightning.base import TrialWrapperBase
-from .models import tools
+from navex.datasets.base import ExtractionImageDataset
+from navex.lightning.base import TrialWrapperBase
+from navex.models import tools
 
 
 # example:
@@ -24,8 +24,9 @@ def main():
     parser = argparse.ArgumentParser("extract features from images")
     parser.add_argument("--model", type=str, required=True, help='model path')
     parser.add_argument("--images", type=str, required=True, help='images / list')
-    parser.add_argument("--tag", type=str, default='astr', help='output file tag')
-    parser.add_argument("--top-k", type=int, default=2000, help='number of keypoints')
+    parser.add_argument("--tag", type=str, required=True, help='output file tag')
+    parser.add_argument("--top-k", type=int, default=None, help='limit on total number of keypoints')
+    parser.add_argument("--feat-d", type=float, default=0.001, help='number of keypoints per pixel')
     parser.add_argument("--scale-f", type=float, default=2 ** (1/4))
     parser.add_argument("--min-size", type=int, default=256)
     parser.add_argument("--max-size", type=int, default=1024)
@@ -33,7 +34,7 @@ def main():
     parser.add_argument("--max-scale", type=float, default=1)
     parser.add_argument("--det-lim", type=float, default=0.02)
     parser.add_argument("--qlt-lim", type=float, default=-10)
-    parser.add_argument("--border", type=int, default=16, help="dont detect features if this close to image border")
+    parser.add_argument("--border", type=int, help="dont detect features if this close to image border")
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
 
@@ -42,10 +43,19 @@ def main():
     rgb = is_rgb_model(model)
     model.eval()
 
+    if args.border:
+        border = args.border
+    else:
+        try:
+            border = model.trial.loss_fn.border
+        except:
+            border = 16
+
     dataset = ExtractionImageDataset(args.images, rgb=rgb)
     data_loader = model.wrap_ds(dataset)
 
-    for i, data in enumerate(tqdm(data_loader)):
+    pbar = tqdm(data_loader)
+    for i, data in enumerate(pbar):
         data = data.to(device)
 
         # extract keypoints/descriptors for a single image
@@ -56,15 +66,18 @@ def main():
                                                min_size=args.min_size,
                                                max_size=args.max_size,
                                                top_k=args.top_k,
+                                               feat_d=args.feat_d,
                                                det_lim=args.det_lim,
                                                qlt_lim=args.qlt_lim,
-                                               border=args.border,
+                                               border=border,
                                                verbose=True)
 
         xys = xys.cpu().numpy()
         desc = desc.cpu().numpy()
         scores = scores.cpu().numpy().flatten()
-        idxs = scores.argsort()[-args.top_k or None:]
+        idxs = (-scores).argsort()
+        if args.top_k is not None and args.top_k != 0:
+            idxs = idxs[:args.top_k]
 
         outpath = dataset.samples[i] + '.' + args.tag
         with open(outpath, 'wb') as fh:
@@ -73,10 +86,11 @@ def main():
                      descriptors=desc[idxs],
                      scores=scores[idxs])
 
+        pbar.set_postfix({'scales': len(np.unique(xys[idxs, 2])), 'keypoints': len(idxs)})
 
-def extract_multiscale(model, img0, scale_f=2 ** 0.25,
-                       min_scale=0.0, max_scale=1, min_size=256, max_size=1024,
-                       top_k=None, det_lim=None, qlt_lim=None, border=16, verbose=False):
+
+def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=1, min_size=256, max_size=1024,
+                       top_k=None, feat_d=0.001, det_lim=None, qlt_lim=None, border=16, verbose=False):
     old_bm = torch.backends.cudnn.benchmark
     torch.backends.cudnn.benchmark = False  # speedup
 
@@ -115,7 +129,7 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25,
                 plt.show()
 
             _, _, H1, W1 = det.shape
-            yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, det_lim=det_lim,
+            yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
                                                       qlt_lim=qlt_lim, border=border)
 
             # accumulate multiple scales

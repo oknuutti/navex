@@ -92,7 +92,7 @@ optimizer:
 
 data:
   max_sc:    1.091  # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
-  max_rot:   !h_tune2_uniform '(0.0, 0.5), (0.0, 10.0)'    # in degrees, synth pair warp related
+  max_rot:   !h_tune2_uniform '(4.5, 5.5), (0.0, 10.0)'    # in degrees, synth pair warp related
   max_shear: 0.0    # synth pair warp related
   max_proj:  !h_tune2_uniform '(0.45, 0.55), (0.20, 0.80)'    # synth pair warp related
   noise_max: !h_tune2_uniform '(0.08, 0.12), (0.00, 0.20)'

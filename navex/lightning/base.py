@@ -3,8 +3,10 @@ from typing import Union, Dict, Any, Optional
 from argparse import Namespace
 
 import torch
+from pytorch_lightning import Trainer
 from pytorch_lightning.trainer.connectors.slurm_connector import SLURMConnector
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.trainer.training_loop import TrainLoop
 from torch import Tensor
 
 import pytorch_lightning as pl
@@ -100,7 +102,7 @@ class TrialWrapperBase(pl.LightningModule):
             loss, output = self.trial.train_batch(data, labels, epoch_id, batch_idx, component_loss=True)
 
         with torch.no_grad():
-            acc = self.trial.accuracy(*output, labels, mutual=True, ratio=False, success_px_limit=5)
+            acc = self.trial.accuracy(*output, labels)
             self._log('trn', loss, acc, self.trial.log_values())
 
         return {'loss': loss.sum(dim=1), 'acc': acc}
@@ -113,8 +115,7 @@ class TrialWrapperBase(pl.LightningModule):
 
     def _eval_step(self, batch, batch_idx, log_prefix):
         if isinstance(self.trial, StudentTrialMixin):
-            loss, acc, output = self.trial.evaluate_batch(batch, mutual=True, ratio=False, success_px_limit=5,
-                                                          component_loss=True)
+            loss, acc, output = self.trial.evaluate_batch(batch, component_loss=True)
         else:
             data, labels = batch
             loss, acc, output = self.trial.evaluate_batch(data, labels, mutual=True, ratio=False, success_px_limit=5,
@@ -162,8 +163,8 @@ class TrialWrapperBase(pl.LightningModule):
     def _log(self, lp, losses, acc, trial_params=None):
         log_values, (loss, tot, inl, dst, map) = self._gather_metrics(losses, acc, lp=lp, extra=trial_params)
 
-        # logger only
-        self.log_dict(log_values, on_step=None, on_epoch=True, reduce_fx=self.nanmean)
+        # logger only, validation epoch end logging handled at self.validation_epoch_end(...)
+        self.log_dict(log_values, on_step=None, on_epoch=(lp != 'val'), reduce_fx=self.nanmean)
 
         # progress bar only
         self.log_dict({
@@ -187,14 +188,14 @@ class TrialWrapperBase(pl.LightningModule):
         metrics, _ = self._gather_metrics(torch.cat([o['loss'] for o in outputs], dim=0),
                                           torch.cat([o['acc'] for o in outputs], dim=0), lp='val')
         device = _[0].device
-
-        # end of epoch only
-        self.log('global_step', Tensor([self.trainer.global_step]).to(device))
+        metrics['global_step'] = Tensor([self.trainer.global_step + 1]).to(device)
 
         if self.hp_metric in metrics:
             hpmval = metrics[self.hp_metric] * self.hp_metric_mode
-            self.hp_metric_max = hpmval if self.hp_metric_max is None else max(self.hp_metric_max, hpmval.item())
-            self.log_dict({'hp_metric': hpmval, 'hp_metric_max': Tensor([self.hp_metric_max]).to(device)})
+            self.hp_metric_max = hpmval.item() if self.hp_metric_max is None else max(self.hp_metric_max, hpmval.item())
+            metrics.update({'hp_metric': hpmval, 'hp_metric_max': Tensor([self.hp_metric_max]).to(device)})
+
+        self.log_dict(metrics)
 
     @staticmethod
     def nanmean(x: Tensor, dim=0):
@@ -202,9 +203,18 @@ class TrialWrapperBase(pl.LightningModule):
 
 
 class MyLogger(TensorBoardLogger):
+    def __init__(self, *args, **kwargs):
+        super(MyLogger, self).__init__(*args, **kwargs)
+        self._hp_metric_initialized = False
+
     def log_hyperparams(self, params: Union[Dict[str, Any], Namespace],
                         metrics: Optional[Dict[str, Any]] = None) -> None:
-        metrics = float('nan') if metrics is None else metrics
+        if metrics is None:
+            if self._hp_metric_initialized:
+                return
+            metrics = {'hp_metric': float('nan')}
+            self._hp_metric_initialized = True
+
         return super(MyLogger, self).log_hyperparams(params, metrics)
 
 
@@ -220,11 +230,14 @@ class MyModelCheckpoint(ModelCheckpoint):
         super(MyModelCheckpoint, self)._save_top_k_checkpoints(trainer, pl_module, metrics)
 
 
-class ValEveryNSteps(pl.Callback):
-    def __init__(self, every_n_step):
-        self.every_n_step = every_n_step
+class MyTrainLoop(TrainLoop):
+    def should_check_val_fx(self, batch_idx, is_last_batch):
+        # decide if we should run validation
+        return self.trainer.enable_validation and not self.should_accumulate() \
+               and (self.trainer.global_step + 1) % self.trainer.val_check_batch == 0
 
-    def on_batch_end(self, trainer, pl_module):
-        if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
-            trainer.run_evaluation()
-            trainer.logger_connector.set_stage("train")
+
+class MyTrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super(MyTrainer, self).__init__(*args, **kwargs)
+        self.train_loop = MyTrainLoop(self)

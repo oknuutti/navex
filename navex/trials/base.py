@@ -148,7 +148,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
 
         return loss, (output1, output2)
 
-    def evaluate_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, component_loss=False, **acc_conf):
+    def evaluate_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, component_loss=False):
         self.model.eval()
         with torch.no_grad():
             if self.count_ops:
@@ -164,27 +164,23 @@ class TrialBase(abc.ABC, torch.nn.Module):
             if self.model.aux_qty and self.model.training:
                 output1, output2 = output1[0], output2[0]
             validation_loss = self.loss(output1, output2, labels, component_loss=component_loss)
-            accuracy = self.accuracy(output1, output2, labels, **acc_conf)
+            accuracy = self.accuracy(output1, output2, labels)
         return validation_loss, accuracy, (output1, output2)
 
     def loss(self, output1: Tensor, output2: Tensor, labels: Tensor, component_loss=False):
         assert self.loss_fn is not None, 'loss function not implemented'
         return self.loss_fn(output1, output2, labels, component_loss=component_loss)
 
-    def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor, top_k=None, border=16,
+    def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor, top_k=None, feat_d=0.001, border=16,
                  mutual=True, ratio=False, success_px_limit=3, det_lim=0.02, qlt_lim=-10):
 
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
         _, _, H2, W2 = det2.shape
 
-        if top_k is None:
-            # detect at most 0.001 features per pixel
-            top_k = int((H2 - border * 2) * (W2 - border * 2) * 0.001)
-
-        yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, det_lim=det_lim,
+        yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
                                                      qlt_lim=qlt_lim, border=border)
-        yx2, conf2, descr2 = tools.detect_from_dense(des2, det2, qlt2, top_k=top_k, det_lim=det_lim,
+        yx2, conf2, descr2 = tools.detect_from_dense(des2, det2, qlt2, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
                                                      qlt_lim=qlt_lim, border=border)
 
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
@@ -243,7 +239,7 @@ class StudentTrialMixin:
 
         return loss, (output, labels)
 
-    def evaluate_batch(self, data: Tuple[Tensor, Tensor], component_loss: bool = False, **acc_conf):
+    def evaluate_batch(self, data: Tuple[Tensor, Tensor], component_loss: bool = False):
         clean_data, noisy_data = data
 
         self.model.eval()
@@ -259,27 +255,22 @@ class StudentTrialMixin:
             labels = self.teacher(clean_data)
             output = self.model(noisy_data)
             validation_loss = self.loss(output, labels, component_loss=component_loss)
-            accuracy = self.accuracy(output, labels, **acc_conf)
+            accuracy = self.accuracy(output, labels)
         return validation_loss, accuracy, (output, labels)
 
     def loss(self, output: Tensor, labels: Tensor, component_loss=False):
         assert self.loss_fn is not None, 'loss function not implemented'
         return self.loss_fn(output, labels, component_loss=component_loss)
 
-    def accuracy(self, output: Tensor, labels: Tensor, top_k=None, border=16,
-                 mutual=True, ratio=False, success_px_limit=3, det_lim=0.02, qlt_lim=-10):
-
+    def accuracy(self, output: Tensor, labels: Tensor, top_k=None, feat_d=0.001, border=16,
+                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.02, qlt_lim=-10):
         des1, det1, qlt1 = output
         des2, det2, qlt2 = labels
         B, _, H2, W2 = det2.shape
 
-        if top_k is None:
-            # detect at most 0.002 features per pixel
-            top_k = int((H2 - border * 2) * (W2 - border * 2) * 0.002)
-
-        yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, det_lim=det_lim,
+        yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
                                                      qlt_lim=qlt_lim, border=border)
-        yx2, conf2, descr2 = tools.detect_from_dense(des2, det2, qlt2, top_k=top_k, det_lim=det_lim,
+        yx2, conf2, descr2 = tools.detect_from_dense(des2, det2, qlt2, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
                                                      qlt_lim=qlt_lim, border=border)
 
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]

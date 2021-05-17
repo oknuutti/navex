@@ -169,7 +169,7 @@ def process(loader, trial, epoch, device, args, validate_only=False, return_outp
 
             # measure accuracy and record loss
             with torch.no_grad():
-                acc = trial.accuracy(*output, target, top_k=300, mutual=True, ratio=False, success_px_limit=3)
+                acc = trial.accuracy(*output, target)
 
         accs.update(acc)
         losses.update(loss.detach().cpu().numpy())

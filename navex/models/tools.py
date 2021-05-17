@@ -11,7 +11,7 @@ from torch.functional import F
 from navex.models.r2d2orig import R2D2
 
 
-def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, border=16, interp='bicubic'):
+def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt_lim=0.02, border=16, interp='bicubic'):
     B, D, Hs, Ws = des.shape
     _, _, Ht, Wt = det.shape
     _, _, Hq, Wq = qlt.shape
@@ -37,6 +37,11 @@ def detect_from_dense(des, det, qlt, top_k=None, det_lim=0.02, qlt_lim=0.02, bor
     maxima[:, 0, :, -border:] = False
 
     K = maxima.sum(dim=(2, 3)).max().item()
+
+    if feat_d is not None:
+        # detect at most 0.001 features per pixel
+        K = min(K, int((Ht - border * 2) * (Wt - border * 2) * feat_d))
+
     if top_k is not None:
         K = min(K, top_k)
 

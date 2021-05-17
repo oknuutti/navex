@@ -18,10 +18,10 @@ from navex.trials.asteroidal import AsteroidalTrial
 from navex.trials.terrastudent import TerraStudentTrial
 from .experiments.parser import ExperimentConfigParser, to_dict
 from .trials.terrestrial import TerrestrialTrial
-from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint, ValEveryNSteps
+from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint, MyTrainer
 
 PROFILING_ONLY = 0
-DEBUG = 0
+DEBUG = 1
 
 
 def main():
@@ -70,8 +70,7 @@ def main():
         version = int(m[-1]) if m else None
     logger = MyLogger(args.output, name='', version=version)
 
-    callbacks = [ValEveryNSteps(every_n_step=10 if DEBUG else args.test_freq),
-                 MyModelCheckpoint(monitor='hp_metric',
+    callbacks = [MyModelCheckpoint(monitor='hp_metric',
                                    mode='max',
                                    verbose=True,
                                    period=args.save_freq,
@@ -87,23 +86,24 @@ def main():
                                        patience=args.early_stopping,
                                        verbose=True))
 
-    trainer = pl.Trainer(default_root_dir=args.output,
-                         logger=logger,
-                         callbacks=callbacks,
-                         accumulate_grad_batches=acc_grad_batches,
-                         max_steps=30 if PROFILING_ONLY else args.epochs,  # TODO (1): rename param
-                         progress_bar_refresh_rate=args.print_freq,
-                         check_val_every_n_epoch=sys.maxsize,
-                         limit_train_batches=0.002 if DEBUG or PROFILING_ONLY else 1.0,
-                         limit_val_batches=0.004 if DEBUG or PROFILING_ONLY else 1.0,
-                         resume_from_checkpoint=getattr(args, 'resume', None),
-                         log_every_n_steps=args.print_freq,
-                         flush_logs_every_n_steps=10,
-                         gpus=1 if args.gpu else 0,
-                         auto_select_gpus=bool(args.gpu),
-                         deterministic=bool(args.deterministic),
-                         auto_lr_find=bool(args.auto_lr_find),
-                         precision=16 if args.gpu and args.reduced_precision else 32)
+    trainer = MyTrainer(default_root_dir=args.output,
+                        logger=logger,
+                        callbacks=callbacks,
+                        accumulate_grad_batches=acc_grad_batches,
+                        max_steps=31 if PROFILING_ONLY else args.epochs,  # TODO (1): rename param
+                        progress_bar_refresh_rate=args.print_freq,
+                        check_val_every_n_epoch=sys.maxsize,
+                        val_check_interval=10 if DEBUG else args.test_freq,
+                        limit_train_batches=0.002 if DEBUG or PROFILING_ONLY else 1.0,
+                        limit_val_batches=0.004 if DEBUG or PROFILING_ONLY else 1.0,
+                        resume_from_checkpoint=getattr(args, 'resume', None),
+                        log_every_n_steps=args.print_freq,
+                        flush_logs_every_n_steps=10,
+                        gpus=1 if args.gpu else 0,
+                        auto_select_gpus=bool(args.gpu),
+                        deterministic=bool(args.deterministic),
+                        auto_lr_find=bool(args.auto_lr_find),
+                        precision=16 if args.gpu and args.reduced_precision else 32)
 
     if args.auto_lr_find == 1:
         trainer.tune(model, trn_dl, val_dl)
