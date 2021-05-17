@@ -118,8 +118,7 @@ class TrialWrapperBase(pl.LightningModule):
             loss, acc, output = self.trial.evaluate_batch(batch, component_loss=True)
         else:
             data, labels = batch
-            loss, acc, output = self.trial.evaluate_batch(data, labels, mutual=True, ratio=False, success_px_limit=5,
-                                                          component_loss=True)
+            loss, acc, output = self.trial.evaluate_batch(data, labels, component_loss=True)
         self._log(log_prefix, loss, acc, self.trial.log_values())
         return {'loss': loss.sum(dim=1), 'acc': acc}
 

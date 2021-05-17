@@ -188,13 +188,15 @@ class MobileAP(BasePoint):
         else:
             self.block_cls = partial(InvertedResidual, norm_layer=self.norm_layer)
 
-        self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
-                                                     width_mult=width_mult, in_channels=in_channels)
+        self.backbone, bb_out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
+                                                        width_mult=width_mult, in_channels=in_channels)
 
-        self.des_head = self.create_descriptor_head(out_ch, des_head)
+        self.des_head = self.create_descriptor_head(bb_out_ch, des_head)
 
-        out_ch = des_head['dimensions'] if det_head['after_des'] else out_ch
+        out_ch = des_head['dimensions'] if det_head['after_des'] else bb_out_ch
         self.det_head = self.create_detector_head(out_ch, det_head)
+
+        out_ch = des_head['dimensions'] if qlt_head['after_des'] else bb_out_ch
         self.qlt_head = None if qlt_head['skip'] else self.create_quality_head(out_ch, qlt_head)
 
         if pretrained:

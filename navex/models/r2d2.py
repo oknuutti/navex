@@ -1,9 +1,6 @@
-import math
 
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.init import _calculate_correct_fan
 
 from .base import BasePoint, initialize_weights
 
@@ -19,16 +16,26 @@ class R2D2(BasePoint):
             'descriptor_dim': des_head['dimensions'],
             'width_mult': width_mult,
             'pretrained': pretrained,
+            'det_head': det_head,
+            'qlt_head': qlt_head,
         }
 
         assert width_mult * 128 == des_head['dimensions'], 'descriptor dimensions dont correspond with backbone width'
-        self.backbone, out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
-                                                     width_mult=width_mult, in_channels=in_channels)
-        assert out_ch == des_head['dimensions'], 'channel depths dont match'
+        self.backbone, bb_out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
+                                                        width_mult=width_mult, in_channels=in_channels)
+
+        if det_head['after_des'] or qlt_head['after_des']:
+            assert bb_out_ch == des_head['dimensions'], 'channel depths dont match'
+            self.des_head = None
+        else:
+            self.des_head = self.create_descriptor_head(bb_out_ch, des_head['dimensions'])
 
         # det_head single=True in r2d2 github code, in article was single=False though
-        self.det_head = self.create_detector_head(des_head['dimensions'], single=True)
-        self.qlt_head = self.create_quality_head(des_head['dimensions'], single=qlt_head.get('single', True))
+        out_ch = des_head['dimensions'] if det_head['after_des'] else bb_out_ch
+        self.det_head = self.create_detector_head(out_ch, single=True)
+
+        out_ch = des_head['dimensions'] if qlt_head['after_des'] else bb_out_ch
+        self.qlt_head = self.create_quality_head(out_ch, single=qlt_head.get('single', True))
 
         if pretrained:
             raise NotImplemented()
@@ -61,38 +68,38 @@ class R2D2(BasePoint):
         return nn.Sequential(*layers), in_ch
 
     @staticmethod
-    def create_detector_head(in_channels, single=False):
-        return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
+    def create_descriptor_head(in_ch, out_ch):
+        return nn.Conv2d(in_ch, out_ch, kernel_size=1, padding=0)
 
     @staticmethod
-    def create_quality_head(in_channels, single=False):
-        return nn.Conv2d(in_channels, 1 if single else 2, kernel_size=1, padding=0)
+    def create_detector_head(in_ch, single=False):
+        return nn.Conv2d(in_ch, 1 if single else 2, kernel_size=1, padding=0)
 
-    def extract_features(self, x):
-        x_features = self.backbone(x)
-        x_features, *auxs = x_features if isinstance(x_features, tuple) else (x_features, )
-        return [x_features] + list(auxs)
+    @staticmethod
+    def create_quality_head(in_ch, single=False):
+        return nn.Conv2d(in_ch, 1 if single else 2, kernel_size=1, padding=0)
 
     def forward(self, input):
         # input is a pair of images
-        x_features, *auxs = self.extract_features(input)
-        x_des = x_features
-        x_feat2 = x_features.pow(2)
-        x_det = self.det_head(x_feat2)
-        x_qlt = self.qlt_head(x_feat2)
-        x_output = [self.fix_output(x_des, x_det, x_qlt)]
-        exec_aux = self.training and len(auxs) > 0
+        features = self.backbone(input)
 
-        if exec_aux:
-            for i, aux in enumerate(auxs):
-                a_des = aux
-                a_feat2 = aux.pow(2)
-                a_det = getattr(self, 'aux_t' + str(i + 1))(a_feat2)
-                a_qlt = getattr(self, 'aux_q' + str(i + 1))(a_feat2)
-                ao = self.fix_output(a_des, a_det, a_qlt)
-                x_output.append(ao)
+        des = features if self.des_head is None else self.des_head(features)
+        des2 = None
 
-        return x_output if exec_aux else x_output[0]
+        if self.conf['det_head']['after_des']:
+            des2 = des.pow(2) if des2 is None else des2
+            det = self.det_head(des2)
+        else:
+            det = self.det_head(features)
+
+        if self.conf['qlt_head']['after_des']:
+            des2 = features.pow(2) if des2 is None else des2
+            qlt = self.qlt_head(des2)
+        else:
+            qlt = self.qlt_head(features)
+
+        output = self.fix_output(des, det, qlt)
+        return output
 
     @staticmethod
     def activation(ux, T=1):
