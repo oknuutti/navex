@@ -34,7 +34,7 @@ def main():
     parser.add_argument("--min-scale", type=float, default=0)
     parser.add_argument("--max-scale", type=float, default=1)
     parser.add_argument("--det-lim", type=float, default=0.02)
-    parser.add_argument("--qlt-lim", type=float, default=-10)
+    parser.add_argument("--qlt-lim", type=float, default=0.02)
     parser.add_argument("--border", type=int, help="dont detect features if this close to image border")
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
