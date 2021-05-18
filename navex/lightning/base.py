@@ -35,8 +35,9 @@ class TrialWrapperBase(pl.LightningModule):
 
         self.trial = trial
         if self.trial is not None:
-            self.trial.loss_backward_fn = _fn_none
-            self.trial.step_optimizer_fn = _fn_none
+            if self.automatic_optimization:
+                self.trial.loss_backward_fn = _fn_none
+                self.trial.step_optimizer_fn = _fn_none
             self.trial.hparams.update(extra_hparams or {})
             self.save_hyperparameters(self.trial.hparams)
 

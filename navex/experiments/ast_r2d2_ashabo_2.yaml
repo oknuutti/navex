@@ -70,7 +70,7 @@ loss:
   wap: -2.0       # weight for expected ap loss
   wqt: -1.0
   det_n: !h_tune2_choice  '[24], [16, 24, 32]'     # detector neighbourhood size
-  base: 0.7       # quality loss target mAP
+  base: 0.8       # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     pos_d: !h_tune2_randint  '(3, 4), (1, 6)'   # was 3       # positive samples generated up to this far from ideal location
