@@ -76,17 +76,12 @@ class TerrestrialTrial(TrialBase):
             ok = super(TerrestrialTrial, self).update_param(param, value)
         return ok
 
-    def train_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, epoch_idx: int, batch_idx: int,
-                    component_loss=False):
-        loss, acc = super(TerrestrialTrial, self).train_batch(data, labels, epoch_idx, batch_idx, component_loss)
-
-        if self.loss_fn.loss_type == 'thresholded' and (batch_idx + 1) % self.acc_grad_batches == 0:
-            num_val = torch.logical_not(torch.isnan(acc[:, 3])).sum()
+    def on_train_batch_end(self, losses, accuracies, accumulating_grad: bool):
+        if self.loss_fn.loss_type == 'thresholded' and not accumulating_grad:
+            num_val = torch.logical_not(torch.isnan(accuracies[:, 3])).sum()
             if num_val > 0:
-                map = acc[:, 3].nansum() / num_val
-                self.loss_fn.update_base_ap(map)
-
-        return loss, acc
+                map = accuracies[:, 3].nansum() / num_val
+                self.loss_fn.update_ap_base(map)
 
     def log_values(self):
         log = {}
@@ -99,7 +94,7 @@ class TerrestrialTrial(TrialBase):
         if not isinstance(self.loss_fn.base, float):
             log['ap_base'] = self.loss_fn.base
         if self.loss_fn.loss_type == 'thresholded':
-            log['ap_base'] = torch.Tensor([self.loss_fn.base])
+            log['ap_base'] = self.loss_fn.ap_base
         return log or None
 
     def resource_loss(self, loss):

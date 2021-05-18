@@ -40,9 +40,13 @@ class R2D2Loss(BaseLoss):
     def border(self):
         return self.ap_loss.sampler.border
 
-    def update_base_ap(self, map):
+    @property
+    def ap_base(self):
+        return self.ap_loss.ap_base
+
+    def update_ap_base(self, map):
         assert isinstance(self.ap_loss, ThresholdedAPLoss), "only valid for loss_type='thresholded'"
-        self.ap_loss.update_base_ap(map)
+        self.ap_loss.update_ap_base(map)
 
     def update_conf(self, new_conf):
         ok = True

@@ -26,7 +26,7 @@ class TrialWrapperBase(pl.LightningModule):
     def __init__(self, trial: TrialBase = None, extra_hparams=None, use_gpu=True,
                  hp_metric='val_loss_epoch', hp_metric_mode=-1):
         super(TrialWrapperBase, self).__init__()
-        self.automatic_optimization = False
+        self.automatic_optimization = True
         self.use_gpu = use_gpu
         self.hp_metric = hp_metric
         self.hp_metric_mode = {'max': 1, 'min': -1}[hp_metric_mode] if isinstance(hp_metric_mode, str) else hp_metric_mode
@@ -105,7 +105,13 @@ class TrialWrapperBase(pl.LightningModule):
             loss, acc = self.trial.train_batch(data, labels, epoch_id, batch_idx, component_loss=True)
 
         self._log('trn', loss, acc, self.trial.log_values())
-        return {'loss': loss.sum(dim=1), 'acc': acc}
+        return {'loss': loss.sum(dim=1), 'acc': acc, 'losses': loss.detach()}
+
+    def on_train_batch_end(self, outputs: Any, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+        if getattr(self.trial, 'on_train_batch_end'):
+            acc = torch.cat([o['extra']['acc'] for oo in outputs for o in oo])
+            losses = torch.cat([o['extra']['losses'] for oo in outputs for o in oo])
+            self.trial.on_train_batch_end(losses, acc, self.trainer.train_loop.should_accumulate())
 
     def validation_step(self, batch, batch_idx):
         return self._eval_step(batch, batch_idx, 'val')

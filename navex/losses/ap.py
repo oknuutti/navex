@@ -73,7 +73,6 @@ class WeightedAPLoss(DiscountedAPLoss):
 class ThresholdedAPLoss(DiscountedAPLoss):
     def __init__(self, *args, update_coef=0.01, **kwargs):
         super(ThresholdedAPLoss, self).__init__(*args, **kwargs)
-        self.base = torch.nn.Parameter(torch.Tensor([self.base]), requires_grad=False)
         self.current_map = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
         self.update_coef = update_coef
 
@@ -81,9 +80,13 @@ class ThresholdedAPLoss(DiscountedAPLoss):
         a_loss = 1 - qlt * ap - (1 - qlt) * self.current_map * self.base
         return a_loss, None
 
-    def update_base_ap(self, map):
+    def update_ap_base(self, map):
         # update after every training batch
         self.current_map.set_(self.update_coef * map + (1 - self.update_coef) * self.current_map)
+
+    @property
+    def ap_base(self):
+        return self.current_map * self.base
 
 
 class DifferentiableAP(Module):
