@@ -3,6 +3,7 @@ import argparse
 
 import numpy as np
 import torch
+from pl_bolts.datamodules import AsynchronousLoader
 from torch.functional import F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -52,29 +53,41 @@ def main():
             border = 16
 
     dataset = ExtractionImageDataset(args.images, rgb=rgb)
-    data_loader = model.wrap_ds(dataset)
-
+    data_loader = DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True)
     pbar = tqdm(data_loader)
+
     for i, data in enumerate(pbar):
+        # if not ('v_abstract' in dataset.samples[i] or 'v_gardens' in dataset.samples[i]):
+        #     continue
         data = data.to(device)
 
         # extract keypoints/descriptors for a single image
-        xys, desc, scores = extract_multiscale(model, data,
-                                               scale_f=args.scale_f,
-                                               min_scale=args.min_scale,
-                                               max_scale=args.max_scale,
-                                               min_size=args.min_size,
-                                               max_size=args.max_size,
-                                               top_k=args.top_k,
-                                               feat_d=args.feat_d,
-                                               det_lim=args.det_lim,
-                                               qlt_lim=args.qlt_lim,
-                                               border=border,
-                                               verbose=True)
+        cpu = False
+        for _ in range(2):
+            try:
+                xys, desc, scores = extract_multiscale(model, data,
+                                                       scale_f=args.scale_f,
+                                                       min_scale=args.min_scale,
+                                                       max_scale=args.max_scale,
+                                                       min_size=args.min_size,
+                                                       max_size=args.max_size,
+                                                       top_k=args.top_k,
+                                                       feat_d=args.feat_d,
+                                                       det_lim=args.det_lim,
+                                                       qlt_lim=args.qlt_lim,
+                                                       border=border,
+                                                       verbose=True)
+                break
+            except RuntimeError as e:
+                # raise Exception('Problem with image #%d (%s)' % (i, dataset.samples[i])) from e
+                print('Problem with image #%d (%s): %s' % (i, dataset.samples[i], str(e)))
+                print('trying with CPU...')
+                cpu = True
+                model.cpu()
+                data = data.cpu()
+        if cpu:
+            model.to(device)
 
-        xys = xys.cpu().numpy()
-        desc = desc.cpu().numpy()
-        scores = scores.cpu().numpy().flatten()
         idxs = (-scores).argsort()
         if args.top_k is not None and args.top_k != 0:
             idxs = idxs[:args.top_k]
@@ -133,21 +146,22 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
                                                       qlt_lim=qlt_lim, border=border)
 
             # accumulate multiple scales
-            XY.append(yx[0].t().flip(dims=(1,)).float() / sc)
-            S.append((32 / sc) * torch.ones((len(descr[0, 0, :]), 1), dtype=torch.float32, device=des.device))
-            C.append(conf[0].t())
-            D.append(descr[0].t())
+            XY.append((yx[0].t().flip(dims=(1,)).float() / sc).cpu().numpy())
+            S.append(((32 / sc) * torch.ones((len(descr[0, 0, :]), 1), dtype=torch.float32, device=des.device)).cpu().numpy())
+            C.append(conf[0].t().cpu().numpy())
+            D.append(descr[0].t().cpu().numpy())
         sc /= scale_f
 
     # restore value
     torch.backends.cudnn.benchmark = old_bm
 
-    XY = torch.cat(XY)
-    S = torch.cat(S)  # scale
-    XYS = torch.cat([XY, S], dim=1)
+    XY = np.concatenate(XY)
+    S = np.concatenate(S)  # scale
+    XYS = np.concatenate([XY, S], axis=1)
 
-    D = torch.cat(D)
-    C = torch.cat(C)  # confidence
+    D = np.concatenate(D)
+    C = np.concatenate(C).flatten()  # confidence
+
     return XYS, D, C
 
 

@@ -1,7 +1,7 @@
 search:
   method: 'asha-bo'
   resume: ''
-  metric: 'val_tot_epoch'
+  metric: 'val_tot_epoch*val_map_epoch*0.01'
   mode: 'max'
   samples: 1
   nodes: 1
@@ -51,14 +51,14 @@ model:
     use_se:      0
     dropout:     0.0
   det_head:
-    after_des:   1
+    after_des:   0
     hidden_ch:   0
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
   qlt_head:
     skip:        0
-    after_des:   1
+    after_des:   0
     hidden_ch:   0
     exp_coef:    0.0
     use_se:      0
@@ -69,14 +69,14 @@ loss:
   wdt: !h_float -1.5      # weight for peakiness and cosim losses
   wap: !h_float -2.0      # weight for expected ap loss
   wqt: !h_float -1.0      # weight for expected ap loss
-  det_n: !h_int  32       # detector neighbourhood size
-  base: !h_float 0.1     # quality loss target mAP
+  det_n: !h_int  24       # detector neighbourhood size
+  base: !h_float 0.7      # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     subq: -8      # was -8      # grid step size for positive samples
     subd: 1       # was 1       # neigbourhood sampling interval
-    pos_d: 3      # was 3       # positive samples generated up to this far from ideal location
-    neg_d: 5      # was 5       # negative samples generated starting from distance from ideal location
+    pos_d: 1      # was 3       # positive samples generated up to this far from ideal location
+    neg_d: 16     # was 5       # negative samples generated starting from distance from ideal location
     ngh: 2        # was 7       # neighbourhood size in descriptor cells
     border: 16    # was 16
     subd_neg: -8  # was -8      # grid step size for generating additional negative samples
@@ -85,8 +85,8 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 3e-4
-  weight_decay: !h_float 5e-4
+  learning_rate: !h_float 1e-3
+  weight_decay: !h_float 1e-6
   split_params: 0
   eps: !h_float 1e-8
 

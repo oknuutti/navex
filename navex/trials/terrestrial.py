@@ -1,8 +1,10 @@
 import json
 import math
 import os
+from typing import Tuple
 
 import torch
+from torch import Tensor
 
 from ..datasets.terrestrial.aachen import AachenFlowPairDataset, AachenSynthPairDataset, AachenStyleTransferPairDataset
 from ..datasets.base import AugmentedConcatDataset, ShuffledDataset, split_tiered_data
@@ -74,10 +76,17 @@ class TerrestrialTrial(TrialBase):
             ok = super(TerrestrialTrial, self).update_param(param, value)
         return ok
 
-    def training_epoch_end(self, loss, tot, inl, dst, map):
-        # called after each training epoch
-        if self.loss_fn.loss_type == 'thresholded':
-            self.loss_fn.update_conf({'base': 0.7 * map})
+    def train_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, epoch_idx: int, batch_idx: int,
+                    component_loss=False):
+        loss, acc = super(TerrestrialTrial, self).train_batch(data, labels, epoch_idx, batch_idx, component_loss)
+
+        if self.loss_fn.loss_type == 'thresholded' and (batch_idx + 1) % self.acc_grad_batches == 0:
+            num_val = torch.logical_not(torch.isnan(acc[:, 3])).sum()
+            if num_val > 0:
+                map = acc[:, 3].nansum() / num_val
+                self.loss_fn.update_base_ap(map)
+
+        return loss, acc
 
     def log_values(self):
         log = {}

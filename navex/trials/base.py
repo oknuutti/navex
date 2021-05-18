@@ -146,7 +146,10 @@ class TrialBase(abc.ABC, torch.nn.Module):
         if (batch_idx+1) % self.acc_grad_batches == 0:
             self.step_optimizer_fn(self.optimizer)
 
-        return loss, (output1, output2)
+        with torch.no_grad():
+            acc = self.accuracy(output1, output2, labels)
+
+        return loss, acc
 
     def evaluate_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, component_loss=False):
         self.model.eval()
@@ -237,7 +240,10 @@ class StudentTrialMixin:
         if (batch_idx+1) % self.acc_grad_batches == 0:
             self.step_optimizer_fn(self.optimizer)
 
-        return loss, (output, labels)
+        with torch.no_grad():
+            acc = self.accuracy(output, labels)
+
+        return loss, acc
 
     def evaluate_batch(self, data: Tuple[Tensor, Tensor], component_loss: bool = False):
         clean_data, noisy_data = data

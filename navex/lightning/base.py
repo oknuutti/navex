@@ -1,4 +1,6 @@
+import operator
 import threading
+from functools import reduce
 from typing import Union, Dict, Any, Optional
 from argparse import Namespace
 
@@ -24,6 +26,7 @@ class TrialWrapperBase(pl.LightningModule):
     def __init__(self, trial: TrialBase = None, extra_hparams=None, use_gpu=True,
                  hp_metric='val_loss_epoch', hp_metric_mode=-1):
         super(TrialWrapperBase, self).__init__()
+        self.automatic_optimization = False
         self.use_gpu = use_gpu
         self.hp_metric = hp_metric
         self.hp_metric_mode = {'max': 1, 'min': -1}[hp_metric_mode] if isinstance(hp_metric_mode, str) else hp_metric_mode
@@ -95,16 +98,12 @@ class TrialWrapperBase(pl.LightningModule):
         epoch_id = self.trainer.current_epoch
 
         if isinstance(self.trial, StudentTrialMixin):
-            loss, output = self.trial.train_batch(batch, epoch_id, batch_idx, component_loss=True)
-            output, labels = (output[0],), output[1]
+            loss, acc = self.trial.train_batch(batch, epoch_id, batch_idx, component_loss=True)
         else:
             data, labels = batch
-            loss, output = self.trial.train_batch(data, labels, epoch_id, batch_idx, component_loss=True)
+            loss, acc = self.trial.train_batch(data, labels, epoch_id, batch_idx, component_loss=True)
 
-        with torch.no_grad():
-            acc = self.trial.accuracy(*output, labels)
-            self._log('trn', loss, acc, self.trial.log_values())
-
+        self._log('trn', loss, acc, self.trial.log_values())
         return {'loss': loss.sum(dim=1), 'acc': acc}
 
     def validation_step(self, batch, batch_idx):
@@ -178,10 +177,17 @@ class TrialWrapperBase(pl.LightningModule):
         tqdm_dict.pop('v_num', None)
         return tqdm_dict
 
-    def training_epoch_end(self, outputs):
-        loss = self.nanmean(torch.stack([o['loss'] for o in outputs]).flatten())
-        tot, inl, dst, map = self.nanmean(torch.cat([o['acc'] for o in outputs], dim=0))
-        self.trial.training_epoch_end(loss, tot, inl, dst, map)
+    def _calc_hp_metric(self, metrics: Dict[str, torch.Tensor]) -> torch.Tensor:
+        hpmval = 1
+        for key in [m.strip() for m in self.hp_metric.split('*')]:
+            try:
+                hpmval *= float(key)
+            except:
+                if key in metrics:
+                    hpmval *= metrics[key]
+                else:
+                    return None
+        return (hpmval * self.hp_metric_mode) if isinstance(hpmval, torch.Tensor) else None
 
     def validation_epoch_end(self, outputs):
         metrics, _ = self._gather_metrics(torch.cat([o['loss'] for o in outputs], dim=0),
@@ -189,8 +195,8 @@ class TrialWrapperBase(pl.LightningModule):
         device = _[0].device
         metrics['global_step'] = Tensor([self.trainer.global_step + 1]).to(device)
 
-        if self.hp_metric in metrics:
-            hpmval = metrics[self.hp_metric] * self.hp_metric_mode
+        hpmval = self._calc_hp_metric(metrics)
+        if hpmval is not None:
             self.hp_metric_max = hpmval.item() if self.hp_metric_max is None else max(self.hp_metric_max, hpmval.item())
             metrics.update({'hp_metric': hpmval, 'hp_metric_max': Tensor([self.hp_metric_max]).to(device)})
 

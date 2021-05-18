@@ -71,14 +71,19 @@ class WeightedAPLoss(DiscountedAPLoss):
 
 
 class ThresholdedAPLoss(DiscountedAPLoss):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, update_coef=0.01, **kwargs):
         super(ThresholdedAPLoss, self).__init__(*args, **kwargs)
         self.base = torch.nn.Parameter(torch.Tensor([self.base]), requires_grad=False)
+        self.current_map = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
+        self.update_coef = update_coef
 
     def losses(self, ap, qlt):
-        # TODO: try with -torch.log(qlt * ap + (1 - qlt) * self.base)
-        a_loss = 1 - qlt * ap - (1 - qlt) * self.base
+        a_loss = 1 - qlt * ap - (1 - qlt) * self.current_map * self.base
         return a_loss, None
+
+    def update_base_ap(self, map):
+        # update after every training batch
+        self.current_map.set_(self.update_coef * map + (1 - self.update_coef) * self.current_map)
 
 
 class DifferentiableAP(Module):
@@ -110,26 +115,26 @@ class DifferentiableAP(Module):
 
 
 # TODO: remove when no need to load models that refer to it
-class AveragePrecisionLoss(Module):
-    """
-    DEPRECATED.
-    """
-    def __init__(self, base=0.5, nq=20, sampler_conf=None):
-        super(AveragePrecisionLoss, self).__init__()
-        sampler_conf = sampler_conf or {'ngh': 7, 'subq': -8, 'subd': 1, 'pos_d': 3, 'neg_d': 5, 'border': 16,
-                                        'subd_neg': -8, 'maxpool_pos': True}
-
-        from r2d2.nets.reliability_loss import ReliabilityLoss
-        from r2d2.nets.sampler import NghSampler2
-
-        self.super = ReliabilityLoss(sampler=NghSampler2(**sampler_conf), base=base, nq=nq)
-
-    def forward(self, output1, output2, aflow):
-        des1, det1, qlt1 = output1
-        des2, det2, qlt2 = output2
-
-        assert des1.shape == des2.shape, 'different shape descriptor tensors'
-        assert qlt1.shape == qlt2.shape, 'different shape quality tensors'
-        assert des1.shape[2:] == qlt2.shape[2:], 'different shape descriptor and quality tensors'
-        assert des1.shape[2:] == aflow.shape[2:], 'different shape absolute flow tensor'
-        return self.super((des1, des2), aflow, reliability=(qlt1, qlt2))
+# class AveragePrecisionLoss(Module):
+#     """
+#     DEPRECATED.
+#     """
+#     def __init__(self, base=0.5, nq=20, sampler_conf=None):
+#         super(AveragePrecisionLoss, self).__init__()
+#         sampler_conf = sampler_conf or {'ngh': 7, 'subq': -8, 'subd': 1, 'pos_d': 3, 'neg_d': 5, 'border': 16,
+#                                         'subd_neg': -8, 'maxpool_pos': True}
+#
+#         from r2d2.nets.reliability_loss import ReliabilityLoss
+#         from r2d2.nets.sampler import NghSampler2
+#
+#         self.super = ReliabilityLoss(sampler=NghSampler2(**sampler_conf), base=base, nq=nq)
+#
+#     def forward(self, output1, output2, aflow):
+#         des1, det1, qlt1 = output1
+#         des2, det2, qlt2 = output2
+#
+#         assert des1.shape == des2.shape, 'different shape descriptor tensors'
+#         assert qlt1.shape == qlt2.shape, 'different shape quality tensors'
+#         assert des1.shape[2:] == qlt2.shape[2:], 'different shape descriptor and quality tensors'
+#         assert des1.shape[2:] == aflow.shape[2:], 'different shape absolute flow tensor'
+#         return self.super((des1, des2), aflow, reliability=(qlt1, qlt2))

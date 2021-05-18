@@ -83,16 +83,16 @@ class R2D2(BasePoint):
         # input is a pair of images
         features = self.backbone(input)
 
-        des = features if self.des_head is None else self.des_head(features)
+        des = features if getattr(self, 'des_head', None) is None else self.des_head(features)
         des2 = None
 
-        if self.conf['det_head']['after_des']:
+        if 'det_head' not in self.conf or self.conf['det_head']['after_des']:
             des2 = des.pow(2) if des2 is None else des2
             det = self.det_head(des2)
         else:
             det = self.det_head(features)
 
-        if self.conf['qlt_head']['after_des']:
+        if 'qlt_head' not in self.conf or self.conf['qlt_head']['after_des']:
             des2 = features.pow(2) if des2 is None else des2
             qlt = self.qlt_head(des2)
         else:
