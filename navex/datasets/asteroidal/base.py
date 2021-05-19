@@ -64,7 +64,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
             'aflow dimensions do not match with img1 dimensions: %s vs %s' % (np.flip(aflow.shape[:2]), imgs[0].size)
 
         if self.skip_preproc:
-            if 1:
+            if 0:
                 (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]
                 show_pair(*imgs, aflow, pts=30, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
             return imgs, aflow

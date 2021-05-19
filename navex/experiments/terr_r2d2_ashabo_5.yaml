@@ -1,7 +1,7 @@
 search:
   method: 'asha-bo'
   resume: ''
-  metric: 'val_tot_epoch*val_map_epoch*0.01'
+  metric: 'val_tot_epoch'
   mode: 'max'
   samples: 243
   nodes: 6
@@ -70,7 +70,7 @@ loss:
   wap: -2.0       # weight for expected ap loss
   wqt: -1.0
   det_n: !h_tune2_choice  '[24], [16, 24, 32]'     # detector neighbourhood size
-  base: !h_tune2_uniform  '(0.65, 0.75), (0.5, 1.0)'       # quality loss target mAP
+  base: !h_tune2_uniform  '(0.75, 0.85), (0.5, 0.99)'       # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
   sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
     pos_d: !h_tune2_randint  '(3, 4), (1, 6)'   # was 3       # positive samples generated up to this far from ideal location
