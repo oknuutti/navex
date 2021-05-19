@@ -19,23 +19,26 @@ class R2D2(BasePoint):
             'det_head': det_head,
             'qlt_head': qlt_head,
         }
+        separate_des_head = not det_head['after_des'] or (not qlt_head['after_des'] and not qlt_head['skip'])
 
         assert width_mult * 128 == des_head['dimensions'], 'descriptor dimensions dont correspond with backbone width'
         self.backbone, bb_out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
-                                                        width_mult=width_mult, in_channels=in_channels)
+                                                        width_mult=width_mult, in_channels=in_channels,
+                                                        separate_des_head=separate_des_head)
 
-        if det_head['after_des'] or qlt_head['after_des']:
+        if separate_des_head:
+            self.des_head = self.create_descriptor_head(bb_out_ch, des_head['dimensions'])
+        else:
             assert bb_out_ch == des_head['dimensions'], 'channel depths dont match'
             self.des_head = None
-        else:
-            self.des_head = self.create_descriptor_head(bb_out_ch, des_head['dimensions'])
 
         # det_head single=True in r2d2 github code, in article was single=False though
         out_ch = des_head['dimensions'] if det_head['after_des'] else bb_out_ch
         self.det_head = self.create_detector_head(out_ch, single=True)
 
         out_ch = des_head['dimensions'] if qlt_head['after_des'] else bb_out_ch
-        self.qlt_head = self.create_quality_head(out_ch, single=qlt_head.get('single', True))
+        self.qlt_head = None if qlt_head['skip'] else \
+                        self.create_quality_head(out_ch, single=qlt_head.get('single', True))
 
         if pretrained:
             raise NotImplemented()
@@ -43,7 +46,8 @@ class R2D2(BasePoint):
             # Initialization
             initialize_weights([self.backbone, self.det_head, self.qlt_head])
 
-    def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1, **kwargs):
+    def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1,
+                        separate_des_head=False, **kwargs):
         def add_layer(l, in_ch, out_ch, k=3, p=1, d=1, bn=True, relu=True):
             out_ch = int(out_ch)
             l.append(nn.Conv2d(in_ch, out_ch, kernel_size=k, padding=p, dilation=d))
@@ -63,7 +67,7 @@ class R2D2(BasePoint):
         in_ch = add_layer(layers, in_ch, 32 * wm, p=4, d=4)
         in_ch = add_layer(layers, in_ch, 32 * wm, p=2, d=4, k=2, relu=False)
         in_ch = add_layer(layers, in_ch, 32 * wm, p=4, d=8, k=2, relu=False)
-        in_ch = add_layer(layers, in_ch, 32 * wm, p=8, d=16, k=2, relu=False, bn=False)
+        in_ch = add_layer(layers, in_ch, 32 * wm, p=8, d=16, k=2, relu=False, bn=separate_des_head)
 
         return nn.Sequential(*layers), in_ch
 
@@ -92,8 +96,10 @@ class R2D2(BasePoint):
         else:
             det = self.det_head(features)
 
-        if 'qlt_head' not in self.conf or self.conf['qlt_head']['after_des']:
-            des2 = features.pow(2) if des2 is None else des2
+        if self.qlt_head is None:
+            qlt = None
+        elif 'qlt_head' not in self.conf or self.conf['qlt_head']['after_des']:
+            des2 = des.pow(2) if des2 is None else des2
             qlt = self.qlt_head(des2)
         else:
             qlt = self.qlt_head(features)
@@ -113,5 +119,9 @@ class R2D2(BasePoint):
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
         det = self.activation(detection)
-        qlt = self.activation(quality)  # could use `T=1 if self.training else 10`, however, had worse performance
+
+        # could use eval_T=100, however, had worse performance, useful possibly for analyzing quality output
+        eval_T = 1
+        qlt = det if quality is None else self.activation(quality, T=1 if self.training else eval_T)
+
         return des, det, qlt

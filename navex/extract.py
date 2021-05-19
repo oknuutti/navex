@@ -3,14 +3,12 @@ import argparse
 
 import numpy as np
 import torch
-from pl_bolts.datamodules import AsynchronousLoader
 from torch.functional import F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from navex.models.tools import is_rgb_model, load_model
 from navex.datasets.base import ExtractionImageDataset
-from navex.lightning.base import TrialWrapperBase
 from navex.models import tools
 
 
@@ -25,6 +23,7 @@ def main():
     parser = argparse.ArgumentParser("extract features from images")
     parser.add_argument("--model", type=str, required=True, help='model path')
     parser.add_argument("--images", type=str, required=True, help='images / list')
+    parser.add_argument("--recurse", type=int, default=1, help='find images in subfolders too')
     parser.add_argument("--tag", type=str, required=True, help='output file tag')
     parser.add_argument("--top-k", type=int, default=None, help='limit on total number of keypoints')
     parser.add_argument("--feat-d", type=float, default=0.001, help='number of keypoints per pixel')
@@ -33,8 +32,8 @@ def main():
     parser.add_argument("--max-size", type=int, default=1024)
     parser.add_argument("--min-scale", type=float, default=0)
     parser.add_argument("--max-scale", type=float, default=1)
-    parser.add_argument("--det-lim", type=float, default=0.02)
-    parser.add_argument("--qlt-lim", type=float, default=0.02)
+    parser.add_argument("--det-lim", type=float, default=0.7)
+    parser.add_argument("--qlt-lim", type=float, default=0.7)
     parser.add_argument("--border", type=int, help="dont detect features if this close to image border")
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
@@ -52,7 +51,7 @@ def main():
         except:
             border = 16
 
-    dataset = ExtractionImageDataset(args.images, rgb=rgb)
+    dataset = ExtractionImageDataset(args.images, rgb=rgb, recurse=args.recurse)
     data_loader = DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True)
     pbar = tqdm(data_loader)
 
@@ -133,16 +132,14 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             with torch.no_grad():
                 des, det, qlt = model(img)
 
-            if 0:
-                import matplotlib.pyplot as plt
-                from .visualize import plot_tensor
-                fig, axs = plt.subplots(2, 1, figsize=(6, 6))
-                plot_tensor(img, image=True, ax=axs[0])
-                plot_tensor(qlt, ax=axs[1])
-                plt.show()
+            try:
+                skipped_qlt = model.trial.model.conf['qlt_head']['skip']
+            except:
+                skipped_qlt = False
 
             _, _, H1, W1 = det.shape
-            yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
+            yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, feat_d=feat_d,
+                                                      det_lim=det_lim * (0.5 if skipped_qlt else 1),
                                                       qlt_lim=qlt_lim, border=border)
 
             # accumulate multiple scales
@@ -150,6 +147,20 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             S.append(((32 / sc) * torch.ones((len(descr[0, 0, :]), 1), dtype=torch.float32, device=des.device)).cpu().numpy())
             C.append(conf[0].t().cpu().numpy())
             D.append(descr[0].t().cpu().numpy())
+
+            if 1:
+                import matplotlib.pyplot as plt
+                from .visualize import plot_tensor
+                fig, axs = plt.subplots(1, 3, figsize=(12, 6), sharex=True, sharey=True)
+                plot_tensor(img, image=True, ax=axs[0])
+                plot_tensor(det, ax=axs[1])
+                plot_tensor(qlt, ax=axs[2])
+                xy = XY[-1] * sc
+                for i in range(3):
+                    axs[i].plot(xy[:, 0], xy[:, 1], 'o', mfc='none')
+                plt.tight_layout()
+                plt.show()
+
         sc /= scale_f
 
     # restore value

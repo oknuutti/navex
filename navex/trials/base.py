@@ -175,7 +175,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
         return self.loss_fn(output1, output2, labels, component_loss=component_loss)
 
     def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor, top_k=None, feat_d=0.001, border=16,
-                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.02, qlt_lim=-10):
+                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.5, qlt_lim=0.5):
 
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
@@ -269,10 +269,14 @@ class StudentTrialMixin:
         return self.loss_fn(output, labels, component_loss=component_loss)
 
     def accuracy(self, output: Tensor, labels: Tensor, top_k=None, feat_d=0.001, border=16,
-                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.02, qlt_lim=-10):
+                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.5, qlt_lim=0.5):
         des1, det1, qlt1 = output
         des2, det2, qlt2 = labels
         B, _, H2, W2 = det2.shape
+
+        skipped_qlt = self.model.conf.get('qlt_head', {'skip': False}).get('skip', False)
+        if skipped_qlt:
+            det_lim *= 0.5
 
         yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
                                                      qlt_lim=qlt_lim, border=border)

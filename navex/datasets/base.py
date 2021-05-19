@@ -441,7 +441,7 @@ def split_tiered_data(primary, secondary, r_trn, r_val, r_tst):
 
 
 class ExtractionImageDataset(torch.utils.data.Dataset):
-    def __init__(self, path, eval=True, rgb=False):
+    def __init__(self, path, recurse=True, eval=True, rgb=False):
         if eval:
             self.transforms = tr.Compose([
                 MatchChannels(rgb),
@@ -455,7 +455,7 @@ class ExtractionImageDataset(torch.utils.data.Dataset):
         # load samples
         exts = ('.jpg', '.png', '.bmp', '.jpeg', '.ppm')
         if os.path.isdir(path):
-            self.samples = find_files_recurse(path, ext=exts)
+            self.samples = find_files_recurse(path, ext=exts, depth=100 if recurse else 0)
             self.samples = sorted(self.samples, key=lambda x: tuple(map(int, re.findall(r'\d+', x))))
         elif path[-4:] in exts or path[-5:] == '.jpeg':
             self.samples = [path]

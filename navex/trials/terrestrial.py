@@ -80,7 +80,7 @@ class TerrestrialTrial(TrialBase):
         if self.loss_fn.loss_type == 'thresholded' and not accumulating_grad:
             num_val = torch.logical_not(torch.isnan(accuracies[:, 3])).sum()
             if num_val > 0:
-                map = accuracies[:, 3].nansum() / num_val
+                map = 1.0  # accuracies[:, 3].nansum() / num_val
                 self.loss_fn.update_ap_base(map)
 
     def log_values(self):

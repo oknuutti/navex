@@ -126,7 +126,7 @@ class TrialWrapperBase(pl.LightningModule):
             data, labels = batch
             loss, acc, output = self.trial.evaluate_batch(data, labels, component_loss=True)
         self._log(log_prefix, loss, acc, self.trial.log_values())
-        return {'loss': loss.sum(dim=1), 'acc': acc}
+        return {'loss': loss.sum(dim=1), 'acc': acc, 'losses': loss.detach()}
 
     def _gather_metrics(self, losses, acc, lp=None, extra=None):
         postfix = '_epoch' if lp == 'val' else ''
@@ -197,7 +197,7 @@ class TrialWrapperBase(pl.LightningModule):
         return (hpmval * self.hp_metric_mode) if isinstance(hpmval, torch.Tensor) else None
 
     def validation_epoch_end(self, outputs):
-        metrics, _ = self._gather_metrics(torch.cat([o['loss'] for o in outputs], dim=0),
+        metrics, _ = self._gather_metrics(torch.cat([o['losses'] for o in outputs], dim=0),
                                           torch.cat([o['acc'] for o in outputs], dim=0), lp='val')
         device = _[0].device
         metrics['global_step'] = Tensor([self.trainer.global_step + 1]).to(device)
