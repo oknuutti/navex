@@ -22,7 +22,7 @@ class AsteroidImagePairDataset(ImagePairDataset):
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
         # NOTE: impossible to cache aflow rotated images as rotations depend on each pair
-        self.skip_preproc = not self.aflow_rot_norm and os.path.exists(os.path.join(self.root, 'preprocessed.flag'))
+        self.skip_preproc = not aflow_rot_norm and os.path.exists(os.path.join(self.root, 'preprocessed.flag'))
         self.aflow_rot_norm = aflow_rot_norm and not self.skip_preproc
         self.extra_crop = [0, 0, 0, 0] if extra_crop is None else extra_crop   # left, right, top, bottom
         self.preproc_path = preproc_path
