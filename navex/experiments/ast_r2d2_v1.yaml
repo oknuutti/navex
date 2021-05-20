@@ -51,14 +51,14 @@ model:
     use_se:      0
     dropout:     0.0
   det_head:
-    after_des:   0
+    after_des:   !h_int 0
     hidden_ch:   0
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
   qlt_head:
-    skip:        0
-    after_des:   0
+    skip:        !h_int 0
+    after_des:   !h_int 0
     hidden_ch:   0
     exp_coef:    0.0
     use_se:      0
@@ -100,7 +100,7 @@ data:
   image_size: !h_int 224
   path: 'data'
   npy: 'false'
-  trn_ratio: 0.90
-  val_ratio: 0.10
+  trn_ratio: 0.85
+  val_ratio: 0.15
   tst_ratio: 0.00   # different test set altogether (itokawa)
   workers: 6

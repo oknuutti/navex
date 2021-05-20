@@ -100,7 +100,7 @@ data:
   image_size: 224
   path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
-  trn_ratio: 0.85
-  val_ratio: 0.10
+  trn_ratio: 0.75
+  val_ratio: 0.20
   tst_ratio: 0.05
   workers: 8

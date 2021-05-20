@@ -72,6 +72,7 @@ def main():
 
     callbacks = [MyModelCheckpoint(monitor='hp_metric',
                                    mode='max',
+                                   save_last=True,
                                    verbose=True,
                                    period=args.save_freq,
                                    dirpath=os.path.join(args.output, 'version_%d' % logger.version),
