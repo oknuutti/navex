@@ -103,7 +103,7 @@ def match(des1, des2, norm=2, mutual=True, ratio=False):
     return idx1, min1, mask, dist
 
 
-def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_limit):
+def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_limit, active_area=1):
     B, K1, K2 = dist.shape
     W2, H2 = img2_w_h
 
@@ -120,30 +120,34 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
     mask *= gt_mask
     num_matches = mask.sum(dim=1)
 
-    acc = torch.zeros((B, 4), device=yx1.device)
+    acc = torch.zeros((B, 5), device=yx1.device)
     for b in range(B):
         if num_matches[b] == 0:
             acc[b, 0] = 0
-            acc[b, 1] = float('nan')
+            acc[b, 1] = 0
             acc[b, 2] = float('nan')
             acc[b, 3] = float('nan')
+            acc[b, 4] = float('nan')
             continue
 
         # error distance in pixels
         err_dist_b = torch.norm((gt_yx2[b, :, mask[b, :]] - yx2[b, :, matches[b, mask[b, :]]]).float(), dim=0)
 
         # correct matches
-        success_b = err_dist_b < success_px_limit
+        success_b = err_dist_b <= success_px_limit
         num_successes = success_b.sum()
 
+        # features detected per 100x100 px area
+        acc[b, 0] = 1e4 * ((0 <= yx1[b, 0, :]).sum() + (0 <= yx2[b, 0, :]).sum()) / active_area / 2
+
         # success ratio (nan if no ground truth)
-        acc[b, 0] = num_successes / num_true_matches[b]
+        acc[b, 1] = num_successes / num_true_matches[b]
 
         # inlier ratio (nan if no valid matches)
-        acc[b, 1] = num_successes / num_matches[b]
+        acc[b, 2] = num_successes / num_matches[b]
 
         # average distance error of successful matches (nan if no inliers)
-        acc[b, 2] = err_dist_b[success_b].mean()
+        acc[b, 3] = err_dist_b[success_b].mean()
 
         # calculate average precision
         x = 1 - 0.5 * dist[b, mask[b, :], :]
@@ -157,7 +161,7 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
         ap_loss.to(x.device)
         t = ap_loss(x, labels)  # AP for each feature from img0
         num_ap = torch.logical_not(torch.isnan(t)).sum()
-        acc[b, 3] = t.nansum() / num_ap  # mAP
+        acc[b, 4] = t.nansum() / num_ap  # mAP
 
     return acc
 

@@ -179,6 +179,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
 
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
+        _, _, H1, W1 = det1.shape
         _, _, H2, W2 = det2.shape
 
         yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
@@ -189,7 +190,9 @@ class TrialBase(abc.ABC, torch.nn.Module):
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
         matches, norm, mask, dist = tools.match(descr1, descr2, mutual=mutual, ratio=ratio)
 
-        return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), success_px_limit)
+        return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), success_px_limit,
+                                   active_area=((H1 - border*2) * (W1 - border*2)
+                                                + (H2 - border*2) * (W2 - border*2)) / 2)
 
     def log_values(self):
         """
@@ -272,7 +275,8 @@ class StudentTrialMixin:
                  mutual=True, ratio=False, success_px_limit=5, det_lim=0.5, qlt_lim=0.5):
         des1, det1, qlt1 = output
         des2, det2, qlt2 = labels
-        B, _, H2, W2 = det2.shape
+        B, _, H1, W1 = det1.shape
+        _, _, H2, W2 = det2.shape
 
         skipped_qlt = self.model.conf.get('qlt_head', {'skip': False}).get('skip', False)
         if skipped_qlt:
@@ -287,4 +291,6 @@ class StudentTrialMixin:
         matches, norm, mask, dist = tools.match(descr1, descr2, mutual=mutual, ratio=ratio)
 
         aflow = tr.ToTensor()(unit_aflow(W2, H2)).expand((B, 2, W2, H2))
-        return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), success_px_limit)
+        return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), success_px_limit,
+                                   active_area=((H1 - border*2) * (W1 - border*2)
+                                                + (H2 - border*2) * (W2 - border*2)) / 2)

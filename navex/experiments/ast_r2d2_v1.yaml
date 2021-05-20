@@ -1,7 +1,7 @@
 search:
   method: 'asha-bo'
   resume: ''
-  metric: 'val_tot_epoch*val_map_epoch*0.01'
+  metric: 'val_tot_epoch'
   mode: 'max'
   samples: 1
   nodes: 1

@@ -1,3 +1,4 @@
+import math
 import operator
 import threading
 from functools import reduce
@@ -131,12 +132,13 @@ class TrialWrapperBase(pl.LightningModule):
     def _gather_metrics(self, losses, acc, lp=None, extra=None):
         postfix = '_epoch' if lp == 'val' else ''
         lp = (lp + '_') if lp else ''
-        tot, inl, dst, map = self.nanmean(acc)
+        dty, tot, inl, dst, map = self.nanmean(acc)
         losses = torch.atleast_2d(self.nanmean(losses, dim=0))
         loss = losses.sum(dim=1)
 
         log_values = {
             lp + 'loss' + postfix: loss,
+            lp + 'dty' + postfix: dty,
             lp + 'tot' + postfix: tot * 100,
             lp + 'inl' + postfix: inl * 100,
             lp + 'dst' + postfix: dst,
@@ -163,20 +165,20 @@ class TrialWrapperBase(pl.LightningModule):
         if extra is not None:
             log_values.update({lp + p + postfix: v for p, v in extra.items()})
 
-        return log_values, (loss, tot, inl, dst, map)
+        return log_values, (loss, dty, tot, inl, dst, map)
 
     def _log(self, lp, losses, acc, trial_params=None):
-        log_values, (loss, tot, inl, dst, map) = self._gather_metrics(losses, acc, lp=lp, extra=trial_params)
+        log_values, (loss, dty, tot, inl, dst, map) = self._gather_metrics(losses, acc, lp=lp, extra=trial_params)
 
         # logger only, validation epoch end logging handled at self.validation_epoch_end(...)
         self.log_dict(log_values, on_step=None, on_epoch=(lp != 'val'), reduce_fx=self.nanmean)
 
         # progress bar only
         self.log_dict({
+            'dty': dty,
             'tot': tot * 100,
-            'inl': inl * 100,
-            'dst': dst,
             'map': map * 100,
+            'dst': dst,
         }, prog_bar=True, logger=False, on_step=True, on_epoch=False, reduce_fx=self.nanmean)
 
     def get_progress_bar_dict(self):
@@ -186,15 +188,20 @@ class TrialWrapperBase(pl.LightningModule):
 
     def _calc_hp_metric(self, metrics: Dict[str, torch.Tensor]) -> torch.Tensor:
         hpmval = 1
-        for key in [m.strip() for m in self.hp_metric.split('*')]:
+        keys = [m.strip() for m in self.hp_metric.split('*')]
+        for key in keys:
             try:
                 hpmval *= float(key)
-            except:
+            except ValueError:
                 if key in metrics:
-                    hpmval *= metrics[key]
+                    if not math.isnan(metrics[key]):
+                        hpmval *= metrics[key]
+                    elif 0:
+                        raise Exception("Metric '%s' is nan in %s" % (key, metrics))
                 else:
-                    return None
-        return (hpmval * self.hp_metric_mode) if isinstance(hpmval, torch.Tensor) else None
+                    raise Exception("Can't find metric '%s' in %s" % (key, metrics))
+        assert isinstance(hpmval, torch.Tensor), 'No valid metric (looked for %s) found in %s' % (keys, metrics)
+        return hpmval * self.hp_metric_mode
 
     def validation_epoch_end(self, outputs):
         metrics, _ = self._gather_metrics(torch.cat([o['losses'] for o in outputs], dim=0),
