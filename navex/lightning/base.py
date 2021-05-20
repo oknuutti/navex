@@ -243,7 +243,7 @@ class MyModelCheckpoint(ModelCheckpoint):
 
 
 class MyTrainLoop(TrainLoop):
-    def should_check_val_fx(self, batch_idx, is_last_batch):
+    def should_check_val_fx(self, batch_idx, is_last_batch, on_epoch=True):
         # decide if we should run validation
         return self.trainer.enable_validation and not self.should_accumulate() \
                and (self.trainer.global_step + 1) % self.trainer.val_check_batch == 0
