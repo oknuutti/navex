@@ -32,7 +32,7 @@ def detect_from_dense(des, det, qlt, max_kern=2, top_k=None, feat_d=0.001, det_l
     maxima *= (qlt >= qlt_lim)
 
     # remove detections at the border
-    maxima[:, 0, border, :] = False
+    maxima[:, 0, :border, :] = False
     maxima[:, 0, -border:, :] = False
     maxima[:, 0, :, :border] = False
     maxima[:, 0, :, -border:] = False

@@ -127,7 +127,7 @@ class TerrestrialTrial(TrialBase):
             if 1:
                 dss.append(WebImageSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
             if 1:
-                dsp.append(AachenStyleTransferPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
+                dss.append(AachenStyleTransferPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
             if 1:
                 dss.append(AachenSynthPairDataset(self.data_conf['path'], **common, **sconf, **dconf))
 
