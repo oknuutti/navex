@@ -9,7 +9,7 @@ search:
 
   # doesnt really work to have different cpu counts as tune.run(..., resources_per_trial={"cpu":...}) needs to be set
   node_type_cpus: '8'
-  grace_period: 1500
+  grace_period: 301
   reduction_factor: 3
   username: ''
   keyfile: ''
@@ -25,9 +25,9 @@ training:
   batch_size: !h_int 32
   batch_mem: 32000
   gpu: 1
-  epochs: 24001
+  epochs: 6021
   print_freq: 5
-  test_freq: 1500
+  test_freq: 301
   save_freq: 1
   resume: null
   evaluate: 0
