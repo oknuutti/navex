@@ -38,10 +38,10 @@ training:
   deterministic: 1
 
 model:
-  arch:             !h_tune2_choice  '["mob-mn3_L"], ["mob-mn2_L", "mob-mn3_L", "mob-en_0"]'
+  arch:             !h_tune2_choice  '["mob-mn2_M"], ["mob-mn2_M", "mob-mn3_L", "mob-en_0"]'
   in_channels:      1
   partial_residual: 0
-  width_mult:       !h_tune2_choice  '[1.0], [0.75, 1.0, 1.25, 1.5]'
+  width_mult:       1.0
   pretrained: 0         # not in use
   cache_dir: 'cache'    # not in use
   des_head:
@@ -51,29 +51,29 @@ model:
     use_se:      !h_tune2_choice     '[0], [0, 1]'
     dropout:     0.0
   det_head:
-    after_des:   !h_tune2_choice     '[1], [0, 1]'
-    hidden_ch:   !h_tune2_choice     '[0], [0, 64, 128]'
-    exp_coef:    !h_tune2_choice     '[7.5], [0, 5.6, 7.5, 10.0, 13.3]'
+    after_des:   0
+    hidden_ch:   !h_tune2_choice     '[65], [0, 65, 128]'
+    exp_coef:    !h_tune2_choice     '[5.6], [0, 5.6, 7.5, 10.0, 13.3]'
     use_se:      !h_tune2_choice     '[0], [0, 1]'
     dropout:     0.0
   qlt_head:
-    skip:        !h_tune2_choice     '[0], [0, 1]'
-    after_des:   !h_tune2_choice     '[1], [0, 1]'
-    hidden_ch:   !h_tune2_choice     '[0], [0, 64, 128]'
-    exp_coef:    !h_tune2_choice     '[7.5], [0, 5.6, 7.5, 10.0, 13.3]'
-    use_se:      !h_tune2_choice     '[0], [0, 1]'
+    skip:        1
+    after_des:   0
+    hidden_ch:   0
+    exp_coef:    0
+    use_se:      0
     dropout:     0.0
 
 loss:
-  teacher: 'output/r2d2-orig.pt'
-  des_loss: 'L1'   # L1 or L2
+  teacher: 'output/r2d2-f3.ckpt'
+  des_loss: 'MSE'   # L1, MSE, L2, SmoothL1
   des_w: -10.0     # weight for descriptor head loss
   det_w: -0.8      # weight for detector head loss
-  qlt_w: -3.0      # weight for quality head loss
+  qlt_w: 1.0       # weight for quality head loss
 
 optimizer:
   method: 'adam'
-  learning_rate: 5e-4
+  learning_rate: 1e-3
   weight_decay:  !h_tune2_loguniform  '(8e-6, 12e-6), (1e-8, 1e-3)'
   split_params:  0
   eps:           !h_tune2_loguniform  '(1e-8, 1e-7), (1e-9, 1e-6)'
@@ -87,7 +87,7 @@ data:
   rnd_gain:  !h_tune2_uniform '(1.9, 2.1), (1.0, 3.0)'
   student_rnd_gain: !h_tune2_uniform '(1.15, 1.25), (1.0, 1.5)'
   student_noise_sd: !h_tune2_uniform '(0.01, 0.03), (0.00, 0.10)'
-  image_size: 256
+  image_size: 416
   path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
   trn_ratio: 0.85
