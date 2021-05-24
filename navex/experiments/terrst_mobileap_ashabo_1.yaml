@@ -1,7 +1,7 @@
 search:
   method: 'asha-bo'
   resume: ''
-  metric: 'loss'
+  metric: 'val_loss_epoch'
   mode: 'min'
   samples: 243
   nodes: 6
