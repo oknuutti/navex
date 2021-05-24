@@ -87,7 +87,7 @@ data:
   rnd_gain:  !h_float 2.0
   student_rnd_gain: !h_float 1.2
   student_noise_sd: !h_float 0.02
-  image_size: !h_int 416
+  image_size: !h_int 512
   path: 'data'
   npy: 'false'
   trn_ratio: 0.85

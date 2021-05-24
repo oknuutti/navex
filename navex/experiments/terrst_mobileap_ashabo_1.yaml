@@ -87,7 +87,7 @@ data:
   rnd_gain:  !h_tune2_uniform '(1.9, 2.1), (1.0, 3.0)'
   student_rnd_gain: !h_tune2_uniform '(1.15, 1.25), (1.0, 1.5)'
   student_noise_sd: !h_tune2_uniform '(0.01, 0.03), (0.00, 0.10)'
-  image_size: 416
+  image_size: 512
   path: 'data/aachen.tar;data/revisitop1m.tar'
   npy: 'false'
   trn_ratio: 0.85
