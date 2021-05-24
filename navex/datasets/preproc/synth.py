@@ -95,13 +95,28 @@ def raw_synth():
     aflow_path = os.path.join(args.dst, args.aflow)
     os.makedirs(aflow_path, exist_ok=True)
     pairs_path = os.path.join(args.dst, args.pairs)
-    with open(pairs_path, 'w') as fh:
-        fh.write('image_id_0 image_id_1 sc_diff angle_diff match_ratio matches\n')
+    handled_ids = set()
+
+    if not os.path.exists(pairs_path):
+        with open(pairs_path, 'w') as fh:
+            fh.write('image_id_0 image_id_1 sc_diff angle_diff match_ratio matches\n')
+    else:
+        with open(pairs_path, 'r') as fh:
+            for line in fh:
+                try:
+                    c = line.split(' ')
+                    handled_ids.add(int(c[0]))
+                    handled_ids.add(int(c[1]))
+                except:
+                    pass
 
     hz_fov, pbar, add_count = 44, tqdm(pairs.values(), mininterval=3), 0
     for tot, pair in enumerate(pbar):
         pair = sorted(pair, key=lambda x: x[0])
         (_, id0, fname0), (_, id1, fname1) = pair
+        if id0 in handled_ids and id1 in handled_ids:
+            continue
+
         xyzs0 = load_xyzs(os.path.join(args.src, fname0), hz_fov=hz_fov)
         xyzs1 = load_xyzs(os.path.join(args.src, fname1), hz_fov=hz_fov)
 
