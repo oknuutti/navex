@@ -111,7 +111,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
         limit_train_batches=0.002 if DEBUG else 1.0,
         limit_val_batches=0.004 if DEBUG else 1.0,
         resume_from_checkpoint=train_conf.get('resume', None),
-        log_every_n_steps=train_conf['print_freq'],
+        log_every_n_steps=1,
         flush_logs_every_n_steps=10,
         gpus=int(train_conf['gpu']),
         auto_select_gpus=bool(train_conf['gpu']),

@@ -98,7 +98,7 @@ def main():
                         limit_train_batches=0.002 if DEBUG or PROFILING_ONLY else 1.0,
                         limit_val_batches=0.004 if DEBUG or PROFILING_ONLY else 1.0,
                         resume_from_checkpoint=getattr(args, 'resume', None),
-                        log_every_n_steps=args.print_freq,
+                        log_every_n_steps=1,
                         flush_logs_every_n_steps=10,
                         gpus=1 if args.gpu else 0,
                         auto_select_gpus=bool(args.gpu),
