@@ -27,18 +27,17 @@ class R2D2(BasePoint):
                                                         separate_des_head=separate_des_head)
 
         if separate_des_head:
-            self.des_head = self.create_descriptor_head(bb_out_ch, des_head['dimensions'])
+            self.des_head = self.create_descriptor_head(bb_out_ch, des_head)
         else:
             assert bb_out_ch == des_head['dimensions'], 'channel depths dont match'
             self.des_head = None
 
         # det_head single=True in r2d2 github code, in article was single=False though
         out_ch = des_head['dimensions'] if det_head['after_des'] else bb_out_ch
-        self.det_head = self.create_detector_head(out_ch, single=True)
+        self.det_head = self.create_detector_head(out_ch, det_head)
 
         out_ch = des_head['dimensions'] if qlt_head['after_des'] else bb_out_ch
-        self.qlt_head = None if qlt_head['skip'] else \
-                        self.create_quality_head(out_ch, single=qlt_head.get('single', True))
+        self.qlt_head = None if qlt_head['skip'] else self.create_quality_head(out_ch, qlt_head)
 
         if pretrained:
             raise NotImplemented()
@@ -72,16 +71,36 @@ class R2D2(BasePoint):
         return nn.Sequential(*layers), in_ch
 
     @staticmethod
-    def create_descriptor_head(in_ch, out_ch):
-        return nn.Conv2d(in_ch, out_ch, kernel_size=1, padding=0)
+    def _create_head(in_ch, out_ch, conf, hidden_k=1, hidden_g=1):
+        seq = []
+        if conf['hidden_ch'] > 0:
+            if conf['exp_coef'] > 0:
+                raise NotImplemented()
+            else:
+                seq.append(nn.Conv2d(in_ch, conf['hidden_ch'], groups=hidden_g,
+                                     kernel_size=hidden_k, padding=hidden_k//2))
+                seq.append(nn.BatchNorm2d(conf['hidden_ch']))
+                seq.append(nn.ReLU())
+                in_ch = conf['hidden_ch']
 
-    @staticmethod
-    def create_detector_head(in_ch, single=False):
-        return nn.Conv2d(in_ch, 1 if single else 2, kernel_size=1, padding=0)
+        if conf['dropout'] > 0:
+            seq.append(nn.Dropout(conf['dropout']))
 
-    @staticmethod
-    def create_quality_head(in_ch, single=False):
-        return nn.Conv2d(in_ch, 1 if single else 2, kernel_size=1, padding=0)
+        seq.append(nn.Conv2d(in_ch, out_ch, kernel_size=1, padding=0))
+        return nn.Sequential(*seq)
+
+    @classmethod
+    def create_descriptor_head(cls, in_ch, conf):
+        return cls._create_head(in_ch, conf['dimensions'], conf)
+
+    @classmethod
+    def create_detector_head(cls, in_ch, conf):
+        return cls._create_head(in_ch, 1, conf, hidden_k=3, hidden_g=conf['hidden_ch'] or 1)
+
+    @classmethod
+    def create_quality_head(cls, in_ch, conf):
+        out_ch = 1 if conf.get('single', True) else 2
+        return cls._create_head(in_ch, out_ch, conf)
 
     def forward(self, input):
         # input is a pair of images
