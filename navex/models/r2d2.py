@@ -107,7 +107,7 @@ class R2D2(BasePoint):
         features = self.backbone(input)
 
         des = features if getattr(self, 'des_head', None) is None else self.des_head(features)
-        des2 = None
+        des2 = des  # trying without pow(2)
 
         if 'det_head' not in self.conf or self.conf['det_head']['after_des']:
             des2 = des.pow(2) if des2 is None else des2
