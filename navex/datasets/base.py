@@ -150,7 +150,8 @@ class RandomSeed:
 
 
 class SynthesizedPairDataset(VisionDataset):
-    def __init__(self, root, max_tr, max_rot, max_shear, max_proj, min_size, transforms=None, image_loader=default_loader):
+    def __init__(self, root, max_tr, max_rot, max_shear, max_proj, min_size, transforms=None, warp_crop=True,
+                 image_loader=default_loader):
         transforms = self.transforms if transforms is None else transforms
         super(SynthesizedPairDataset, self).__init__(root, transforms=transforms)
 
@@ -158,8 +159,9 @@ class SynthesizedPairDataset(VisionDataset):
         fv = np.nan
         self.warping_transforms = tr.Compose([
             IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
+#            ScaleToRange(min_size=max(min_size, 256), max_size=getattr(self, 'resize_max_size', np.inf), max_sc=1.0),
             RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
-                             min_size=min_size, fill_value=fv),
+                             min_size=min_size, fill_value=fv, crop_valid=warp_crop),
 #            RandomTiltWrapper(magnitude=0.5),
         ])
 
@@ -259,13 +261,15 @@ class AugmentedPairDatasetMixin:
 
 class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
     def __init__(self, noise_max, rnd_gain, image_size, max_tr, max_rot, max_shear, max_proj, min_size,
-                 student_noise_sd, student_rnd_gain, resize_max_size=1024, resize_max_sc=2.0, eval=False, rgb=False):
+                 student_noise_sd, student_rnd_gain, resize_max_size=1024, resize_max_sc=2.0,
+                 warp_crop=True, eval=False, rgb=False):
 
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
         self.max_proj = max_proj
         self.min_size = min_size
+        self.warp_crop = warp_crop
         self.student_noise_sd = student_noise_sd
         self.student_rnd_gain = student_rnd_gain if isinstance(student_rnd_gain, (tuple, list)) else \
                                 (1 / student_rnd_gain, student_rnd_gain)
@@ -279,7 +283,7 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
             tr.Compose([
                 IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
                 RandomHomography(max_tr=self.max_tr, max_rot=self.max_rot, max_shear=self.max_shear, max_proj=self.max_proj,
-                                 min_size=self.min_size, fill_value=np.nan, image_only=True),
+                                 min_size=self.min_size, fill_value=np.nan, crop_valid=self.warp_crop, image_only=True),
                 RandomScale(min_size=max(self.image_size, 256), max_size=self.resize_max_size, max_sc=self.resize_max_sc),
                 tr.RandomCrop(self.image_size),
                 tr.ToTensor(),

@@ -21,7 +21,7 @@ class WebImageSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin
 
         SynthesizedPairDataset.__init__(self, os.path.join(root, folder), max_tr=max_tr, max_rot=max_rot,
                                         max_shear=max_shear, max_proj=max_proj, min_size=image_size//2,
-                                        transforms=self.transforms)
+                                        transforms=self.transforms, warp_crop=True)
 
     def _load_samples(self, test=False):
         s = self

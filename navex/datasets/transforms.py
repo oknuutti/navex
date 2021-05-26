@@ -350,7 +350,7 @@ class PairCenterCrop(PairRandomCrop):
 
 class RandomHomography:
     def __init__(self, max_tr, max_rot, max_shear, max_proj, min_size, one_tranf_only=False, fill_value=np.nan,
-                 simple=False, image_only=False, rnd_coef=2):
+                 crop_valid=True, image_only=False, rnd_coef=2):
         self.max_tr = max_tr
         self.max_rot = max_rot
         self.max_shear = max_shear
@@ -358,7 +358,7 @@ class RandomHomography:
         self.min_size = min_size
         self.one_tranf_only = one_tranf_only
         self.fill_value = fill_value
-        self.simple = simple
+        self.crop_valid = crop_valid
         self.image_only = image_only
         self.rnd_coef = rnd_coef
 
@@ -419,19 +419,9 @@ class RandomHomography:
 
             w_aflow = (w_aflow[:, :2] / w_aflow[:, 2:]).reshape(aflow_shape)
             corners = w_aflow[[0, 0, -1, -1], [0, -1, 0, -1], :]
-
-            if np.any(np.isnan(self.fill_value)) and self.simple:
-                # define resulting image so that not need to fill any values
-                #  - this simple method can result in negative width or height
-                x0 = max(corners[0, 0], corners[2, 0])
-                x1 = min(corners[1, 0], corners[3, 0])
-                y0 = max(corners[0, 1], corners[1, 1])
-                y1 = min(corners[2, 1], corners[3, 1])
-            else:
-                # define resulting image so that whole transformed image included
-                (x0, y0), (x1, y1) = np.min(corners, axis=0), np.max(corners, axis=0)
-
+            (x0, y0), (x1, y1) = np.min(corners, axis=0), np.max(corners, axis=0)
             nw, nh = math.ceil(x1 - x0), math.ceil(y1 - y0)
+
             if nw >= self.min_size and nh >= self.min_size:
                 ok = True
                 break
@@ -441,16 +431,32 @@ class RandomHomography:
                         (nw, nh), self.min_size, (w, h), bad_h)
 
         w_aflow -= np.array([x0, y0]).reshape((1, 1, 2))
-        uh_grid = np.concatenate((unit_aflow(nw, nh) + np.array([[[x0, y0]]]),
-                                  np.ones((nh, nw, 1), dtype=np.float32)), axis=2)
-        grid = uh_grid.reshape((-1, 3)).dot(np.linalg.inv(H.T))
-        grid = (grid[:, :2] / grid[:, 2:]).reshape((nh, nw, 2))
 
-        ifun = interp.RegularGridInterpolator((np.arange(h), np.arange(w)), np.array(img), bounds_error=False,
-                                              fill_value=np.array(self.fill_value)*255)
-        img_arr = ifun(np.flip(grid, axis=2))
+        if 1:
+            tH = np.array([[1, 0, -x0],
+                           [0, 1, -y0],
+                           [0, 0, 1]]).dot(H)
 
-        if np.any(np.isnan(self.fill_value)) and not self.simple:
+            if self.crop_valid:
+                wp_args = dict(borderMode=cv2.BORDER_CONSTANT, borderValue=self.fill_value)
+            else:
+                wp_args = dict(borderMode=cv2.BORDER_REPLICATE)
+
+            img_arr = np.array(img, dtype=np.float32) / 255
+            img_arr = cv2.warpPerspective(img_arr, tH, (nw, nh), flags=cv2.INTER_LINEAR, **wp_args)
+            img_arr = 255 * img_arr + 0.5
+        else:
+            # old way, using scipy, which is slower
+            uh_grid = np.concatenate((unit_aflow(nw, nh) + np.array([[[x0, y0]]]),
+                                      np.ones((nh, nw, 1), dtype=np.float32)), axis=2)
+            grid = uh_grid.reshape((-1, 3)).dot(np.linalg.inv(H.T))
+            grid = (grid[:, :2] / grid[:, 2:]).reshape((nh, nw, 2))
+
+            ifun = interp.RegularGridInterpolator((np.arange(h), np.arange(w)), np.array(img), bounds_error=False,
+                                                  fill_value=np.array(self.fill_value)*255)
+            img_arr = ifun(np.flip(grid, axis=2))
+
+        if np.any(np.isnan(self.fill_value)) and self.crop_valid:
             mask = np.logical_not(np.isnan(np.atleast_3d(img_arr)[:, :, 0]))
             x0, y0, x1, y1 = tools.max_rect_bounded_by_quad_mask(mask)
             img_arr = img_arr[y0:y1, x0:x1]

@@ -148,7 +148,7 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             C.append(conf[0].t().cpu().numpy())
             D.append(descr[0].t().cpu().numpy())
 
-            if 0:
+            if 1:
                 import matplotlib.pyplot as plt
                 from .visualize import plot_tensor
                 fig, axs = plt.subplots(1, 3, figsize=(12, 6), sharex=True, sharey=True)

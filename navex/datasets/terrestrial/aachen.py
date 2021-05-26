@@ -52,7 +52,7 @@ class AachenStyleTransferPairDataset(ImagePairDataset, AugmentedPairDatasetMixin
 
         # self.pre_transf = RandomTiltWrapper2(magnitude=0.5)
         self.pre_transf = RandomHomography2(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
-                                            min_size=image_size//2)
+                                            min_size=image_size//2, crop_valid=True)
         self.npy = npy
 
     def preprocess(self, idx, imgs, aflow):
@@ -95,7 +95,7 @@ class AachenSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin):
 
         SynthesizedPairDataset.__init__(self, os.path.join(root, folder, 'images_upright', 'db'), max_tr=max_tr,
                                         max_rot=max_rot, max_shear=max_shear, max_proj=max_proj, min_size=image_size//2,
-                                        transforms=self.transforms)
+                                        transforms=self.transforms, warp_crop=True)
 
     def _load_samples(self):
         return find_files(self.root, self.npy)

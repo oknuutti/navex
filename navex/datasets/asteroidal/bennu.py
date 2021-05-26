@@ -20,7 +20,8 @@ class BennuSynthPairDataset(AsteroidSynthesizedPairDataset, AugmentedPairDataset
 
         AsteroidSynthesizedPairDataset.__init__(self, os.path.join(root, folder), max_tr=max_tr,
                                                 max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
-                                                min_size=image_size//2, transforms=self.transforms)
+                                                min_size=image_size//2, transforms=self.transforms,
+                                                warp_crop=True)
 
     def _load_samples(self):
         return find_files_recurse(self.root, ext='.png')
