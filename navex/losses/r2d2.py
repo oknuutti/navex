@@ -11,13 +11,14 @@ from .peakiness import PeakinessLoss
 
 
 class R2D2Loss(BaseLoss):
-    def __init__(self, loss_type, wdt=1.0, wap=1.0, wqt=1.0, det_n=16, base=0.5, nq=20, sampler=None):
+    def __init__(self, loss_type, wpk=0.5, wdt=1.0, wap=1.0, wqt=1.0, det_n=16, base=0.5, nq=20, sampler=None):
         super(R2D2Loss, self).__init__()
         self.loss_type = loss_type
 
         self.cosim_loss = CosSimilarityLoss(int(det_n))
         self.peakiness_loss = PeakinessLoss(int(det_n))
 
+        self.wpk = wpk
         self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
         self.wqt = 0.0
@@ -78,8 +79,8 @@ class R2D2Loss(BaseLoss):
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
 
-        p_loss = self.peakiness_loss(det1, det2)
-        c_loss = self.cosim_loss(det1, det2, aflow)
+        p_loss = self.wpk * self.peakiness_loss(det1, det2)
+        c_loss = (1 - self.wpk) * self.cosim_loss(det1, det2, aflow)
 
         # downscale aflow to des and qlt shape
         th, tw = des1.shape[2:]

@@ -6,6 +6,7 @@ import numpy as np
 from torch import tensor
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import torch
 
 from navex.datasets.base import ExtractionImageDataset, RGB_STD, GRAY_STD, RGB_MEAN, GRAY_MEAN
 from navex.extract import extract_multiscale
@@ -178,7 +179,14 @@ def match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, draw=True, pbar=No
     return len(inliers)
 
 
-def plot_tensor(data, image=False, ax=None):
+def descriptor_change_map(des):
+    dy = torch.linalg.norm(des[:, :, :-1, :] - des[:, :, 1:, :], dim=1)
+    dx = torch.linalg.norm(des[:, :, :, :-1] - des[:, :, :, 1:], dim=1)
+    dxy = dy[:, None, :, :-1] + dx[:, None, :-1, :]
+    return dxy
+
+
+def plot_tensor(data, image=False, ax=None, scale=False):
     if data.dim() == 3:
         data = data[None, :, :, :]
     B, D, H, W = data.shape
@@ -189,6 +197,9 @@ def plot_tensor(data, image=False, ax=None):
                 img = img * np.array(RGB_STD, dtype=np.float32) + np.array(RGB_MEAN, dtype=np.float32)
             else:
                 img = img * np.array(GRAY_STD, dtype=np.float32) + np.array(GRAY_MEAN, dtype=np.float32)
+        elif scale:
+            img = (img - img.min(axis=(0, 1))) / (img.max(axis=(0, 1)) - img.min(axis=(0, 1)))
+
         if ax is None:
             plt.imshow(img)
             plt.show()

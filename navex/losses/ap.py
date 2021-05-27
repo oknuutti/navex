@@ -71,7 +71,7 @@ class WeightedAPLoss(DiscountedAPLoss):
 
 
 class ThresholdedAPLoss(DiscountedAPLoss):
-    def __init__(self, *args, update_coef=0.001, **kwargs):
+    def __init__(self, *args, update_coef=0.003, **kwargs):
         super(ThresholdedAPLoss, self).__init__(*args, **kwargs)
         self.current_map = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
         self.update_coef = update_coef

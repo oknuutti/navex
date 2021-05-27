@@ -302,6 +302,11 @@ loss:
     type: float
     help: "weight for quality head output loss"
 
+  wpk:
+    trial: ["terr", "ast", "aer"]
+    type: float
+    help: "weight of peakiness vs cosim [0-1], 0=only cosim matters, 1=only peakiness matters"
+
   wdt:
     trial: ["terr", "ast", "aer"]
     type: float
