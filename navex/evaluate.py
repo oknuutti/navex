@@ -3,6 +3,7 @@ import os
 import torch
 
 from navex.models.tools import is_rgb_model, load_model
+from navex.trials.asteroidal import AsteroidalTrial
 from .experiments.parser import ExperimentConfigParser, to_dict
 from .train_o import validate
 from .trials.terrestrial import TerrestrialTrial
@@ -21,7 +22,11 @@ def main():
     model = load_model(args.resume, device, model_only=True)
     rgb = is_rgb_model(model)
 
-    trial = TerrestrialTrial(model, to_dict(config.loss), None, to_dict(config.data), args.batch_size)
+    if 0:
+        trial = TerrestrialTrial(model, to_dict(config.loss), None, to_dict(config.data), args.batch_size)
+    else:
+        trial = AsteroidalTrial(model, to_dict(config.loss), None, to_dict(config.data), args.batch_size)
+
     trial.to(device)
     test_loader = trial.build_test_data_loader(rgb=rgb)
     validate(test_loader, trial, device, args, return_output=False)

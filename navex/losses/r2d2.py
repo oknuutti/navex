@@ -79,8 +79,8 @@ class R2D2Loss(BaseLoss):
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
 
-        p_loss = self.wpk * self.peakiness_loss(det1, det2)
-        c_loss = (1 - self.wpk) * self.cosim_loss(det1, det2, aflow)
+        p_loss = 2 * self.wpk * self.peakiness_loss(det1, det2)
+        c_loss = 2 * (1 - self.wpk) * self.cosim_loss(det1, det2, aflow)
 
         # downscale aflow to des and qlt shape
         th, tw = des1.shape[2:]

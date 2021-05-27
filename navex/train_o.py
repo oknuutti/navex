@@ -144,7 +144,7 @@ def process(loader, trial, epoch, device, args, validate_only=False, return_outp
     data_time = Meter()
     batch_time = Meter()
     losses = Meter()
-    accs = Meter(n=4, median=False)
+    accs = Meter(n=5, median=False)
 
     if return_output:
         outputs = []
@@ -185,12 +185,13 @@ def process(loader, trial, epoch, device, args, validate_only=False, return_outp
                   ' Load: {data_time.avg:.3f} '
                   ' Proc: {batch_time.avg:.3f} '
                   ' Loss: {loss.avg:.4f} '
-                  ' Tot: {acc[0]:.3f}% '
-                  ' Inl: {acc[1]:.3f}% '
-                  ' Dist: {acc[2]:.2f} '
-                  ' mAP: {acc[3]:.3f}% '
+                  ' Dty: {acc[0]:.3f} '
+                  ' Tot: {acc[1]:.3f}% '
+                  ' Inl: {acc[2]:.3f}% '
+                  ' Dist: {acc[3]:.2f} '
+                  ' mAP: {acc[4]:.3f}% '
                   ).format(epoch, i+1, len(loader), batch_time=batch_time,
-                           data_time=data_time, loss=losses, acc=accs.avg * np.array([100, 100, 1, 100])))
+                           data_time=data_time, loss=losses, acc=accs.avg * np.array([1, 100, 100, 1, 100])))
 
         if 0 and i+1 >= 1:
             break
