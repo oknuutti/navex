@@ -241,6 +241,17 @@ def angle_between_v(v1, v2, direction=False):
     return angle
 
 
+def preprocess_image(data, gamma):
+    data = np.atleast_3d(data)
+    bot_v, top_v = np.quantile(data[:, :, 0], (0.0005, 0.9999))
+    top_v = top_v * 1.2
+    img = (data[:, :, 0] - bot_v) / (top_v - bot_v)
+    if gamma != 1:
+        img = np.clip(img, 0, 1) ** (1 / gamma)
+    img = np.clip(255 * img + 0.5, 0, 255).astype(np.uint8)
+    return img, (bot_v, top_v)
+
+
 def rotate_expand_border(img, angle, fullsize=False, lib='opencv', to_pil=False):
     """
     opencv (v4.0.1) is fastest, pytorch (v1.8.1) on cpu is x20-25 slower, scipy (v1.6.0) is x28-36 slower

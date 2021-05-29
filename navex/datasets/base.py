@@ -6,6 +6,7 @@ import random
 
 import numpy as np
 import PIL
+import cv2
 
 import torch
 from torch.utils.data import ConcatDataset, Subset
@@ -473,10 +474,18 @@ class ExtractionImageDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         try:
-            img = PIL.Image.open(self.samples[idx])
+            if 0:
+                img = PIL.Image.open(self.samples[idx])
+            else:
+                img = cv2.imread(self.samples[idx], cv2.IMREAD_UNCHANGED)
+                if img.dtype == np.uint16:
+                    from .tools import preprocess_image
+                    img, _ = preprocess_image(img, gamma=1.8)
+                img = PIL.Image.fromarray(img)
+
             if self.transforms is not None:
                 img = self.transforms(img)
-        except DataLoadingException as e:
+        except Exception as e:
             raise DataLoadingException("Problem with idx %s:\n%s" % (idx, self.samples[idx],)) from e
 
         return img

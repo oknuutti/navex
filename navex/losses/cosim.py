@@ -1,14 +1,29 @@
-
-from torch.nn import Module
-
-from r2d2.nets.repeatability_loss import CosimLoss
+from torch.nn import Module, Unfold
+from torch.functional import F
 
 
 class CosSimilarityLoss(Module):
     def __init__(self, N=16):
         super(CosSimilarityLoss, self).__init__()
-        self.super = CosimLoss(N)
+        self.patches = Unfold(N, padding=0, stride=N // 2)
+
+    def extract_patches(self, det):
+        patches = self.patches(det).transpose(1, 2)
+        patches = F.normalize(patches, p=2, dim=2)
+        return patches
 
     def forward(self, det1, det2, aflow):
-        return self.super((det1, det2), aflow)
+        H, W = aflow.shape[2:]
 
+        # make both x & y in the aflow span the range [-1, 1] instead of [0, W-1] and [0, H-1]
+        grid = aflow.permute(0, 2, 3, 1).clone()
+        grid[:, :, :, 0] *= 2 / (W - 1)
+        grid[:, :, :, 1] *= 2 / (H - 1)
+        grid -= 1
+
+        warped_det2 = F.grid_sample(det2, grid, mode='bilinear', padding_mode='border', align_corners=False)
+
+        patches1 = self.extract_patches(det1)
+        patches2 = self.extract_patches(warped_det2)
+        cosim = (patches1 * patches2).nansum(dim=2)
+        return 1 - cosim.mean()

@@ -7,7 +7,7 @@ from torch.functional import F
 from .base import BaseLoss
 from .ap import DiscountedAPLoss, WeightedAPLoss, ThresholdedAPLoss
 from .cosim import CosSimilarityLoss
-from .peakiness import PeakinessLoss
+from .peakiness import PeakinessLoss, ActivationLoss
 
 
 class R2D2Loss(BaseLoss):
@@ -16,9 +16,9 @@ class R2D2Loss(BaseLoss):
         self.loss_type = loss_type
 
         self.cosim_loss = CosSimilarityLoss(int(det_n))
-        self.peakiness_loss = PeakinessLoss(int(det_n))
+        self.peakiness_loss = ActivationLoss(wpk)  #PeakinessLoss(int(det_n))
 
-        self.wpk = wpk
+        self.wpk = 0.5  # wpk
         self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
         self.wqt = 0.0
@@ -65,12 +65,9 @@ class R2D2Loss(BaseLoss):
                     self.ap_loss.base = v
             elif k == 'det_n':
                 assert v % 2 == 0, 'N must be pair'
-                self.cosim_loss.super.name = f'cosim{v}'
-                self.cosim_loss.super.patches = nn.Unfold(v, padding=0, stride=v//2)
-                self.peakiness_loss.super.name = f'peaky{v}'
-                self.peakiness_loss.super.preproc = nn.AvgPool2d(3, stride=1, padding=1)
-                self.peakiness_loss.super.maxpool = nn.MaxPool2d(v + 1, stride=1, padding=v // 2)
-                self.peakiness_loss.super.avgpool = nn.AvgPool2d(v + 1, stride=1, padding=v // 2)
+                self.cosim_loss.patches = nn.Unfold(v, padding=0, stride=v // 2)
+                self.peakiness_loss.max_pool_n = nn.MaxPool2d(v + 1, stride=1, padding=v // 2)
+                self.peakiness_loss.avg_pool_n = nn.AvgPool2d(v + 1, stride=1, padding=v // 2)
             else:
                 ok = False
         return ok

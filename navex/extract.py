@@ -151,19 +151,21 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             if 1:
                 import matplotlib.pyplot as plt
                 from .visualize import plot_tensor
-                fig, axs = plt.subplots(1, 3, figsize=(12, 6), sharex=True, sharey=True)
+                fig, axs = plt.subplots(1, 4, figsize=(12, 6), sharex=True, sharey=True)
                 axs = axs.flatten()
                 plot_tensor(img, image=True, ax=axs[0])
                 plot_tensor(det, ax=axs[1])
                 plot_tensor(qlt, ax=axs[2])
+                plot_tensor(img, image=True, heatmap=det*qlt, ax=axs[3])
 
                 # plot_tensor(qlt * det, ax=axs[3])
                 # for i in range(5):
                 #     plot_tensor(des[:, i*3:i*3+3, :, :], ax=axs[i+3], scale=True)
 
-                xy = XY[-1] * sc
-                for i in range(len(axs)):
-                    axs[i].plot(xy[:, 0], xy[:, 1], 'o', mfc='none')
+                if 0:
+                    xy = XY[-1] * sc
+                    for i in range(len(axs)):
+                        axs[i].plot(xy[:, 0], xy[:, 1], 'o', mfc='none')
                 plt.tight_layout()
                 plt.show()
 

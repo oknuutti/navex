@@ -65,9 +65,12 @@ def main():
 
             pbar = tqdm(range(n2))
             for i2 in pbar:
-                img2, xys2, desc2, scores2 = get_image_and_features(dataset2, i2, model, device, args)
-                c = match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args, draw=False, pbar=pbar)
-                inlier_counts[i1, i2] = c
+                if dataset1.samples[i1] != dataset2.samples[i2]:
+                    img2, xys2, desc2, scores2 = get_image_and_features(dataset2, i2, model, device, args)
+                    c = match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args, draw=False, pbar=pbar, device=device)
+                    inlier_counts[i1, i2] = c
+                else:
+                    inlier_counts[i1, i2] = np.nan
 
             # plot inlier counts
             plt.figure(1)
@@ -76,11 +79,14 @@ def main():
             plt.show()
 
             # best matches
-            bst = np.argsort(-inlier_counts[i1, :])
+            if 0:
+                bst = np.argsort(-inlier_counts[i1, :])
+            else:
+                bst = [72, 73, 75]
             for k in range(args.best_n):
                 print('%d: %s' % (inlier_counts[i1, bst[k]], dataset2.samples[bst[k]]))
                 img2, xys2, desc2, scores2 = get_image_and_features(dataset2, bst[k], model, device, args)
-                match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args)
+                match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args, device=device)
 
     else:
         data_loader = model.wrap_ds(dataset1, shuffle=False)
@@ -93,7 +99,7 @@ def main():
             xys1, desc1, scores1 = extract(model, data, args)
 
             if img0 is not None:
-                match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args)
+                match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, device=device)
 
             img0, scores0, xys0, desc0 = img1, scores1, xys1, desc1
 
@@ -107,15 +113,27 @@ def get_image_and_features(dataset, idx, model, device, args):
         xys1, desc1, scores1 = load_features(kpfile, device)
     else:
         xys1, desc1, scores1 = extract(model, data1.to(device), args)
+        save_features(kpfile, data1.shape[2:], xys1, desc1, scores1)
 
     return img1, xys1, desc1, scores1
+
+
+def save_features(kpfile, imsize, xys, desc, scores):
+    with open(kpfile, 'wb') as fh:
+        np.savez(fh, imsize=imsize,
+                 keypoints=xys,
+                 descriptors=desc,
+                 scores=scores)
 
 
 def load_features(kpfile, device):
     with open(kpfile, 'rb') as fh:
         tmp = np.load(fh)
         xys1, desc1, scores1 = [tmp[k] for k in ('keypoints', 'descriptors', 'scores')]
-    desc1 = tensor(desc1).permute((1, 0))[None, :, :].to(device)
+    if 0:
+        desc1 = tensor(desc1).squeeze().permute((1, 0))[None, :, :].to(device)
+    else:
+        desc1 = tensor(desc1).to(device)
     return xys1, desc1, scores1
 
 
@@ -133,15 +151,19 @@ def extract(model, data, args):
                                               border=args.border,
                                               verbose=True)
 
-    scores1 = scores1.cpu().numpy().flatten()
+    scores1 = scores1.flatten()
     idxs = scores1.argsort()[-args.top_k or None:]
     scores1 = scores1[idxs]
-    desc1 = desc1[idxs, :].permute((1, 0))[None, :, :]
-    xys1 = xys1.cpu().numpy()[idxs]
+    desc1 = np.swapaxes(desc1[idxs, :], 1, 0)[None, :, :]
+    xys1 = xys1[idxs]
     return xys1, desc1, scores1
 
 
-def match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, draw=True, pbar=None):
+def match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, draw=True, pbar=None, device=None):
+    if isinstance(desc0, np.ndarray):
+        desc0 = torch.Tensor(desc0).to(device)
+    if isinstance(desc1, np.ndarray):
+        desc1 = torch.Tensor(desc1).to(device)
     idxs, _, mask, _ = tools.match(desc0, desc1)
     idxs, mask = map(lambda x: x.cpu().numpy().flatten(), (idxs, mask))
     matches = np.array(list(zip(np.arange(len(mask))[mask], idxs[mask])))
@@ -186,7 +208,7 @@ def descriptor_change_map(des):
     return dxy
 
 
-def plot_tensor(data, image=False, ax=None, scale=False):
+def plot_tensor(data, heatmap=None, image=False, ax=None, scale=False):
     if data.dim() == 3:
         data = data[None, :, :, :]
     B, D, H, W = data.shape
@@ -199,6 +221,16 @@ def plot_tensor(data, image=False, ax=None, scale=False):
                 img = img * np.array(GRAY_STD, dtype=np.float32) + np.array(GRAY_MEAN, dtype=np.float32)
         elif scale:
             img = (img - img.min(axis=(0, 1))) / (img.max(axis=(0, 1)) - img.min(axis=(0, 1)))
+
+        if image and img.shape[2] == 1:
+            img = np.repeat(img, 3, axis=2)
+
+        if heatmap is not None:
+            overlay = heatmap[i, :, :, :].permute((1, 2, 0)).cpu().numpy()
+            overlay = (overlay - overlay.min(axis=(0, 1))) / (overlay.max(axis=(0, 1)) - overlay.min(axis=(0, 1)))
+            overlay = cv2.applyColorMap((overlay * 255).astype(np.uint8), cv2.COLORMAP_SUMMER)
+            overlay = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+            img = cv2.addWeighted(overlay, 0.5, (img * 255).astype(np.uint8), 0.5, 0)
 
         if ax is None:
             plt.imshow(img)

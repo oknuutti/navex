@@ -25,7 +25,7 @@ from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
 from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
-    q_times_v, angle_between_v, valid_asteriod_area, nadir_unit_v
+    q_times_v, angle_between_v, valid_asteriod_area, nadir_unit_v, preprocess_image
 from navex.experiments.parser import nested_filter
 
 
@@ -340,12 +340,7 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
         data = data[crop[0]:crop[1], crop[2]:crop[3], :]
 
     # scale and reduce depth to 8-bits
-    bot_v, top_v = np.quantile(data[:, :, 0], (0.0005, 0.9999))
-    top_v = top_v * 1.2
-    img = (data[:, :, 0] - bot_v) / (top_v - bot_v)
-    if gamma != 1:
-        img = np.clip(img, 0, 1) ** (1 / gamma)
-    img = np.clip(255 * img + 0.5, 0, 255).astype(np.uint8)
+    img, (bot_v, top_v) = preprocess_image(data, gamma)
 
     handle = None
     if isinstance(metadata_type, Callable):
