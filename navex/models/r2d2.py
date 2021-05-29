@@ -138,7 +138,7 @@ class R2D2(BasePoint):
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
         det = self.activation(detection)
-        det = F.avg_pool2d(det, 3, stride=1, padding=1)
+        # det = F.avg_pool2d(det, 3, stride=1, padding=1)
 
         # could use eval_T=100, however, had worse performance, useful possibly for analyzing quality output
         eval_T = 1
