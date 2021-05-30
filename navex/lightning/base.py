@@ -6,6 +6,7 @@ from typing import Union, Dict, Any, Optional
 from argparse import Namespace
 
 import torch
+import torchvision
 from pytorch_lightning import Trainer
 from pytorch_lightning.trainer.connectors.slurm_connector import SLURMConnector
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -17,6 +18,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pl_bolts.datamodules import AsynchronousLoader
 
 from ..trials.base import TrialBase, StudentTrialMixin
+from ..visualize import view_detections
 
 
 def _fn_none(x):
@@ -122,12 +124,23 @@ class TrialWrapperBase(pl.LightningModule):
 
     def _eval_step(self, batch, batch_idx, log_prefix):
         if isinstance(self.trial, StudentTrialMixin):
-            loss, acc, output = self.trial.evaluate_batch(batch, component_loss=True)
+            data = batch
+            loss, acc, output = self.trial.evaluate_batch(data, component_loss=True)
         else:
             data, labels = batch
             loss, acc, output = self.trial.evaluate_batch(data, labels, component_loss=True)
+
+        if batch_idx == 0:
+            self.log_detection_image(data, output)
+
         self._log(log_prefix, loss, acc, self.trial.log_values())
         return {'loss': loss.sum(dim=1), 'acc': acc, 'losses': loss.detach()}
+
+    def log_detection_image(self, data, output):
+        imgs1, imgs2 = data
+        (des1, det1, qlt1), (des2, det2, qlt2) = output
+        fig, axs = view_detections((imgs1[0], imgs2[0]), (det1[0], det2[0]), (qlt1[0], qlt2[0]), show=False)
+        self.logger.experiment.add_figure('example_detections', figure=fig, global_step=self.global_step)
 
     def _gather_metrics(self, losses, acc, lp=None, extra=None):
         postfix = '_epoch' if lp == 'val' else ''

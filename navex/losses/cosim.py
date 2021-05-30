@@ -1,3 +1,4 @@
+import torch
 from torch.nn import Module, Unfold
 from torch.functional import F
 
@@ -26,4 +27,4 @@ class CosSimilarityLoss(Module):
         patches1 = self.extract_patches(det1)
         patches2 = self.extract_patches(warped_det2)
         cosim = (patches1 * patches2).nansum(dim=2)
-        return 1 - cosim.mean()
+        return 1 - torch.nansum(cosim) / max(1, cosim.isnan().logical_not().sum())

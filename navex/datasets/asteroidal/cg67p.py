@@ -15,12 +15,12 @@ class CG67pNavcamSynthPairDataset(AsteroidSynthesizedPairDataset, AugmentedPairD
         self.folder = folder
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
-                                           margin=margin, max_sc=max_sc, fill_value=0, eval=eval, rgb=False, blind_crop=True)
+                                           margin=margin, max_sc=max_sc, fill_value=0, eval=eval, rgb=False, blind_crop=False)
 
         AsteroidSynthesizedPairDataset.__init__(self, os.path.join(root, folder), max_tr=max_tr,
                                                 max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
                                                 min_size=image_size//2, transforms=self.transforms,
-                                                warp_crop=True)
+                                                warp_crop=False)
 
     def _load_samples(self):
         return find_files_recurse(self.root, ext='.png')

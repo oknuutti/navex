@@ -10,9 +10,7 @@ import torch
 
 from navex.datasets.base import ExtractionImageDataset, RGB_STD, GRAY_STD, RGB_MEAN, GRAY_MEAN
 from navex.extract import extract_multiscale
-from navex.lightning.base import TrialWrapperBase
 from navex.models import tools
-from navex.models.r2d2orig import R2D2
 from navex.models.tools import is_rgb_model, load_model
 
 
@@ -208,9 +206,35 @@ def descriptor_change_map(des):
     return dxy
 
 
+def view_detections(imgs, dets, qlts, show=True):
+    if not isinstance(imgs, (tuple, list)):
+        imgs, dets, qlts = [imgs], [dets], [qlts]
+
+    fig, axs = plt.subplots(len(imgs), 4, figsize=(12, 6), sharex=True, sharey=True)
+    axs = axs.flatten()
+
+    for i, (img, det, qlt) in enumerate(zip(imgs, dets, qlts)):
+        plot_tensor(img, image=True, ax=axs[i * 4 + 0])
+        plot_tensor(det, ax=axs[i * 4 + 1])
+        plot_tensor(qlt, ax=axs[i * 4 + 2])
+        plot_tensor(img, image=True, heatmap=det * qlt, ax=axs[i * 4 + 3])
+
+        if 0:
+            xy = XY[-1] * sc
+            for j in range(4):
+                axs[i * 4 + j].plot(xy[:, 0], xy[:, 1], 'o', mfc='none')
+
+    plt.tight_layout()
+    if show:
+        plt.show()
+    return fig, axs
+
+
 def plot_tensor(data, heatmap=None, image=False, ax=None, scale=False):
     if data.dim() == 3:
         data = data[None, :, :, :]
+    if heatmap is not None and heatmap.dim() == 3:
+        heatmap = heatmap[None, :, :, :]
     B, D, H, W = data.shape
     for i in range(B):
         img = data[i, :, :, :].permute((1, 2, 0)).cpu().numpy()

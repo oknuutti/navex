@@ -241,8 +241,9 @@ class PairRandomCrop:
 
         if ratio_valid == 0:
             # if this becomes a real problem, use SafeDataset and SafeDataLoader from nonechucks, then return None here
-            # from navex.datasets.base import DataLoadingException
-            # raise DataLoadingException("no valid correspondences even for central crop")
+            if 0:
+                from navex.datasets.base import DataLoadingException
+                raise DataLoadingException("no valid correspondences even for central crop")
             print("no valid correspondences even for central crop")
             c_img1 = img1.crop((i1, j1, i1+m, j1+n))
             c_img2 = img2.crop((0, 0, m, n))
