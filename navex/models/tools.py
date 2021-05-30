@@ -11,7 +11,7 @@ from torch.functional import F
 from navex.models.r2d2orig import R2D2
 
 
-def detect_from_dense(des, det, qlt, max_kern=2, top_k=None, feat_d=0.001, det_lim=0.02, qlt_lim=0.02,
+def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt_lim=0.02,
                       border=16, interp='bicubic'):
     B, D, Hs, Ws = des.shape
     _, _, Ht, Wt = det.shape
@@ -24,7 +24,8 @@ def detect_from_dense(des, det, qlt, max_kern=2, top_k=None, feat_d=0.001, det_l
         qlt = F.interpolate(qlt, (Ht, Wt), mode=interp, align_corners=False)
 
     # local maxima
-    max_filter = nn.MaxPool2d(kernel_size=1+2*max_kern, stride=1, padding=max_kern)
+    det = F.avg_pool2d(det, kernel_size=3, stride=1, padding=1)
+    max_filter = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
     maxima = (det == max_filter(det))  # [b, 1, h, w]
 
     # remove low confidence detections
