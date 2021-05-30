@@ -100,8 +100,10 @@ class R2D2Loss(BaseLoss):
 
         eps = 1e-5
         lib = math if isinstance(self.wdt, float) else torch
-        d_loss = lib.log(c_loss + p_loss + eps)
-        d_loss = lib.exp(-self.wdt) * d_loss + 0.5 * self.wdt
+        p_loss = -lib.log(1 - p_loss + eps) * self.wpk * 2
+        c_loss = -lib.log(1 - c_loss + eps) * (1 - self.wpk) * 2
+        p_loss = lib.exp(-self.wdt) * p_loss + 0.5 * self.wdt
+        c_loss = lib.exp(-self.wdt) * c_loss + 0.5 * self.wdt
 
         lib = math if isinstance(self.wap, float) else torch
         a_loss = lib.exp(-self.wap) * a_loss + 0.5 * self.wap
@@ -116,7 +118,7 @@ class R2D2Loss(BaseLoss):
         else:
             q_loss = torch.Tensor([0]).to(des1.device)
 
-        loss = torch.stack((d_loss/2, d_loss/2, a_loss, q_loss), dim=1)     # TODO: remove duplicate d_loss
+        loss = torch.stack((p_loss, c_loss, a_loss, q_loss), dim=1)
         return loss if component_loss else loss.nansum(dim=1)
 
     def params_to_optimize(self, split=False):
