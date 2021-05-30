@@ -2,11 +2,12 @@ from torch.nn import Module, AvgPool2d, MaxPool2d
 
 
 class PeakinessLoss(Module):
-    def __init__(self, N=16):
+    def __init__(self, n=16):
         super(PeakinessLoss, self).__init__()
+        self.max_loss = 1
         self.avg_pool_3 = AvgPool2d(3, stride=1, padding=1)
-        self.max_pool_n = MaxPool2d(N + 1, stride=1, padding=N // 2)
-        self.avg_pool_n = AvgPool2d(N + 1, stride=1, padding=N // 2)
+        self.max_pool_n = MaxPool2d(n + 1, stride=1, padding=n // 2)
+        self.avg_pool_n = AvgPool2d(n + 1, stride=1, padding=n // 2)
 
     def forward(self, det1, det2):
         det1, det2 = map(self.avg_pool_3, (det1, det2))
@@ -18,6 +19,7 @@ class PeakinessLoss(Module):
 class WeightedPeakinessLoss(Module):
     def __init__(self, activation_cost, n):
         super(WeightedPeakinessLoss, self).__init__()
+        self.max_loss = 1
         self.activation_cost = activation_cost
         self.max_pool_n = MaxPool2d(n + 1, stride=1, padding=n // 2)
 
@@ -32,6 +34,7 @@ class WeightedPeakinessLoss(Module):
 class ActivationLoss(Module):
     def __init__(self, sparsity, n):
         super(ActivationLoss, self).__init__()
+        self.max_loss = (1 + sparsity) ** 2
         self.sparsity = sparsity
         self.avg_pool_3 = AvgPool2d(3, stride=1, padding=1)
         self.avg_pool_n = AvgPool2d(n + 1, stride=1, padding=n // 2)

@@ -10,7 +10,6 @@ import psutil
 
 import torch
 
-import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping
 
 from navex.trials.aerial import AerialTrial
@@ -21,7 +20,6 @@ from .trials.terrestrial import TerrestrialTrial
 from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint, MyTrainer
 
 PROFILING_ONLY = 0
-DEBUG = 0
 
 
 def main():
@@ -94,9 +92,9 @@ def main():
                         max_steps=31 if PROFILING_ONLY else args.epochs,  # TODO (1): rename param
                         progress_bar_refresh_rate=args.print_freq,
                         check_val_every_n_epoch=sys.maxsize,
-                        val_check_interval=10 if DEBUG else args.test_freq,
-                        limit_train_batches=0.002 if DEBUG or PROFILING_ONLY else 1.0,
-                        limit_val_batches=0.004 if DEBUG or PROFILING_ONLY else 1.0,
+                        val_check_interval=args.test_freq,
+                        limit_train_batches=0.002 if PROFILING_ONLY else 1.0,
+                        limit_val_batches=0.004 if args.test_freq <= 20 or PROFILING_ONLY else 1.0,
                         resume_from_checkpoint=getattr(args, 'resume', None),
                         log_every_n_steps=1,
                         flush_logs_every_n_steps=10,

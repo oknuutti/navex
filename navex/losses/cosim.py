@@ -4,9 +4,9 @@ from torch.functional import F
 
 
 class CosSimilarityLoss(Module):
-    def __init__(self, N=16):
+    def __init__(self, n=16):
         super(CosSimilarityLoss, self).__init__()
-        self.patches = Unfold(N, padding=0, stride=N // 2)
+        self.patches = Unfold(n, padding=0, stride=n // 2)
 
     def extract_patches(self, det):
         patches = self.patches(det).transpose(1, 2)
@@ -21,10 +21,12 @@ class CosSimilarityLoss(Module):
         grid[:, :, :, 0] *= 2 / (W - 1)
         grid[:, :, :, 1] *= 2 / (H - 1)
         grid -= 1
+        # grid[grid.isnan()] = 1e6
 
         warped_det2 = F.grid_sample(det2, grid, mode='bilinear', padding_mode='border', align_corners=False)
 
         patches1 = self.extract_patches(det1)
         patches2 = self.extract_patches(warped_det2)
         cosim = (patches1 * patches2).nansum(dim=2)
+        # return 1 - torch.mean(cosim)
         return 1 - torch.nansum(cosim) / max(1, cosim.isnan().logical_not().sum())
