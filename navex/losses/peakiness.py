@@ -16,22 +16,8 @@ class PeakinessLoss(Module):
         return (loss1 + loss2) / 2
 
 
-class WeightedPeakinessLoss(Module):
-    def __init__(self, activation_cost, n):
-        super(WeightedPeakinessLoss, self).__init__()
-        self.max_loss = 1
-        self.activation_cost = activation_cost
-        self.max_pool_n = MaxPool2d(n + 1, stride=1, padding=n // 2)
-
-    def forward(self, det1, det2):
-        # TODO: figure out better reward that would lead to more uncertain detections
-        reward1, reward2 = map(self.max_pool_n, (det1, det2))
-        reward = (reward1.mean() + reward2.mean()) / 2
-        loss = self.activation_cost * (det1.mean() + det2.mean()) / 2   # TODO: try higher costs than 1.0
-        return 1 + loss - reward
-
-
 class ActivationLoss(Module):
+    """ just testing out something, didn't work... """
     def __init__(self, sparsity, n):
         super(ActivationLoss, self).__init__()
         self.max_loss = (1 + sparsity) ** 2

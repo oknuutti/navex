@@ -21,12 +21,13 @@ class CosSimilarityLoss(Module):
         grid[:, :, :, 0] *= 2 / (W - 1)
         grid[:, :, :, 1] *= 2 / (H - 1)
         grid -= 1
-        # grid[grid.isnan()] = 1e6
+        grid[grid.isnan()] = 1e6
 
         warped_det2 = F.grid_sample(det2, grid, mode='bilinear', padding_mode='border', align_corners=False)
 
         patches1 = self.extract_patches(det1)
         patches2 = self.extract_patches(warped_det2)
-        cosim = (patches1 * patches2).nansum(dim=2)
-        # return 1 - torch.mean(cosim)
-        return 1 - torch.nansum(cosim) / max(1, cosim.isnan().logical_not().sum())
+        cosim = (patches1 * patches2).sum(dim=2)
+#        cosim = (patches1 * patches2).nansum(dim=2)
+        return 1 - torch.mean(cosim)
+        # return 1 - torch.nansum(cosim) / max(1, cosim.isnan().logical_not().sum())

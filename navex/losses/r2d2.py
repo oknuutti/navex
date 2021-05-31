@@ -7,7 +7,7 @@ from torch.functional import F
 from .base import BaseLoss
 from .ap import DiscountedAPLoss, WeightedAPLoss, ThresholdedAPLoss
 from .cosim import CosSimilarityLoss
-from .peakiness import PeakinessLoss, WeightedPeakinessLoss, ActivationLoss
+from .peakiness import PeakinessLoss, ActivationLoss
 
 
 class R2D2Loss(BaseLoss):
@@ -119,7 +119,7 @@ class R2D2Loss(BaseLoss):
             q_loss = torch.Tensor([0]).to(des1.device)
 
         loss = torch.stack((p_loss, c_loss, a_loss, q_loss), dim=1)
-        return loss if component_loss else loss.nansum(dim=1)
+        return loss if component_loss else loss.sum(dim=1)
 
     def params_to_optimize(self, split=False):
         params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'wqt')]

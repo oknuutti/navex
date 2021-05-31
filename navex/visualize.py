@@ -215,9 +215,9 @@ def view_detections(imgs, dets, qlts, show=True):
 
     for i, (img, det, qlt) in enumerate(zip(imgs, dets, qlts)):
         plot_tensor(img, image=True, ax=axs[i * 4 + 0])
-        plot_tensor(det, ax=axs[i * 4 + 1])
-        plot_tensor(qlt, ax=axs[i * 4 + 2])
-        plot_tensor(img, image=True, heatmap=det * qlt, ax=axs[i * 4 + 3])
+        plot_tensor(img, image=True, heatmap=det * qlt, ax=axs[i * 4 + 1])
+        plot_tensor(det, ax=axs[i * 4 + 2])
+        plot_tensor(qlt, ax=axs[i * 4 + 3])
 
         if 0:
             xy = XY[-1] * sc
