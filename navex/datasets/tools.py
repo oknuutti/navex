@@ -3,6 +3,7 @@ import os
 import re
 import random
 import sqlite3
+from re import Pattern
 from typing import Tuple, Union, List, Iterable
 
 import numpy as np
@@ -12,11 +13,14 @@ import cv2
 
 
 def _find_files_recurse(root, path, samples, npy, ext, test, depth, relative):
-    if npy:
-        ext = ('.npy',)
-    elif isinstance(ext, str):
-        ext = (ext,)
-    expat = '(' + '|'.join(map(re.escape, ext)) + ')$'
+    if isinstance(ext, Pattern):
+        expat = ext
+    else:
+        if npy:
+            ext = ('.npy',)
+        elif isinstance(ext, str):
+            ext = (ext,)
+        expat = '(' + '|'.join(map(re.escape, ext)) + ')$'
 
     for fname in os.listdir(os.path.join(root, path)):
         fullpath = os.path.join(root, path, fname)
@@ -239,6 +243,16 @@ def angle_between_v(v1, v2, direction=False):
         raise Exception('Bad vectors:\n\tv1: %s\n\tv2: %s' % (v1, v2)) from e
 
     return angle
+
+
+def angle_between_q(q1, q2):
+    # from  https://chrischoy.github.io/research/measuring-rotation/
+    qd = q1.conj() * q2
+    return abs(wrap_rads(2 * math.acos(qd.normalized().w)))
+
+
+def wrap_rads(a):
+    return (a + np.pi) % (2 * np.pi) - np.pi
 
 
 def preprocess_image(data, gamma):

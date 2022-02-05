@@ -16,7 +16,6 @@ from navex.models import tools
 #    python navex/extract.py --images data/hpatches/image_list_hpatches_sequences.txt \
 #                            --model output/tune_s4c_44.ckpt \
 #                            --tag ap4c --top-k 2000
-from navex.models.r2d2orig import R2D2
 
 
 def main():
@@ -38,70 +37,112 @@ def main():
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
 
-    device = "cuda:0" if args.gpu else "cpu"
-    model = load_model(args.model, device)
-    rgb = is_rgb_model(model)
-    model.eval()
+    extractor = Extractor(args.model, gpu=args.gpu, top_k=args.top_k, feat_d=args.feat_d, border=args.border,
+                          scale_f=args.scale_f, min_size=args.min_size, max_size=args.max_size,
+                          min_scale=args.min_scale, max_scale=args.max_scale, det_lim=args.det_lim,
+                          qlt_lim=args.qlt_lim)
 
-    if args.border:
-        border = args.border
-    else:
-        try:
-            border = model.trial.loss_fn.border
-        except:
-            border = 16
+    extractor.extract(args.images, recurse=args.recurse, save_ext=args.tag, verbose=True)
 
-    dataset = ExtractionImageDataset(args.images, rgb=rgb, recurse=args.recurse)
-    data_loader = DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True)
-    pbar = tqdm(data_loader)
 
-    for i, data in enumerate(pbar):
-        # if not ('v_abstract' in dataset.samples[i] or 'v_gardens' in dataset.samples[i]):
-        #     continue
-        data = data.to(device)
+class Extractor:
+    def __init__(self, model, gpu=True, top_k=None, border=None, feat_d=0.001, scale_f=2**(1/4), min_size=256,
+                 max_size=1024, min_scale=0.0, max_scale=1.0, det_lim=0.7, qlt_lim=0.7):
+        self.gpu = gpu
+        self.device = "cuda:0" if gpu else "cpu"
+        self.model = load_model(model, self.device)
+        self.rgb = is_rgb_model(self.model)
+        self.model.eval()
 
-        # extract keypoints/descriptors for a single image
-        cpu = False
-        for _ in range(2):
+        if border is None:
             try:
-                xys, desc, scores = extract_multiscale(model, data,
-                                                       scale_f=args.scale_f,
-                                                       min_scale=args.min_scale,
-                                                       max_scale=args.max_scale,
-                                                       min_size=args.min_size,
-                                                       max_size=args.max_size,
-                                                       top_k=args.top_k,
-                                                       feat_d=args.feat_d,
-                                                       det_lim=args.det_lim,
-                                                       qlt_lim=args.qlt_lim,
-                                                       border=border,
-                                                       verbose=True)
-                break
-            except RuntimeError as e:
-                # raise Exception('Problem with image #%d (%s)' % (i, dataset.samples[i])) from e
-                print('Problem with image #%d (%s): %s' % (i, dataset.samples[i], str(e)))
-                print('trying with CPU...')
-                cpu = True
-                model.cpu()
-                data = data.cpu()
-        if cpu:
-            model.to(device)
+                self.border = model.trial.loss_fn.border
+            except:
+                self.border = 16
 
-        idxs = (-scores).argsort()
-        if args.top_k is not None and args.top_k != 0:
-            idxs = idxs[:args.top_k]
+        self.top_k = top_k
+        self.feat_d = feat_d
+        self.scale_f = scale_f
+        self.min_size = min_size
+        self.max_size = max_size
+        self.min_scale = min_scale
+        self.max_scale = max_scale
+        self.det_lim = det_lim
+        self.qlt_lim = qlt_lim
 
-        outpath = dataset.samples[i] + '.' + args.tag
-        with open(outpath, 'wb') as fh:
-            np.savez(fh, imsize=data.shape[2:],
-                     keypoints=xys[idxs],
-                     descriptors=desc[idxs],
-                     scores=scores[idxs])
+    def extract(self, images, recurse=True, save_ext=None, verbose=False):
+        if save_ext is None:
+            keypoint_arr = []
+            descriptor_arr = []
+            score_arr = []
 
-        pbar.set_postfix({'scales': len(np.unique(xys[idxs, 2])), 'keypoints': len(idxs)})
+        dataset = ExtractionImageDataset(images, rgb=self.rgb, recurse=recurse)
+        data_loader = DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True)
+        pbar = tqdm(data_loader) if verbose else data_loader
+
+        for i, data in enumerate(pbar):
+            # if not ('v_abstract' in dataset.samples[i] or 'v_gardens' in dataset.samples[i]):
+            #     continue
+            if isinstance(self.model, str):
+                xys, desc, scores = extract_traditional(self.model, data, top_k=self.top_k,
+                                                        feat_d=self.feat_d, border=self.border)
+            else:
+                data = data.to(self.device)
+
+                # extract keypoints/descriptors for a single image
+                cpu = not self.gpu
+                for _ in range(2):
+                    try:
+                        xys, desc, scores = extract_multiscale(self.model, data,
+                                                               scale_f=self.scale_f,
+                                                               min_scale=self.min_scale,
+                                                               max_scale=self.max_scale,
+                                                               min_size=self.min_size,
+                                                               max_size=self.max_size,
+                                                               top_k=self.top_k,
+                                                               feat_d=self.feat_d,
+                                                               det_lim=self.det_lim,
+                                                               qlt_lim=self.qlt_lim,
+                                                               border=self.border,
+                                                               verbose=verbose)
+                        break
+                    except RuntimeError as e:
+                        # raise Exception('Problem with image #%d (%s)' % (i, dataset.samples[i])) from e
+                        print('Problem with image #%d (%s): %s' % (i, dataset.samples[i], str(e)))
+                        if cpu:
+                            raise e
+                        print('trying with CPU...')
+                        cpu = True
+                        self.model.cpu()
+                        data = data.cpu()
+                if cpu and self.gpu:
+                    self.model.to(self.device)
+
+            idxs = (-scores).argsort()
+            if self.top_k is not None and self.top_k != 0:
+                idxs = idxs[:self.top_k]
+
+            if save_ext is None:
+                keypoint_arr.append(xys[idxs])
+                descriptor_arr.append(desc[idxs])
+                score_arr.append(scores[idxs])
+            else:
+                outpath = dataset.samples[i] + '.' + save_ext
+                with open(outpath, 'wb') as fh:
+                    np.savez(fh, imsize=data.shape[2:],
+                             keypoints=xys[idxs],
+                             descriptors=desc[idxs],
+                             scores=scores[idxs])
+            if verbose:
+                pbar.set_postfix({'scales': len(np.unique(xys[idxs, 2])), 'keypoints': len(idxs)})
+
+        if save_ext is None:
+            if len(keypoint_arr) == 1:
+                keypoint_arr, descriptor_arr, score_arr = keypoint_arr[0], descriptor_arr[0], score_arr[0]
+            return keypoint_arr, descriptor_arr, score_arr
 
 
-def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=1, min_size=256, max_size=1024,
+def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=1.0, min_size=256, max_size=1024,
                        top_k=None, feat_d=0.001, det_lim=None, qlt_lim=None, border=16, verbose=False):
     old_bm = torch.backends.cudnn.benchmark
     torch.backends.cudnn.benchmark = False  # speedup
@@ -148,7 +189,7 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             C.append(conf[0].t().cpu().numpy())
             D.append(descr[0].t().cpu().numpy())
 
-            if 1:
+            if 0:
                 from .visualize import view_detections
                 view_detections(img, det, qlt)
 
@@ -165,6 +206,82 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
     C = np.concatenate(C).flatten()  # confidence
 
     return XYS, D, C
+
+
+def extract_traditional(method, img, top_k=None, feat_d=0.001, border=16, asteroid_target=False):
+    import cv2
+
+    k = np.inf
+    h, w = img.shape[:2]
+    mask = tools.asteroid_limb_mask(img) if asteroid_target else None
+
+    if feat_d is not None:
+        # detect at most 0.001 features per pixel
+        px_count = (h - border * 2) * (w - border * 2) if mask is None else np.sum(mask)
+        k = min(k, int(px_count * feat_d))
+
+    if top_k is not None:
+        k = min(k, top_k)
+
+    if method == 'orb':
+        params = {
+            'nfeatures': k,  # default: 500
+            'edgeThreshold': 31,  # default: 31
+            'fastThreshold': 10,  # default: 20
+            'firstLevel': 0,  # always 0
+            'nlevels': 8,  # default: 8
+            'patchSize': 31,  # default: 31
+            'scaleFactor': 1.2,  # default: 1.2
+            'scoreType': cv2.ORB_HARRIS_SCORE,  # default ORB_HARRIS_SCORE, other: ORB_FAST_SCORE
+            'WTA_K': 2,  # default: 2
+        }
+        det = cv2.ORB_create(**params)
+
+    elif method == 'akaze':
+        params = {
+            'descriptor_type': cv2.AKAZE_DESCRIPTOR_MLDB,  # default: cv2.AKAZE_DESCRIPTOR_MLDB
+            'descriptor_channels': 3,  # default: 3
+            'descriptor_size': 0,  # default: 0
+            'diffusivity': cv2.KAZE_DIFF_CHARBONNIER,  # default: cv2.KAZE_DIFF_PM_G2
+            'threshold': 0.00005,  # default: 0.001
+            'nOctaves': 4,  # default: 4
+            'nOctaveLayers': 4,  # default: 4
+        }
+        det = cv2.AKAZE_create(**params)
+
+    elif method == 'sift':
+        params = {
+            'nfeatures': k,
+            'nOctaveLayers': 3,  # default: 3
+            'contrastThreshold': 0.01,  # default: 0.04
+            'edgeThreshold': 25,  # default: 10
+            'sigma': 1.6,  # default: 1.6
+        }
+        det = cv2.xfeatures2d.SIFT_create(**params)
+
+    elif method == 'surf':
+        params = {
+            'hessianThreshold': 100.0,  # default: 100.0
+            'nOctaves': 4,  # default: 4
+            'nOctaveLayers': 3,  # default: 3
+            'extended': False,  # default: False
+            'upright': False,  # default: False
+        }
+        det = cv2.xfeatures2d.SURF_create(**params)
+    else:
+        assert False, 'invalid feature extraction method: %s' % method
+
+    kps, dcs = det.detectAndCompute(img, mask)
+    k = min(k, len(kps))
+    idxs = (-np.array([kp.response for kp in kps])).argsort()
+    idxs = idxs[:k]
+    XYS = np.array([[kps[i].pt[0], kps[i].pt[1], kps[i].size] for i in idxs])
+    D = np.array([dcs[i] for i in idxs])
+    scores = np.array([kps[i].response for i in idxs])
+    if method in ('orb', 'akaze'):
+        D = D.astype(np.uint8)
+
+    return XYS, D, scores
 
 
 if __name__ == '__main__':

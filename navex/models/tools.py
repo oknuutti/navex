@@ -80,8 +80,28 @@ def match(des1, des2, norm=2, mutual=True, ratio=False):
                torch.zeros((B, K1), dtype=torch.bool, device=dev), \
                torch.zeros((B, K1, K2), dtype=torch.float, device=dev)
 
-    dist = torch.linalg.norm(des1.view((B, D, K1, 1)).expand((B, D, K1, K2))
-                             - des2.view((B, D, 1, K2)).expand((B, D, K1, K2)), ord=norm, dim=1)     # [b, k1, k2]
+    if isinstance(norm, int):
+        dist = torch.linalg.norm(des1.view((B, D, K1, 1)).expand((B, D, K1, K2))
+                                 - des2.view((B, D, 1, K2)).expand((B, D, K1, K2)), ord=norm, dim=1)     # [b, k1, k2]
+    else:
+        assert des1.shape[0] == 1 and des2.shape[0] == 1, 'with binary descriptors, currently only one image at a time supported'
+        assert des1.dtype == torch.uint8 and des2.dtype == torch.uint8, 'binary descriptors need to be of type byte'
+        assert des1.device.type == 'cpu', 'only works for cpu at the moment'
+        des1_ = des1.numpy()[0, :, :].T
+        des2_ = des2.numpy()[0, :, :].T
+        d1 = np.repeat(des1_[:, None, :], len(des2_), axis=1)
+        d2 = np.repeat(des2_[None, :, :], len(des1_), axis=0)
+        if 0:
+            d1 = np.unpackbits(d1, axis=2)
+            d2 = np.unpackbits(d2, axis=2)
+            dist = np.mean(d1 != d2, axis=2)
+        else:
+            import cv2
+            hamm = lambda x: cv2.norm(x[0:len(x)//2], x[len(x)//2:], cv2.NORM_HAMMING)
+            dist = np.apply_along_axis(hamm, np.concatenate((d1, d2), axis=2), axis=2)
+
+        dist = torch.Tensor(dist[None, :, :])
+
     min1, idx1 = torch.min(dist, dim=2)
     mask = torch.ones((B, K1), dtype=torch.bool, device=dev)
 
@@ -216,6 +236,42 @@ def reorder_cols(X, src_cols, trg_cols, defaults=None):
                    else np.ones((len(X),)) * defaults[p]
                    for p in trg_cols], axis=1)
     return Xn.tolist()
+
+
+def gkern2d(l=5, sig=1.):
+    """
+    creates gaussian kernel with side length l and a sigma of sig
+    """
+    w, h = (l[0], l[1]) if '__iter__' in dir(l) else (l, l)
+    sx, sy = (sig[0], sig[1]) if '__iter__' in dir(sig) else (sig, sig)
+    ax = np.arange(-w // 2 + 1., w // 2 + 1.)
+    ay = np.arange(-h // 2 + 1., h // 2 + 1.)
+    xx, yy = np.meshgrid(ax, ay)
+    kernel = np.exp(-((xx / sx) ** 2 + (yy / sy) ** 2) / 2)
+    return kernel / np.sum(kernel)
+
+
+def bsphkern(l=5):
+    """
+    creates a binary spherical kernel
+    """
+    gkern = gkern2d(l=l, sig=l)
+    limit = gkern[l // 2 if isinstance(l, int) else l[1] // 2, -1] * 0.995
+    return np.array(gkern >= limit, dtype=np.uint8)
+
+
+def asteroid_limb_mask(image, min_feature_intensity=50):
+    import cv2
+
+    _, mask = cv2.threshold(image, min_feature_intensity, 255, cv2.THRESH_BINARY)
+    kernel = bsphkern(round(6 * image.shape[0] / 512) * 2 + 1)
+
+    # exclude asteroid limb from feature detection
+    mask = cv2.erode(mask, bsphkern(7), iterations=1)  # remove stars
+    mask = cv2.dilate(mask, kernel, iterations=1)  # remove small shadows inside asteroid
+    mask = cv2.erode(mask, kernel, iterations=2)  # remove asteroid limb
+
+    return mask
 
 
 def max_rect_bounded_by_quad_mask(mask: np.ndarray = None):
