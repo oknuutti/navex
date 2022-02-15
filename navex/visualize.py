@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--best-n", type=int, default=5)
     parser.add_argument("--gpu", type=int, default=1)
     parser.add_argument("--video", type=int, default=0)
+    parser.add_argument("--detection-only", action="store_true", help="only view feature detection overlay")
     args = parser.parse_args()
 
     # --images data\batvik\2020-12-17\vid-1-frame-645.png
@@ -70,7 +71,7 @@ def main():
 
     dataset1 = ExtractionImageDataset(args.images, rgb=rgb, recurse=args.subdirs)
 
-    if args.images2:
+    if args.images2 and not args.detection_only:
         dataset2 = ExtractionImageDataset(args.images2, rgb=rgb, recurse=args.subdirs)
         n1, n2 = len(dataset1), len(dataset2)
         inlier_counts = np.zeros((n1, n2))
@@ -121,7 +122,7 @@ def main():
 
             xys1, desc1, scores1 = extract(model, data, args)
 
-            if img0 is not None:
+            if img0 is not None and not args.detection_only:
                 match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, device=device)
 
             img0, scores0, xys0, desc0 = img1, scores1, xys1, desc1
@@ -186,7 +187,8 @@ def extract(model, data, args):
                                                   det_lim=args.det_lim,
                                                   qlt_lim=args.qlt_lim,
                                                   border=args.border,
-                                                  verbose=True)
+                                                  verbose=True,
+                                                  plot=args.detection_only)
 
     scores1 = scores1.flatten()
     idxs = (-scores1).argsort()[:args.top_k]
@@ -253,7 +255,7 @@ def descriptor_change_map(des):
     return dxy
 
 
-def view_detections(imgs, dets, qlts, show=True):
+def view_detections(imgs, dets, qlts, show=True, title=None):
     if not isinstance(imgs, (tuple, list)):
         imgs, dets, qlts = [imgs], [dets], [qlts]
 
@@ -271,6 +273,8 @@ def view_detections(imgs, dets, qlts, show=True):
             for j in range(4):
                 axs[i * 4 + j].plot(xy[:, 0], xy[:, 1], 'o', mfc='none')
 
+    if title is not None:
+        fig.suptitle(title)
     plt.tight_layout()
     if show:
         plt.show()

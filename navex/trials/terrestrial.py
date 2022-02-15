@@ -36,7 +36,7 @@ class TerrestrialTrial(TrialBase):
                 for k in ('partial_residual',):
                     model_conf.pop(k)
                 model_conf['des_head']['dimensions'] = 128
-                model_conf['qlt_head']['single'] = loss_conf['loss_type'] != 'thresholded'
+                model_conf['qlt_head']['single'] = loss_conf['loss_type'] not in ('thresholded', 'logthresholded')
                 model = R2D2(**model_conf)
             elif arch == 'mob':
                 model = MobileAP(**model_conf)
@@ -77,7 +77,7 @@ class TerrestrialTrial(TrialBase):
         return ok
 
     def on_train_batch_end(self, losses, accuracies, accumulating_grad: bool):
-        if self.loss_fn.loss_type == 'thresholded' and not accumulating_grad:
+        if self.loss_fn.loss_type in ('thresholded', 'logthresholded') and not accumulating_grad:
             num_val = torch.logical_not(torch.isnan(accuracies[:, 3])).sum()
             if num_val > 0:
                 map = 1.0  # accuracies[:, 3].nansum() / num_val
@@ -93,7 +93,7 @@ class TerrestrialTrial(TrialBase):
             log['wqt'] = torch.exp(-self.loss_fn.wqt)
         if not isinstance(self.loss_fn.base, float):
             log['ap_base'] = self.loss_fn.base
-        if self.loss_fn.loss_type == 'thresholded':
+        if self.loss_fn.loss_type in ('thresholded', 'logthresholded'):
             log['ap_base'] = self.loss_fn.ap_base
         return log or None
 

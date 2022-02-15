@@ -5,7 +5,7 @@ from torch import nn
 from torch.functional import F
 
 from .base import BaseLoss
-from .ap import DiscountedAPLoss, WeightedAPLoss, ThresholdedAPLoss
+from .ap import DiscountedAPLoss, WeightedAPLoss, ThresholdedAPLoss, LogThresholdedAPLoss
 from .cosim import CosSimilarityLoss
 from .peakiness import PeakinessLoss, ActivationLoss
 
@@ -33,6 +33,8 @@ class R2D2Loss(BaseLoss):
             self.ap_loss = WeightedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type == 'thresholded':
             self.ap_loss = ThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
+        elif loss_type == 'logthresholded':
+            self.ap_loss = LogThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         else:
             assert False, 'invalid loss_type: %s' % loss_type
 

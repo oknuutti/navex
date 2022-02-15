@@ -284,7 +284,7 @@ loss:
   loss_type:
     trial: ["terr", "ast", "aer"]
     alt: ["--loss-type"]
-    choices: ['discounted', 'weighted', 'thresholded']
+    choices: ['discounted', 'weighted', 'thresholded', 'logthresholded']
     help: "loss function to use"
 
   des_w:

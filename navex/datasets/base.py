@@ -453,7 +453,7 @@ class ExtractionImageDataset(torch.utils.data.Dataset):
                 self.samples = find_files_recurse(path, ext=exts, depth=100 if recurse else 0)
                 self.samples = sorted(self.samples, key=lambda x: tuple(map(int, re.findall(r'\d+', x))))
             elif isinstance(exts, re.Pattern) and re.match(exts, path) \
-                    or isinstance(exts, str) and (path[-4:] in exts or path[-5:] == '.jpeg'):
+                    or isinstance(exts, tuple) and (path[-4:] in exts or path[-5:] == '.jpeg'):
                 self.samples = [path]
             else:
                 with open(path) as fh:

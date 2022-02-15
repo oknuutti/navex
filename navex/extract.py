@@ -48,6 +48,8 @@ def main():
 class Extractor:
     def __init__(self, model, gpu=True, top_k=None, border=None, feat_d=0.001, scale_f=2**(1/4), min_size=256,
                  max_size=1024, min_scale=0.0, max_scale=1.0, det_lim=0.7, qlt_lim=0.7):
+        if gpu is None:
+            gpu = torch.has_cuda
         self.gpu = gpu
         self.device = "cuda:0" if gpu else "cpu"
         self.model = load_model(model, self.device)
@@ -70,7 +72,7 @@ class Extractor:
         self.det_lim = det_lim
         self.qlt_lim = qlt_lim
 
-    def extract(self, images, recurse=True, save_ext=None, verbose=False):
+    def extract(self, images, recurse=True, save_ext=None, verbose=False, debug_det=False):
         if save_ext is None:
             keypoint_arr = []
             descriptor_arr = []
@@ -104,7 +106,8 @@ class Extractor:
                                                                det_lim=self.det_lim,
                                                                qlt_lim=self.qlt_lim,
                                                                border=self.border,
-                                                               verbose=verbose)
+                                                               verbose=verbose,
+                                                               plot=debug_det)
                         break
                     except RuntimeError as e:
                         # raise Exception('Problem with image #%d (%s)' % (i, dataset.samples[i])) from e
@@ -143,7 +146,7 @@ class Extractor:
 
 
 def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=1.0, min_size=256, max_size=1024,
-                       top_k=None, feat_d=0.001, det_lim=None, qlt_lim=None, border=16, verbose=False):
+                       top_k=None, feat_d=0.001, det_lim=None, qlt_lim=None, border=16, verbose=False, plot=False):
     old_bm = torch.backends.cudnn.benchmark
     torch.backends.cudnn.benchmark = False  # speedup
 
@@ -189,9 +192,9 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             C.append(conf[0].t().cpu().numpy())
             D.append(descr[0].t().cpu().numpy())
 
-            if 0:
+            if plot:
                 from .visualize import view_detections
-                view_detections(img, det, qlt)
+                view_detections(img, det, qlt, title='Resolution: %dx%d, Scale: %.3f' % (w, h, sc))
 
         sc /= scale_f
 

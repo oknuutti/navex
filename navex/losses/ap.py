@@ -77,7 +77,7 @@ class ThresholdedAPLoss(DiscountedAPLoss):
         self.update_coef = update_coef
 
     def losses(self, ap, qlt):
-        a_loss = 1 - qlt * ap - (1 - qlt) * self.current_map * self.base
+        a_loss = 1 - (qlt * ap + (1 - qlt) * self.current_map * self.base)
         return a_loss, None
 
     def update_ap_base(self, map):
@@ -87,6 +87,13 @@ class ThresholdedAPLoss(DiscountedAPLoss):
     @property
     def ap_base(self):
         return self.current_map * self.base
+
+
+class LogThresholdedAPLoss(ThresholdedAPLoss):
+    def losses(self, ap, qlt):
+        eps = 1e-5
+        a_loss = -torch.log(qlt * ap + (1 - qlt) * self.current_map * self.base + eps)
+        return a_loss, None
 
 
 class DifferentiableAP(Module):
