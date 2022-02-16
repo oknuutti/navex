@@ -59,15 +59,15 @@ class AstroPoint(BasePoint):
 
     @classmethod
     def create_descriptor_head(cls, in_ch, conf):
-        return cls.create_descriptor_head(in_ch, conf['dimensions'], conf)
+        return cls._create_head(in_ch, conf['dimensions'], conf)
 
     @classmethod
     def create_detector_head(cls, in_ch, conf):
-        return cls.create_descriptor_head(in_ch, 65, conf)
+        return cls._create_head(in_ch, 65, conf)
 
     @classmethod
     def create_quality_head(cls, in_ch, conf):
-        return cls.create_descriptor_head(in_ch, 2, conf)
+        return cls._create_head(in_ch, 2, conf)
 
     def params_to_optimize(self, split=False):
         np = list(self.named_parameters(recurse=False))
