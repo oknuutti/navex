@@ -95,7 +95,13 @@ class LogThresholdedAPLoss(ThresholdedAPLoss):
         # inspired by binary cross-entropy:  -(y*log(p) + (1-y)*log(1-p)), however, if 1-ap=y, 1-y <> base_ap
         #  - if qlt ~ 1, ap needs to be very close to 1
         #  - never good idea for qlt ~ 0,  ...
-        a_loss = -(torch.log(1 - qlt + eps) * (1 - ap) + torch.log(qlt + eps) * self.current_map * self.base)
+        if 1:
+            a_loss = -(torch.log(1 - qlt + eps) * (1 - ap) + torch.log(qlt + eps) * (1 - self.current_map * self.base))
+        elif 0:
+            a_loss = -(torch.log(ap + eps) * qlt + torch.log(self.current_map * self.base + eps) * (1 - qlt))
+        else:
+            a_loss = torch.log(1 - qlt + eps) * torch.log(ap + eps) \
+                     + torch.log(qlt + eps) * torch.log(self.current_map * self.base + eps)
 
         # was first:
         # a_loss = -torch.log(qlt * ap + (1 - qlt) * self.current_map * self.base + eps)
