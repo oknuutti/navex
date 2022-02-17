@@ -23,7 +23,7 @@ class DiscountedAPLoss(Module):
         c = sampler_conf
         self.sampler = DetectionSampler(pos_r=c['pos_d'], neg_min_r=c['neg_d'], neg_max_r=c['neg_d'] + c['ngh'],
                                         neg_step=c['subd'], cell_d=abs(c['subq']), border=c['border'],
-                                        max_neg_b=c['max_neg_b'], random=False)
+                                        max_neg_b=c['max_neg_b'], random=True)
 
         self.calc_ap = DifferentiableAP(bins=nq, euclidean=False)  # eucl perf worse, maybe due to lower mid ap res
         self.bce_loss = BCELoss(reduction='none')
