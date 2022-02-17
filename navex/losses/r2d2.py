@@ -120,6 +120,7 @@ class R2D2Loss(BaseLoss):
         else:
             q_loss = torch.Tensor([0]).to(des1.device)
 
+        p_loss, c_loss, a_loss, q_loss = map(torch.atleast_1d, (p_loss, c_loss, a_loss, q_loss))
         loss = torch.stack((p_loss, c_loss, a_loss, q_loss), dim=1)
         return loss if component_loss else loss.sum(dim=1)
 
