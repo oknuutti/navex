@@ -42,12 +42,14 @@ class DiscountedAPLoss(Module):
         return a_loss, q_loss
 
     def losses(self, ap, qlt):
-        # reversed logistic function shaped derivative for loss (x = 1 - ap), arrived at by integration:
-        #   integrate(1 - 1/(1+exp(-(x - bias) / scale)), x) => -scale * log(1 + exp(-(x - bias) / scale))
-        if self.discount:
+        if 0:
+            # reversed logistic function shaped derivative for loss (x = 1 - ap), arrived at by integration:
+            #   integrate(1 - 1/(1+exp(-(x - bias) / scale)), x) => -scale * log(1 + exp(-(x - bias) / scale))
             x = 1 - ap
             # a_loss = self.bias - self.scale * torch.log(1 + torch.exp(-(x - (1 - self.base)) / self.scale))
             a_loss = self.bias - F.softplus(-(x - (1 - self.base)), 1 / self.scale)
+        elif self.discount:
+            a_loss = (1 - ap) * qlt.detach()
         else:
             a_loss = -torch.log(ap + self.eps)
 
