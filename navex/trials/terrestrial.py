@@ -77,11 +77,12 @@ class TerrestrialTrial(TrialBase):
         return ok
 
     def on_train_batch_end(self, losses, accuracies, accumulating_grad: bool):
-        if self.loss_fn.loss_type in ('thresholded', 'logthresholded') and not accumulating_grad:
-            num_val = torch.logical_not(torch.isnan(accuracies[:, 3])).sum()
-            if num_val > 0:
-                map = 1.0  # accuracies[:, 3].nansum() / num_val
-                self.loss_fn.update_ap_base(map)
+        if hasattr(self.loss_fn, 'batch_end_update') and not accumulating_grad:
+            num_val = torch.nansum(torch.logical_not(torch.isnan(accuracies)), dim=0)
+            accs = torch.Tensor([float('nan')] * num_val.numel()).to(accuracies.device)
+            if torch.sum(num_val > 0) > 0:
+                accs[num_val > 0] = torch.nansum(accuracies[:, num_val > 0], dim=0) / num_val[num_val > 0]
+            self.loss_fn.batch_end_update(accs)
 
     def log_values(self):
         log = {}

@@ -50,9 +50,10 @@ class R2D2Loss(BaseLoss):
     def ap_base(self):
         return self.ap_loss.ap_base
 
-    def update_ap_base(self, map):
-        assert isinstance(self.ap_loss, ThresholdedAPLoss), "only valid for loss_type='thresholded'"
-        self.ap_loss.update_ap_base(map)
+    def batch_end_update(self, accs):
+        for loss_fn in (self.ap_loss, self.peakiness_loss, self.cosim_loss):
+            if hasattr(loss_fn, 'batch_end_update'):
+                loss_fn.batch_end_update(accs)
 
     def update_conf(self, new_conf):
         ok = True

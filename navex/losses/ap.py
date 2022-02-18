@@ -9,7 +9,7 @@ from navex.losses.sampler import DetectionSampler
 
 
 class DiscountedAPLoss(Module):
-    def __init__(self, base=0.5, scale=0.1, nq=20, sampler_conf=None):
+    def __init__(self, base=0.5, scale=0.1, nq=20, warmup_batches=500, sampler_conf=None):
         super(DiscountedAPLoss, self).__init__()
 
         self.eps = 1e-5
@@ -18,6 +18,8 @@ class DiscountedAPLoss(Module):
         self.bias = self.scale * math.log(math.exp((1 - self.base) / self.scale) + 1)
         self.name = 'ap-loss'
         self.discount = True
+        self.batch_count = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
+        self.warmup_batches = warmup_batches
 
         # TODO: update config
         c = sampler_conf
@@ -27,6 +29,9 @@ class DiscountedAPLoss(Module):
 
         self.calc_ap = DifferentiableAP(bins=nq, euclidean=False)  # eucl perf worse, maybe due to lower mid ap res
         self.bce_loss = BCELoss(reduction='none')
+
+    def batch_end_update(self, accs):
+        self.batch_count += 1
 
     def forward(self, output1, output2, aflow):
         scores, labels, mask, qlt = self.sampler(output1, output2, aflow)
@@ -49,7 +54,7 @@ class DiscountedAPLoss(Module):
             # a_loss = self.bias - self.scale * torch.log(1 + torch.exp(-(x - (1 - self.base)) / self.scale))
             a_loss = self.bias - F.softplus(-(x - (1 - self.base)), 1 / self.scale)
         elif self.discount:
-            a_loss = (1 - ap) * qlt.detach()
+            a_loss = (1 - ap) * (qlt.detach() if self.batch_count > self.warmup_batches else 1.0)
         else:
             a_loss = -torch.log(ap + self.eps)
 
@@ -79,10 +84,13 @@ class ThresholdedAPLoss(DiscountedAPLoss):
         self.update_coef = update_coef
 
     def losses(self, ap, qlt):
+        # q*(1-a) + (1-q)*(1-b) => q - q*a + 1 - b - q + q*b => 1 - (q*a +b -q*b) => 1 - (q*a + (1-q)*b)
         a_loss = 1 - (qlt * ap + (1 - qlt) * self.current_map * self.base)
         return a_loss, None
 
-    def update_ap_base(self, map):
+    def batch_end_update(self, accs):
+        map = accs[3] if 0 else 1.0
+
         # update after every training batch
         self.current_map.set_(self.update_coef * map + (1 - self.update_coef) * self.current_map)
 
