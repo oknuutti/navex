@@ -72,17 +72,17 @@ loss:
   wqt: !h_float -1.0      # weight for expected ap loss
   det_n: !h_int  24       # detector neighbourhood size
   base: !h_float 0.8      # quality loss target mAP
-  nq: 20          # quantizer bins for ap calc
-  sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    subq: -8      # was -8      # grid step size for positive samples
-    subd: 1       # was 1       # neigbourhood sampling interval
-    pos_d: 1      # was 3       # positive samples generated up to this far from ideal location
-    neg_d: 10     # was 5       # negative samples generated starting from distance from ideal location
-    ngh: 2        # was 7       # neighbourhood size in descriptor cells
-    border: 16    # was 16
-    subd_neg: -8  # was -8      # grid step size for generating additional negative samples
-    max_neg_b: 8                # distractors mined from max this number of images from same batch
-    maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
+  nq: 20              # quantizer bins for ap calc
+  sampler:            # was for a descriptor head that is same resolution than input image of size [192, 192]
+    subq: -8          # was -8      # grid step size for positive samples
+    subd: 1           # was 1       # neigbourhood sampling interval
+    pos_d: 1          # was 3       # positive samples generated up to this far from ideal location
+    neg_d: !h_int 10  # was 5       # negative samples generated starting from distance from ideal location
+    ngh: 2            # was 7       # neighbourhood size in descriptor cells
+    border: 16        # was 16
+    subd_neg: -8      # was -8      # grid step size for generating additional negative samples
+    max_neg_b: 8                    # distractors mined from max this number of images from same batch
+    maxpool_pos: 1                  # False: use all positive samples, or True: only the best matching one
 
 optimizer:
   method: 'adam'

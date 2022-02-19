@@ -305,7 +305,7 @@ def plot_tensor(data, heatmap=None, image=False, ax=None, scale=False):
             overlay = (overlay - overlay.min(axis=(0, 1))) / (overlay.max(axis=(0, 1)) - overlay.min(axis=(0, 1)))
             overlay = cv2.applyColorMap((overlay * 255).astype(np.uint8), cv2.COLORMAP_SUMMER)
             overlay = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
-            img = cv2.addWeighted(overlay, 0.5, (img * 255).astype(np.uint8), 0.5, 0)
+            img = cv2.addWeighted(overlay, 0.3, (img * 255).astype(np.uint8), 0.7, 0)
 
         if ax is None:
             plt.imshow(img)
