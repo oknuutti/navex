@@ -11,7 +11,8 @@ class CosSimilarityLoss(Module):
 
     def extract_patches(self, det):
         patches = self.patches(det).transpose(1, 2)
-        patches = F.normalize(patches, p=2, dim=2)
+        if not self.use_max:
+            patches = F.normalize(patches, p=2, dim=2)
         return patches
 
     def forward(self, det1, det2, aflow):
