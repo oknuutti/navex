@@ -17,11 +17,12 @@ class R2D2Loss(BaseLoss):
 
         self.cosim_loss = CosSimilarityLoss(int(det_n), use_max=wpk > 0)
         if wpk > 0:
-            self.peakiness_loss = ActivationLoss(wpk)
+            self.peakiness_loss = ActivationLoss()
+            self.wpk = wpk
         else:
             self.peakiness_loss = PeakinessLoss(int(det_n))
+            self.wpk = 0.5  # wpk
 
-        self.wpk = 0.5  # wpk
         self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
         self.wqt = 0.0

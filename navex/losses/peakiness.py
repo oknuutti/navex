@@ -18,10 +18,9 @@ class PeakinessLoss(Module):
 
 class ActivationLoss(Module):
     """ just testing out something... """
-    def __init__(self, cost_coef):
+    def __init__(self):
         super(ActivationLoss, self).__init__()
-        self.cost_coef = cost_coef
-        self.max_loss = cost_coef
+        self.max_loss = 1
 
     def forward(self, det1, det2):
-        return self.cost_coef * (det1.mean() + det2.mean()) / 2
+        return (det1.mean() + det2.mean()) / 2
