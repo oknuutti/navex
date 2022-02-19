@@ -9,7 +9,7 @@ from navex.losses.sampler import DetectionSampler
 
 
 class DiscountedAPLoss(Module):
-    def __init__(self, base=0.5, scale=0.1, nq=20, warmup_batches=500, sampler_conf=None):
+    def __init__(self, base=0.5, scale=0.1, nq=20, warmup_batches=6000, sampler_conf=None):
         super(DiscountedAPLoss, self).__init__()
 
         self.eps = 1e-5
@@ -55,8 +55,10 @@ class DiscountedAPLoss(Module):
             a_loss = self.bias - F.softplus(-(x - (1 - self.base)), 1 / self.scale)
         elif self.discount:
             a_loss = (1 - ap) * (qlt.detach() if self.batch_count > self.warmup_batches else 1.0)
-        else:
+        elif 0:
             a_loss = -torch.log(ap + self.eps)
+        else:
+            a_loss = 1 - ap
 
         q_loss = self.bce_loss(qlt, ap.detach())
 
