@@ -265,8 +265,8 @@ def view_detections(imgs, dets, qlts, show=True, title=None):
     for i, (img, det, qlt) in enumerate(zip(imgs, dets, qlts)):
         plot_tensor(img, image=True, ax=axs[i * 4 + 0])
         plot_tensor(img, image=True, heatmap=det * qlt, ax=axs[i * 4 + 1])
-        plot_tensor(det, ax=axs[i * 4 + 2])
-        plot_tensor(qlt, ax=axs[i * 4 + 3])
+        plot_tensor(heatmap=det, ax=axs[i * 4 + 2])
+        plot_tensor(heatmap=qlt, ax=axs[i * 4 + 3])
 
         if 0:
             xy = XY[-1] * sc
@@ -281,31 +281,43 @@ def view_detections(imgs, dets, qlts, show=True, title=None):
     return fig, axs
 
 
-def plot_tensor(data, heatmap=None, image=False, ax=None, scale=False):
-    if data.dim() == 3:
+def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, color_map='hsv'):
+    if data is not None and data.dim() == 3:
         data = data[None, :, :, :]
     if heatmap is not None and heatmap.dim() == 3:
         heatmap = heatmap[None, :, :, :]
-    B, D, H, W = data.shape
-    for i in range(B):
-        img = data[i, :, :, :].permute((1, 2, 0)).cpu().numpy()
-        if image:
-            if D == 3:
-                img = img * np.array(RGB_STD, dtype=np.float32) + np.array(RGB_MEAN, dtype=np.float32)
-            else:
-                img = img * np.array(GRAY_STD, dtype=np.float32) + np.array(GRAY_MEAN, dtype=np.float32)
-        elif scale:
-            img = (img - img.min(axis=(0, 1))) / (img.max(axis=(0, 1)) - img.min(axis=(0, 1)))
+    assert data is not None or heatmap is not None, 'both data and heatmap are None, give at least one'
+    B, D, H, W = heatmap.shape if data is None else data.shape
 
-        if image and img.shape[2] == 1:
-            img = np.repeat(img, 3, axis=2)
+    for i in range(B):
+        if data is not None:
+            img = data[i, :, :, :].permute((1, 2, 0)).cpu().numpy()
+            if image:
+                if D == 3:
+                    img = img * np.array(RGB_STD, dtype=np.float32) + np.array(RGB_MEAN, dtype=np.float32)
+                else:
+                    img = img * np.array(GRAY_STD, dtype=np.float32) + np.array(GRAY_MEAN, dtype=np.float32)
+            elif scale:
+                img = (img - img.min(axis=(0, 1))) / (img.max(axis=(0, 1)) - img.min(axis=(0, 1)))
+
+            if image and img.shape[2] == 1:
+                img = np.repeat(img, 3, axis=2)
 
         if heatmap is not None:
             overlay = heatmap[i, :, :, :].permute((1, 2, 0)).cpu().numpy()
             overlay = (overlay - overlay.min(axis=(0, 1))) / (overlay.max(axis=(0, 1)) - overlay.min(axis=(0, 1)))
-            overlay = cv2.applyColorMap((overlay * 255).astype(np.uint8), cv2.COLORMAP_SUMMER)
+
+            if color_map == 'hsv':
+                s, c = 0.33, 0.10
+                overlay = cv2.applyColorMap(((1 - np.clip(overlay*(1-s+c)+s-c, s, 1.0))*255).astype(np.uint8), cv2.COLORMAP_HSV)
+            else:
+                overlay = cv2.applyColorMap((overlay * 255).astype(np.uint8), cv2.COLORMAP_SUMMER)
+
             overlay = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
-            img = cv2.addWeighted(overlay, 0.3, (img * 255).astype(np.uint8), 0.7, 0)
+            if data is None:
+                img = overlay
+            else:
+                img = cv2.addWeighted(overlay, 0.3, (img * 255).astype(np.uint8), 0.7, 0)
 
         if ax is None:
             plt.imshow(img)

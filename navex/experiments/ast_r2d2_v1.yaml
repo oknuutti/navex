@@ -66,7 +66,7 @@ model:
 
 loss:
   loss_type: !h_str thresholded
-  wpk: !h_float 0.1      # peakiness vs cosim
+  wpk: !h_float -0.1      # peakiness vs cosim
   wdt: !h_float -1.5      # weight for peakiness and cosim losses
   wap: !h_float -2.0      # weight for expected ap loss
   wqt: !h_float -1.0      # weight for expected ap loss

@@ -15,9 +15,9 @@ class R2D2Loss(BaseLoss):
         super(R2D2Loss, self).__init__()
         self.loss_type = loss_type
 
-        self.cosim_loss = CosSimilarityLoss(int(det_n))
+        self.cosim_loss = CosSimilarityLoss(int(det_n), use_max=wpk > 0)
         if wpk > 0:
-            self.peakiness_loss = ActivationLoss(wpk, int(det_n))
+            self.peakiness_loss = ActivationLoss(wpk)
         else:
             self.peakiness_loss = PeakinessLoss(int(det_n))
 

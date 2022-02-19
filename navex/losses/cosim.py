@@ -4,9 +4,10 @@ from torch.functional import F
 
 
 class CosSimilarityLoss(Module):
-    def __init__(self, n=16):
+    def __init__(self, n=16, use_max=False):
         super(CosSimilarityLoss, self).__init__()
         self.patches = Unfold(n, padding=0, stride=n // 2)
+        self.use_max = use_max
 
     def extract_patches(self, det):
         patches = self.patches(det).transpose(1, 2)
@@ -27,7 +28,11 @@ class CosSimilarityLoss(Module):
 
         patches1 = self.extract_patches(det1)
         patches2 = self.extract_patches(warped_det2)
-        cosim = (patches1 * patches2).sum(dim=2)
+
+        if self.use_max:
+            cosim = (patches1 * patches2).amax(dim=2)
+        else:
+            cosim = (patches1 * patches2).sum(dim=2)
 #        cosim = (patches1 * patches2).nansum(dim=2)
         return 1 - torch.mean(cosim)
         # return 1 - torch.nansum(cosim) / max(1, cosim.isnan().logical_not().sum())
