@@ -17,7 +17,7 @@ class DiscountedAPLoss(Module):
         self.scale = scale
         self.bias = self.scale * math.log(math.exp((1 - self.base) / self.scale) + 1)
         self.name = 'ap-loss'
-        self.discount = True
+        self.discount = False
         self.batch_count = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
         self.warmup_batches = warmup_batches
 
