@@ -38,7 +38,7 @@ class R2D2Loss(BaseLoss):
         elif loss_type == 'logthresholded':
             self.ap_loss = LogThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type == 'disk':
-            self.ap_loss = DiskLoss(sampler=sampler)
+            self.ap_loss = DiskLoss(sampler=sampler, warmup_batch_scale=nq)     # recycled nq param
         else:
             assert False, 'invalid loss_type: %s' % loss_type
 
@@ -95,7 +95,11 @@ class R2D2Loss(BaseLoss):
         else:
             sc_aflow = aflow
 
-        a_loss, *q_loss = self.ap_loss(output1, output2, sc_aflow)
+        if isinstance(self.ap_loss, DiskLoss):
+            tmp = self.ap_loss(output1, output2, sc_aflow, component_loss=True)
+            a_loss, q_loss = tmp[0, 2:3], [tmp[0, 3:4]]
+        else:
+            a_loss, *q_loss = self.ap_loss(output1, output2, sc_aflow)
         q_loss = None if len(q_loss) == 0 else q_loss[0]
 
         # maybe optimize weights during training, see

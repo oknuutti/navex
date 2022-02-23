@@ -68,23 +68,23 @@ model:
 
 loss:
   loss_type: !h_str 'disk'
-  wpk: !h_float -0.5      # peakiness vs cosim
-  wdt: !h_float 0.0      # weight for peakiness and cosim losses
-  wap: !h_float 1.0      # weight for expected ap loss
-  wqt: !h_float -1.0      # weight for expected ap loss
+  wpk: -0.5      # not used for disk
+  wdt:  0.0      # not used for disk
+  wap:  1.0      # for main disk loss
+  wqt:  1.0      # for disk used for activation/sampling loss
   det_n: !h_int  8       # detector neighbourhood size
-  base: !h_float 0.5      # quality loss target mAP
-  nq: 20              # quantizer bins for ap calc
-  sampler:            # was for a descriptor head that is same resolution than input image of size [192, 192]
-    subq: -8          # was -8      # grid step size for positive samples
-    subd: 1           # was 1       # neigbourhood sampling interval
-    pos_d: 3          # was 3       # positive samples generated up to this far from ideal location
-    neg_d: !h_int 10  # was 5       # negative samples generated starting from distance from ideal location
-    ngh: 2            # was 7       # neighbourhood size in descriptor cells
-    border: 16        # was 16
-    subd_neg: -8      # was -8      # grid step size for generating additional negative samples
-    max_neg_b: 8                    # distractors mined from max this number of images from same batch
-    maxpool_pos: 1                  # False: use all positive samples, or True: only the best matching one
+  base: 0.5      # not used for disk
+  nq: 500       # recycled param: warmup_batch_scale for disk
+  sampler:
+    subq: -8          # not used for disk
+    subd: 1           # not used for disk
+    pos_d: !h_float 3   # disk max repr err to still consider successful match
+    neg_d: 10         # not used for disk
+    ngh: 2            # not used for disk
+    border: 16        #
+    subd_neg: -8      # not used for disk
+    max_neg_b: !h_int 1  # matches across these many pairs
+    maxpool_pos: 1    # not used for disk
 
 optimizer:
   method: 'adam'

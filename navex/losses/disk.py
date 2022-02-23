@@ -33,13 +33,13 @@ class DiskLoss(BaseLoss):
 
     def batch_end_update(self, accs):
         self.batch_count += 1
-        e = self.batch_count.cpu().numpy().item() / self.warmup_batch_scale
+        e = self.batch_count.item() / self.warmup_batch_scale
         if e < 250/5000:
             ramp = 0.0
-        elif e < (1.0 + 250/5000):
+        elif e < 5250/5000:
             ramp = 0.1
         else:
-            ramp = min(1., 0.1 + 0.2 * e)
+            ramp = min(1., 0.1 + 0.2 * (e - 5250/5000 + 2))     # because in orig disk first e is short
 
         self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., 0.05 * e)
         self._reward = 1.0 * self.reward
@@ -87,7 +87,7 @@ class DiskLoss(BaseLoss):
         # and the implementation at https://github.com/cvlab-epfl/disk/blob/master/disk/loss/reinforce.py
 
         det_logp_mxs, des_dist_mxs, px_dist_mxs, masks, b1s, b2s, sample_logp = self.sampler(output1, output2, aflow)
-        p_loss = self._sampling_cost * sample_logp
+        q_loss = self._sampling_cost * sample_logp
 
         a_loss = 0
         for det_logp_mx, des_dist_mx, px_dist_mx, mask, b1, b2 in zip(det_logp_mxs, des_dist_mxs, px_dist_mxs, masks, b1s, b2s):
@@ -113,7 +113,7 @@ class DiskLoss(BaseLoss):
             a_loss = a_loss + (cost_mx * sample_plogp).sum()
 
         dummy = torch.Tensor([0.0]).to(a_loss.device)
-        p_loss, c_loss, a_loss, q_loss = map(torch.atleast_1d, (p_loss, dummy, a_loss, dummy))
+        p_loss, c_loss, a_loss, q_loss = map(torch.atleast_1d, (dummy, dummy, a_loss, q_loss))
         loss = torch.stack((p_loss, c_loss, a_loss, q_loss), dim=1)
         return loss if component_loss else loss.sum(dim=1)
 
