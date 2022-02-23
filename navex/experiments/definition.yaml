@@ -233,6 +233,11 @@ model:
       type: float
       help: "dropout ratio"
 
+    act_fn_type:
+      alt: ['--det-aft']
+      choices: ['R2D2', 'Sigmoid']
+      help: "activation function type"
+
   qlt_head:
     __group__: 1
 
@@ -266,6 +271,11 @@ model:
       type: float
       help: "dropout ratio"
 
+    act_fn_type:
+      alt: ['--qlt-aft']
+      choices: ['R2D2', 'Sigmoid']
+      help: "activation function type"
+
 
 loss:
   __group__: 1
@@ -284,7 +294,7 @@ loss:
   loss_type:
     trial: ["terr", "ast", "aer"]
     alt: ["--loss-type"]
-    choices: ['discounted', 'weighted', 'thresholded', 'logthresholded']
+    choices: ['discounted', 'weighted', 'thresholded', 'logthresholded', 'disk']
     help: "loss function to use"
 
   des_w:

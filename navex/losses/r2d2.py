@@ -7,6 +7,7 @@ from torch.functional import F
 from .base import BaseLoss
 from .ap import DiscountedAPLoss, WeightedAPLoss, ThresholdedAPLoss, LogThresholdedAPLoss
 from .cosim import CosSimilarityLoss
+from .disk import DiskLoss
 from .peakiness import PeakinessLoss, ActivationLoss
 
 
@@ -23,7 +24,7 @@ class R2D2Loss(BaseLoss):
             self.peakiness_loss = PeakinessLoss(int(det_n))
             self.wpk = 0.5  # wpk
 
-        self.wdt = -math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)]))
+        self.wdt = None if wdt == 0 else (-math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)])))
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
         self.wqt = 0.0
 
@@ -36,6 +37,8 @@ class R2D2Loss(BaseLoss):
             self.ap_loss = ThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type == 'logthresholded':
             self.ap_loss = LogThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
+        elif loss_type == 'disk':
+            self.ap_loss = DiskLoss(sampler=sampler)
         else:
             assert False, 'invalid loss_type: %s' % loss_type
 
@@ -83,9 +86,6 @@ class R2D2Loss(BaseLoss):
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
 
-        p_loss = self.peakiness_loss(det1, det2)
-        c_loss = self.cosim_loss(det1, det2, aflow)
-
         # downscale aflow to des and qlt shape
         th, tw = des1.shape[2:]
         sh, sw = aflow.shape[2:]
@@ -95,19 +95,26 @@ class R2D2Loss(BaseLoss):
         else:
             sc_aflow = aflow
 
-        a_loss, q_loss = self.ap_loss(output1, output2, sc_aflow)
+        a_loss, *q_loss = self.ap_loss(output1, output2, sc_aflow)
+        q_loss = None if len(q_loss) == 0 else q_loss[0]
 
         # maybe optimize weights during training, see
         # https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf
         #  => regression: -0.5*log(2*w); classification: -0.5*log(w)
         # log(sigma**2) is optimized
 
-        eps = 1e-5
-        lib = math if isinstance(self.wdt, float) else torch
-        p_loss = -torch.log(self.peakiness_loss.max_loss - p_loss + eps) * self.wpk * 2
-        c_loss = -torch.log(1 - c_loss + eps) * (1 - self.wpk) * 2
-        p_loss = lib.exp(-self.wdt) * p_loss + 0.5 * self.wdt
-        c_loss = lib.exp(-self.wdt) * c_loss + 0.5 * self.wdt
+        if self.wdt is not None:
+            p_loss = self.peakiness_loss(det1, det2)
+            c_loss = self.cosim_loss(det1, det2, aflow)
+
+            eps = 1e-5
+            lib = math if isinstance(self.wdt, float) else torch
+            p_loss = -torch.log(self.peakiness_loss.max_loss - p_loss + eps) * self.wpk * 2
+            c_loss = -torch.log(1 - c_loss + eps) * (1 - self.wpk) * 2
+            p_loss = lib.exp(-self.wdt) * p_loss + 0.5 * self.wdt
+            c_loss = lib.exp(-self.wdt) * c_loss + 0.5 * self.wdt
+        else:
+            p_loss, c_loss = torch.Tensor([0]).to(des1.device), torch.Tensor([0]).to(des1.device)
 
         lib = math if isinstance(self.wap, float) else torch
         a_loss = lib.exp(-self.wap) * a_loss + 0.5 * self.wap

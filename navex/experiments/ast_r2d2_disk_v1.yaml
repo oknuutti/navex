@@ -56,29 +56,29 @@ model:
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
-    act_fn_type: 'R2D2'
+    act_fn_type: 'Sigmoid'
   qlt_head:
-    skip:        !h_int 0
+    skip:        !h_int 1
     after_des:   !h_int 1
     hidden_ch:   !h_int 0
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
-    act_fn_type: 'R2D2'
+    act_fn_type: 'Sigmoid'
 
 loss:
-  loss_type: !h_str thresholded
-  wpk: !h_float -0.1      # peakiness vs cosim
-  wdt: !h_float -1.5      # weight for peakiness and cosim losses
-  wap: !h_float -2.0      # weight for expected ap loss
+  loss_type: !h_str 'disk'
+  wpk: !h_float -0.5      # peakiness vs cosim
+  wdt: !h_float 0.0      # weight for peakiness and cosim losses
+  wap: !h_float 1.0      # weight for expected ap loss
   wqt: !h_float -1.0      # weight for expected ap loss
-  det_n: !h_int  24       # detector neighbourhood size
-  base: !h_float 0.8      # quality loss target mAP
+  det_n: !h_int  8       # detector neighbourhood size
+  base: !h_float 0.5      # quality loss target mAP
   nq: 20              # quantizer bins for ap calc
   sampler:            # was for a descriptor head that is same resolution than input image of size [192, 192]
     subq: -8          # was -8      # grid step size for positive samples
     subd: 1           # was 1       # neigbourhood sampling interval
-    pos_d: 1          # was 3       # positive samples generated up to this far from ideal location
+    pos_d: 3          # was 3       # positive samples generated up to this far from ideal location
     neg_d: !h_int 10  # was 5       # negative samples generated starting from distance from ideal location
     ngh: 2            # was 7       # neighbourhood size in descriptor cells
     border: 16        # was 16
@@ -88,7 +88,7 @@ loss:
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 1e-3
+  learning_rate: !h_float 3e-4
   weight_decay: !h_float 1e-6
   split_params: 0
   eps: !h_float 1e-8

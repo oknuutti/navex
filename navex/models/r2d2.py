@@ -6,7 +6,7 @@ from .base import BasePoint, initialize_weights
 
 
 class R2D2(BasePoint):
-    def __init__(self, arch, des_head, det_head, qlt_head, in_channels=1,
+    def __init__(self, arch, des_head, det_head, qlt_head, in_channels=1, train_with_raw_act_fn=False,
                  width_mult=1.0, pretrained=False, cache_dir=None):
         super(R2D2, self).__init__()
 
@@ -18,6 +18,7 @@ class R2D2(BasePoint):
             'pretrained': pretrained,
             'det_head': det_head,
             'qlt_head': qlt_head,
+            'train_with_raw_act_fn': train_with_raw_act_fn,
         }
         separate_des_head = not det_head['after_des'] or (not qlt_head['after_des'] and not qlt_head['skip'])
 
@@ -127,21 +128,45 @@ class R2D2(BasePoint):
         return output
 
     @staticmethod
-    def activation(ux, T=1):
+    def activation(ux, T=1.0, fn_type='r2d2'):
+        if T != 1.0:
+            ux = ux / T
+
+        if fn_type.lower() == 'none':
+            return ux
+
         if ux.shape[1] == 1:
-            x = F.softplus(ux)
-            return x / (1 + x)
+            if fn_type.lower() == 'r2d2':
+                # used in original R2D2 article
+                x = F.softplus(ux)
+                x / (1 + x)
+            elif fn_type.lower() == 'sigmoid':
+                # used by e.g. DISK, also, seems cleaner
+                x = F.sigmoid(ux)
+            else:
+                assert False, 'Wrong activation function type: %s' % fn_type
         elif ux.shape[1] == 2:
             # T is for temperature scaling, referred e.g. at https://arxiv.org/pdf/1706.04599.pdf
-            return F.softmax(ux/T, dim=1)[:, 1:2, :, :]   # was long time ":1" instead of "1:2" in own implementation
+            x = F.softmax(ux, dim=1)[:, 1:2, :, :]   # was long time ":1" instead of "1:2" in own implementation
+        else:
+            assert False, 'Wrong channel count for activation function: %d' % ux.shape[1]
+
+        return x
 
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
-        det = self.activation(detection)
+
+        no_act_fn = self.training and self.conf['train_with_raw_act_fn']
+        det = self.activation(detection,
+                              fn_type='none' if no_act_fn else self.conf['det_head'].get('act_fn_type', 'r2d2'))
         # det = F.avg_pool2d(det, 3, stride=1, padding=1)
 
         # could use eval_T=100, however, had worse performance, useful possibly for analyzing quality output
         eval_T = 1
-        qlt = det if quality is None else self.activation(quality, T=1 if self.training else eval_T)
+        if quality is None:
+            qlt = det
+        else:
+            qlt = self.activation(quality, T=1 if self.training else eval_T,
+                                  fn_type='none' if no_act_fn else self.conf['qlt_head'].get('act_fn_type', 'r2d2'))
 
         return des, det, qlt

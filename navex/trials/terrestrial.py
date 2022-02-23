@@ -37,6 +37,7 @@ class TerrestrialTrial(TrialBase):
                     model_conf.pop(k)
                 model_conf['des_head']['dimensions'] = 128
                 model_conf['qlt_head']['single'] = loss_conf['loss_type'] not in ('thresholded', 'logthresholded')
+                model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 model = R2D2(**model_conf)
             elif arch == 'mob':
                 model = MobileAP(**model_conf)
@@ -86,16 +87,11 @@ class TerrestrialTrial(TrialBase):
 
     def log_values(self):
         log = {}
-        if not isinstance(self.loss_fn.wdt, float):
-            log['wdt'] = torch.exp(-self.loss_fn.wdt)
-        if not isinstance(self.loss_fn.wap, float):
-            log['wap'] = torch.exp(-self.loss_fn.wap)
-        if not isinstance(self.loss_fn.wqt, float):
-            log['wqt'] = torch.exp(-self.loss_fn.wqt)
-        if not isinstance(self.loss_fn.base, float):
-            log['ap_base'] = self.loss_fn.base
-        if self.loss_fn.loss_type in ('thresholded', 'logthresholded'):
-            log['ap_base'] = self.loss_fn.ap_base
+        funs = {'n': lambda x: x, 'e': lambda x: torch.exp(-x)}
+        for p, f in (('wdt', 'e'), ('wap', 'e'), ('wqt', 'e'), ('base', 'n'), ('ap_base', 'n')):
+            val = getattr(self.loss_fn, p, None)
+            if isinstance(val, torch.Tensor):
+                log[p] = funs[f](val)
         return log or None
 
     def resource_loss(self, loss):
