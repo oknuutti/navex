@@ -1,4 +1,5 @@
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -142,7 +143,7 @@ class R2D2(BasePoint):
                 x / (1 + x)
             elif fn_type.lower() == 'sigmoid':
                 # used by e.g. DISK, also, seems cleaner
-                x = F.sigmoid(ux)
+                x = torch.sigmoid(ux)
             else:
                 assert False, 'Wrong activation function type: %s' % fn_type
         elif ux.shape[1] == 2:

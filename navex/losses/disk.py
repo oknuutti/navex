@@ -86,9 +86,6 @@ class DiskLoss(BaseLoss):
         # based on the article https://proceedings.neurips.cc/paper/2020/file/a42a596fc71e17828440030074d15e74-Paper.pdf
         # and the implementation at https://github.com/cvlab-epfl/disk/blob/master/disk/loss/reinforce.py
 
-        des1, det1, *_ = output1
-        des2, det2, *_ = output2
-
         det_logp_mxs, des_dist_mxs, px_dist_mxs, masks, b1s, b2s, sample_logp = self.sampler(output1, output2, aflow)
         p_loss = self._sampling_cost * sample_logp
 

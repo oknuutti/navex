@@ -137,8 +137,13 @@ class DetectionSampler(torch.nn.Module):
     def forward(self, output1, output2, aflow):
         des1, det1, *_ = output1
         des2, det2, *_ = output2
+
         B, _, H, W = aflow.shape
         D = des1.shape[1]
+
+        # sanitize
+        torch.nan_to_num_(det1, torch.finfo(det1.dtype).min)
+        torch.nan_to_num_(det2, torch.finfo(det2.dtype).min)
 
         b1, y1, x1, logp1 = self.random_sampler(det1)
         b2, y2, x2, logp2 = self.random_sampler(det2)
