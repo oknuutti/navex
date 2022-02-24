@@ -91,7 +91,13 @@ class DiskLoss(BaseLoss):
         # and the implementation at https://github.com/cvlab-epfl/disk/blob/master/disk/loss/reinforce.py
 
         det_logp_mxs, des_dist_mxs, px_dist_mxs, masks, b1s, b2s, sample_logp = self.sampler(output1, output2, aflow)
-        q_loss = self._sampling_cost * sample_logp
+
+        if 0:
+            q_loss = self._sampling_cost * sample_logp
+        else:
+            # try a more direct approch to penalizing activation
+            (_, det1, *_), (_, det2, *_) = output1, output2
+            q_loss = self._sampling_cost * (torch.sigmoid(det1).sum() + torch.sigmoid(det2).sum())
 
         a_loss = 0
         for det_logp_mx, des_dist_mx, px_dist_mx, mask, b1, b2 in zip(det_logp_mxs, des_dist_mxs, px_dist_mxs, masks, b1s, b2s):

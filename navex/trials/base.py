@@ -146,16 +146,16 @@ class TrialBase(abc.ABC, torch.nn.Module):
         if (batch_idx+1) % self.acc_grad_batches == 0:
             self.step_optimizer_fn(self.optimizer)
 
-        if self.model.conf.get('train_with_raw_act_fn', False):
-            # for R2D2-DISK experiment, remove if unsuccessful and not used in next experiment
-            (des1, det1, qlt1), (des2, det2, qlt2) = output1, output2
-            det1 = self.model.activation(det1, fn_type=self.model.conf['det_head']['act_fn_type'])
-            qlt1 = self.model.activation(qlt1, fn_type=self.model.conf['qlt_head']['act_fn_type'])
-            det2 = self.model.activation(det2, fn_type=self.model.conf['det_head']['act_fn_type'])
-            qlt2 = self.model.activation(qlt2, fn_type=self.model.conf['qlt_head']['act_fn_type'])
-            output1, output2 = (des1, det1, qlt1), (des2, det2, qlt2)
-
         with torch.no_grad():
+            if self.model.conf.get('train_with_raw_act_fn', False):
+                # for R2D2-DISK experiment, remove if unsuccessful and not used in next experiment
+                (des1, det1, qlt1), (des2, det2, qlt2) = output1, output2
+                det1 = self.model.activation(det1, fn_type=self.model.conf['det_head']['act_fn_type'])
+                qlt1 = self.model.activation(qlt1, fn_type=self.model.conf['qlt_head']['act_fn_type'])
+                det2 = self.model.activation(det2, fn_type=self.model.conf['det_head']['act_fn_type'])
+                qlt2 = self.model.activation(qlt2, fn_type=self.model.conf['qlt_head']['act_fn_type'])
+                output1, output2 = (des1, det1, qlt1), (des2, det2, qlt2)
+
             acc = self.accuracy(output1, output2, labels)
 
         return loss, acc
@@ -184,7 +184,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
         return self.loss_fn(output1, output2, labels, component_loss=component_loss)
 
     def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor, top_k=None, feat_d=0.001, border=16,
-                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.5, qlt_lim=0.5):
+                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.1, qlt_lim=0.1):
 
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
