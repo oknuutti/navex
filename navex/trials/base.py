@@ -184,7 +184,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
         return self.loss_fn(output1, output2, labels, component_loss=component_loss)
 
     def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor, top_k=None, feat_d=0.001, border=16,
-                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.1, qlt_lim=0.1):
+                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.5, qlt_lim=0.5):
 
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2

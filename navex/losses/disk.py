@@ -43,9 +43,9 @@ class DiskLoss(BaseLoss):
             else:
                 ramp = min(1., 0.1 + 0.2 * (e - 5250/5000 + 2))     # because in orig disk first e is short (1.0 at e=3.55)
         else:
-            ramp = max(0, min(1, 0.2 * (e - 250/5000)))     # smoother version of above
+            ramp = max(0, min(1, (e - 0.05)/3.5))     # smoother version of above
 
-        self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., 0.05 * e)
+        self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., 0.05 * e)  # 1.0 at e=20 (!)
         self._reward = 1.0 * self.reward
         self._penalty = ramp * self.penalty
         self._sampling_cost = ramp * self.sampling_cost
