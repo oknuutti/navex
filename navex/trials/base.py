@@ -148,10 +148,12 @@ class TrialBase(abc.ABC, torch.nn.Module):
 
         if self.model.conf.get('train_with_raw_act_fn', False):
             # for R2D2-DISK experiment, remove if unsuccessful and not used in next experiment
-            output1[1] = self.model.activation(output1[1], fn_type=self.conf['det_head']['act_fn_type'])
-            output1[2] = self.model.activation(output1[2], fn_type=self.conf['qlt_head']['act_fn_type'])
-            output2[1] = self.model.activation(output2[1], fn_type=self.conf['det_head']['act_fn_type'])
-            output2[2] = self.model.activation(output2[2], fn_type=self.conf['qlt_head']['act_fn_type'])
+            (des1, det1, qlt1), (des2, det2, qlt2) = output1, output2
+            det1 = self.model.activation(det1, fn_type=self.model.conf['det_head']['act_fn_type'])
+            qlt1 = self.model.activation(qlt1, fn_type=self.model.conf['qlt_head']['act_fn_type'])
+            det2 = self.model.activation(det2, fn_type=self.model.conf['det_head']['act_fn_type'])
+            qlt2 = self.model.activation(qlt2, fn_type=self.model.conf['qlt_head']['act_fn_type'])
+            output1, output2 = (des1, det1, qlt1), (des2, det2, qlt2)
 
         with torch.no_grad():
             acc = self.accuracy(output1, output2, labels)
