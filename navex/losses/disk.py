@@ -9,13 +9,13 @@ from .sampler import DetectionSampler
 
 
 class DiskLoss(BaseLoss):
-    def __init__(self, sampler=None, warmup_batch_scale=500):
+    def __init__(self, cell_d=8, match_theta=50, sampler=None, warmup_batch_scale=500):
         super(DiskLoss, self).__init__()
-        self.sampler = DetectionSampler(cell_d=abs(sampler['subq']), border=sampler['border'], random=1.0,
+        self.sampler = DetectionSampler(cell_d=cell_d, border=sampler['border'], random=1.0,
                                         max_b=sampler['max_neg_b'])
-        self.warmup_batch_scale = warmup_batch_scale
         self.max_px_err = sampler['pos_d']
-        self.match_theta = 50
+        self.warmup_batch_scale = warmup_batch_scale
+        self.match_theta = match_theta
         self.reward = -1.0
         self.penalty = 0.25
         self.sampling_cost = 0.001
@@ -34,12 +34,16 @@ class DiskLoss(BaseLoss):
     def batch_end_update(self, accs):
         self.batch_count += 1
         e = self.batch_count.item() / self.warmup_batch_scale
-        if e < 250/5000:
-            ramp = 0.0
-        elif e < 5250/5000:
-            ramp = 0.1
+        if 0:
+            # similar to original schedule
+            if e < 250/5000:
+                ramp = 0.0
+            elif e < 5250/5000:
+                ramp = 0.1
+            else:
+                ramp = min(1., 0.1 + 0.2 * (e - 5250/5000 + 2))     # because in orig disk first e is short (1.0 at e=3.55)
         else:
-            ramp = min(1., 0.1 + 0.2 * (e - 5250/5000 + 2))     # because in orig disk first e is short
+            ramp = max(0, min(1, 0.2 * (e - 250/5000)))     # smoother version of above
 
         self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., 0.05 * e)
         self._reward = 1.0 * self.reward
@@ -103,6 +107,8 @@ class DiskLoss(BaseLoss):
             des_p12 = F.softmax(-self._match_theta * des_dist_mx, dim=1)
             des_p21 = F.softmax(-self._match_theta * des_dist_mx, dim=0)
             des_p_mx = des_p12 * des_p21
+
+            # TODO: check if can move directly from des_dist_mx to des_logp_mx (instead of going through des_p_mx)
 
             if 0:
                 # TODO: find out why its not good to track gradient through des_p_mx

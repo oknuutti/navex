@@ -146,6 +146,13 @@ class TrialBase(abc.ABC, torch.nn.Module):
         if (batch_idx+1) % self.acc_grad_batches == 0:
             self.step_optimizer_fn(self.optimizer)
 
+        if self.model.conf.get('train_with_raw_act_fn', False):
+            # for R2D2-DISK experiment, remove if unsuccessful and not used in next experiment
+            output1[1] = self.model.activation(output1[1], fn_type=self.conf['det_head']['act_fn_type'])
+            output1[2] = self.model.activation(output1[2], fn_type=self.conf['qlt_head']['act_fn_type'])
+            output2[1] = self.model.activation(output2[1], fn_type=self.conf['det_head']['act_fn_type'])
+            output2[2] = self.model.activation(output2[2], fn_type=self.conf['qlt_head']['act_fn_type'])
+
         with torch.no_grad():
             acc = self.accuracy(output1, output2, labels)
 
