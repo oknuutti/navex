@@ -9,7 +9,7 @@ from .sampler import DetectionSampler
 
 
 class DiskLoss(BaseLoss):
-    def __init__(self, cell_d=8, match_theta=50, sampler=None, warmup_batch_scale=500):
+    def __init__(self, sampling_cost=0.001, cell_d=8, match_theta=50, sampler=None, warmup_batch_scale=500):
         super(DiskLoss, self).__init__()
         self.sampler = DetectionSampler(cell_d=cell_d, border=sampler['border'], random=1.0,
                                         max_b=sampler['max_neg_b'])
@@ -18,7 +18,7 @@ class DiskLoss(BaseLoss):
         self.match_theta = match_theta
         self.reward = -1.0
         self.penalty = 0.25
-        self.sampling_cost = 0.001
+        self.sampling_cost = sampling_cost
 
         self.batch_count = torch.nn.Parameter(torch.Tensor([-1]), requires_grad=False)
         self._match_theta = None

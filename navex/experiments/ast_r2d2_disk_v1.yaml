@@ -68,12 +68,12 @@ model:
 
 loss:
   loss_type: !h_str 'disk'
-  wpk: -0.5           # not used for disk
+  wpk: !h_float 1e-5  # recycled param: sampling_cost for disk
   wdt:  0.0           # not used for disk
   wap:  1.0           # for main disk loss
   wqt:  1.0           # for disk used for activation/sampling loss
   det_n: !h_int  8    # detector neighbourhood size
-  base: 50            # recycled param: match_theta for disk
+  base: !h_float 50   # recycled param: match_theta for disk
   nq: !h_int 500      # recycled param: warmup_batch_scale for disk
   sampler:
     subq: -8          # not used for disk
