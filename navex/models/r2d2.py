@@ -140,7 +140,7 @@ class R2D2(BasePoint):
             if fn_type.lower() == 'r2d2':
                 # used in original R2D2 article
                 x = F.softplus(ux)
-                x / (1 + x)
+                x = x / (1 + x)
             elif fn_type.lower() == 'sigmoid':
                 # used by e.g. DISK, also, seems cleaner
                 x = torch.sigmoid(ux)

@@ -154,7 +154,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
                 qlt1 = self.model.activation(qlt1, fn_type=self.model.conf['qlt_head']['act_fn_type'])
                 det2 = self.model.activation(det2, fn_type=self.model.conf['det_head']['act_fn_type'])
                 qlt2 = self.model.activation(qlt2, fn_type=self.model.conf['qlt_head']['act_fn_type'])
-                output1, output2 = (des1, det1, qlt1), (des2, det2, qlt2)
+                output1_, output2_ = (des1, det1, qlt1), (des2, det2, qlt2)
 
             acc = self.accuracy(output1, output2, labels)
 

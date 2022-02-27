@@ -9,12 +9,14 @@ from .sampler import DetectionSampler
 
 
 class DiskLoss(BaseLoss):
-    def __init__(self, sampling_cost=0.001, cell_d=8, match_theta=50, sampler=None, warmup_batch_scale=500):
+    def __init__(self, sampling_cost=0.001, cell_d=8, match_theta=50, sampler=None,
+                 warmup_batch_scale=500, prob_input=False):
         super(DiskLoss, self).__init__()
         self.sampler = DetectionSampler(cell_d=cell_d, border=sampler['border'], random=1.0,
-                                        max_b=sampler['max_neg_b'])
+                                        max_b=sampler['max_neg_b'], prob_input=prob_input)
         self.max_px_err = sampler['pos_d']
         self.warmup_batch_scale = warmup_batch_scale
+        self.prob_input = prob_input
         self.match_theta = match_theta
         self.reward = -1.0
         self.penalty = 0.25
@@ -34,7 +36,7 @@ class DiskLoss(BaseLoss):
     def batch_end_update(self, accs):
         self.batch_count += 1
         e = self.batch_count.item() / self.warmup_batch_scale
-        if 0:
+        if 1:
             # similar to original schedule
             if e < 250/5000:
                 ramp = 0.0
@@ -43,7 +45,11 @@ class DiskLoss(BaseLoss):
             else:
                 ramp = min(1., 0.1 + 0.2 * (e - 5250/5000 + 2))     # because in orig disk first e is short (1.0 at e=3.55)
         else:
-            ramp = max(0, min(1, (e - 0.05)/3.5))     # smoother version of above
+            # smoother version of above
+            if e < 1.05:
+                ramp = max(0, min(1, 0.1 * (e - 0.05)))
+            else:
+                ramp = max(0, 0.1 + 0.2 * (e - 1.05))
 
         self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., 0.05 * e)  # 1.0 at e=20 (!)
         self._reward = 1.0 * self.reward
@@ -92,7 +98,7 @@ class DiskLoss(BaseLoss):
 
         det_logp_mxs, des_dist_mxs, px_dist_mxs, masks, b1s, b2s, sample_logp = self.sampler(output1, output2, aflow)
 
-        if 0:
+        if 1:
             q_loss = self._sampling_cost * sample_logp
         else:
             # try a more direct approch to penalizing activation

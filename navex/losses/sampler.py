@@ -112,7 +112,7 @@ class DetectionSampler(torch.nn.Module):
     detection score. Sample descriptors at these locations and calculate distance matrices between each pair.
     """
 
-    def __init__(self, cell_d=8, border=16, random=1.0, max_b=8, blocks=True):
+    def __init__(self, cell_d=8, border=16, random=1.0, max_b=8, blocks=True, prob_input=False):
         """
         :param cell_d: diameter of rectangular cell that is searched for max detection score
         :param border: border width, don't sample if closer than this to image borders
@@ -120,9 +120,10 @@ class DetectionSampler(torch.nn.Module):
         :param max_b:  if > 1, matches are calculated across other pairs (n-1) in the same mini-batch
         """
         super(DetectionSampler, self).__init__()
-        self.random_sampler = WeightedRandomSampler(cell_d, border, random, subsample=True, act_logp=True)
+        self.random_sampler = WeightedRandomSampler(cell_d, border, random, subsample=True, act_logp=not prob_input)
         self.max_b = max_b
         self.blocks = blocks
+        self.prob_input = prob_input
         self.des_norm = 2
         self.px_norm = 2
 
@@ -142,8 +143,12 @@ class DetectionSampler(torch.nn.Module):
         D = des1.shape[1]
 
         # sanitize
-        torch.nan_to_num_(det1, torch.finfo(det1.dtype).min)
-        torch.nan_to_num_(det2, torch.finfo(det2.dtype).min)
+        if self.prob_input:
+            torch.nan_to_num_(det1, 0.0, 1.0, 0.0)
+            torch.nan_to_num_(det2, 0.0, 1.0, 0.0)
+        else:
+            torch.nan_to_num_(det1, torch.finfo(det1.dtype).min)
+            torch.nan_to_num_(det2, torch.finfo(det2.dtype).min)
 
         b1, y1, x1, logp1 = self.random_sampler(det1)
         b2, y2, x2, logp2 = self.random_sampler(det2)
