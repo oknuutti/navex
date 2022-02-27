@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 
 import torch
@@ -34,10 +36,11 @@ class GuidedSampler(torch.nn.Module):
         self.max_neg_b = max_neg_b
         self.random_sampler = WeightedRandomSampler(cell_d, border, random, subsample=False, act_logp=False)
 
+        r = int(self.pos_r)
         pos_offsets = [
             (i, j)
-            for i in range(-self.pos_r, self.pos_r + 1)
-            for j in range(-self.pos_r, self.pos_r + 1)
+            for i in range(-r, r + 1)
+            for j in range(-r, r + 1)
             if (i**2 + j**2) <= self.pos_r**2
         ]
         self.pos_offsets = torch.nn.Parameter(torch.LongTensor(pos_offsets).view(-1, 2).t(), requires_grad=False)

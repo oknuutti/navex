@@ -366,7 +366,7 @@ loss:
       help: ""
 
     pos_d:
-      type: int
+      type: float
       help: ""
 
     neg_d:
