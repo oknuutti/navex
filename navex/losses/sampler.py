@@ -144,11 +144,11 @@ class DetectionSampler(torch.nn.Module):
 
         # sanitize
         if self.prob_input:
-            torch.nan_to_num_(det1, 0.0, 1.0, 0.0)
-            torch.nan_to_num_(det2, 0.0, 1.0, 0.0)
+            det1 = torch.nan_to_num(det1, 0.0, 1.0, 0.0)
+            det2 = torch.nan_to_num(det2, 0.0, 1.0, 0.0)
         else:
-            torch.nan_to_num_(det1, torch.finfo(det1.dtype).min)
-            torch.nan_to_num_(det2, torch.finfo(det2.dtype).min)
+            det1 = torch.nan_to_num(det1, torch.finfo(det1.dtype).min)
+            det2 = torch.nan_to_num(det2, torch.finfo(det2.dtype).min)
 
         b1, y1, x1, logp1 = self.random_sampler(det1)
         b2, y2, x2, logp2 = self.random_sampler(det2)
