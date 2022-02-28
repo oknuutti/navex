@@ -37,7 +37,7 @@ class DiskLoss(BaseLoss):
     def batch_end_update(self, accs):
         self.batch_count += 1
         e = self.batch_count.item() / self.warmup_batch_scale
-        if 1:
+        if 0:
             # original schedule
             if e < 250/5000:
                 ramp = 0.0
