@@ -3,6 +3,7 @@ import math
 import torch
 from torch import nn
 from torch.functional import F
+from torch.distributions import Categorical
 
 from .base import BaseLoss
 from .sampler import DetectionSampler
@@ -12,8 +13,8 @@ class DiskLoss(BaseLoss):
     def __init__(self, sampling_cost=0.001, cell_d=8, match_theta=50, sampler=None,
                  warmup_batch_scale=500, prob_input=False):
         super(DiskLoss, self).__init__()
-        self.sampler = DetectionSampler(cell_d=cell_d, border=sampler['border'], random=1.0,
-                                        max_b=sampler['max_neg_b'], prob_input=prob_input)
+        self.sampler = DetectionSampler(cell_d=cell_d, border=sampler['border'], random=1.0, max_b=sampler['max_neg_b'],
+                                        prob_input=prob_input, sample_matches=sampler['maxpool_pos'] > 0)
         self.max_px_err = sampler['pos_d']
         self.warmup_batch_scale = warmup_batch_scale
         self.prob_input = prob_input
@@ -116,19 +117,20 @@ class DiskLoss(BaseLoss):
             cost_mx[torch.logical_and(px_dist_mx < self.max_px_err, same_b)] = self._reward
             cost_mx[mask.view((n, 1)).expand((n, m))] = 0
 
-            # same as Categorical(logit=-self._match_theta * des_dist_mx).probs
-            des_p12 = F.softmax(-self._match_theta * des_dist_mx, dim=1)
-            des_p21 = F.softmax(-self._match_theta * des_dist_mx, dim=0)
-            des_p_mx = des_p12 * des_p21
-
-            # TODO: check if can move directly from des_dist_mx to des_logp_mx (instead of going through des_p_mx)
-
             if 0:
-                # TODO: find out why its not good to track gradient through des_p_mx
-                sample_plogp = des_p_mx * (torch.log(des_p_mx) + det_logp_mx)
+                des_logp12 = Categorical(logits=-self._match_theta * des_dist_mx).logits
+                des_logp21 = Categorical(logits=-self._match_theta * des_dist_mx.t()).logits.t()
             else:
-                # in original DISK, gradient not tracked through des_p_mx, seems there's a good reason
-                sample_plogp = des_p_mx.detach() * (torch.log(des_p_mx) + det_logp_mx)
+                # same as above
+                des_logp12 = F.log_softmax(-self._match_theta * des_dist_mx, dim=1)
+                des_logp21 = F.log_softmax(-self._match_theta * des_dist_mx, dim=0)
+
+            des_logp_mx = des_logp12 + des_logp21
+            with torch.no_grad():
+                des_p_mx = torch.exp(des_logp_mx)
+
+            # notice that des_p_mx needs to be detached
+            sample_plogp = des_p_mx * (des_logp_mx + det_logp_mx)
             a_loss = a_loss + (cost_mx * sample_plogp).sum()
 
         dummy = torch.Tensor([0.0]).to(a_loss.device)

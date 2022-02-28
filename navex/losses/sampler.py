@@ -72,7 +72,7 @@ class GuidedSampler(torch.nn.Module):
         s_des1 = des1[b, :, y1, x1]
 
         xy2 = (aflow[b, :, y1, x1] + 0.5).long().t()
-        mask = ((0 <= xy2[0]) * (0 <= xy2[1]) * (xy2[0] < W) * (xy2[1] < H)).view(B, n)
+        mask = ((0 <= xy2[0]) * (0 <= xy2[1]) * (xy2[0] < W) * (xy2[1] < H)).view(B, -1)
 
         def clamp(xy):
             torch.clamp(xy[0], 0, W - 1, out=xy[0])
@@ -115,7 +115,7 @@ class DetectionSampler(torch.nn.Module):
     detection score. Sample descriptors at these locations and calculate distance matrices between each pair.
     """
 
-    def __init__(self, cell_d=8, border=16, random=1.0, max_b=8, blocks=True, prob_input=False):
+    def __init__(self, cell_d=8, border=16, random=1.0, max_b=8, blocks=True, sample_matches=False, prob_input=False):
         """
         :param cell_d: diameter of rectangular cell that is searched for max detection score
         :param border: border width, don't sample if closer than this to image borders
@@ -127,6 +127,7 @@ class DetectionSampler(torch.nn.Module):
         self.max_b = max_b
         self.blocks = blocks
         self.prob_input = prob_input
+        self.sample_matches = sample_matches
         self.des_norm = 2
         self.px_norm = 2
 
@@ -137,6 +138,22 @@ class DetectionSampler(torch.nn.Module):
     @border.setter
     def border(self, border):
         self.random_sampler.border = border
+
+    def find_matches(self, b1, x1, y1, aflow, det2):
+        B, _, H, W = aflow.shape
+
+        xy2_gt = (aflow[b1, :, y1, x1] + 0.5).long().t()
+        mask = ((0 <= xy2_gt[0]) * (0 <= xy2_gt[1]) * (xy2_gt[0] < W) * (xy2_gt[1] < H))
+        b2, x2, y2 = b1[mask], xy2_gt[0, mask], xy2_gt[1, mask]
+
+        d_det = F.pixel_unshuffle(det2, self.random_sampler.cell_d)
+        dist = Categorical(**{'logits' if not self.prob_input else 'probs': d_det.permute((0, 2, 3, 1))}).logits
+        logp2 = F.pixel_shuffle(dist.permute((0, 3, 1, 2)), self.random_sampler.cell_d)[b2, 0, y2, x2]
+
+        # sample matches only, normalize probabilities
+        logp2 = logp2 + Bernoulli(**{'logits' if not self.prob_input else 'probs': det2[b2, 0, y2, x2]}).logits
+
+        return b2, x2, y2, logp2
 
     def forward(self, output1, output2, aflow):
         des1, det1, *_ = output1
@@ -154,7 +171,11 @@ class DetectionSampler(torch.nn.Module):
             det2 = torch.nan_to_num(det2, torch.finfo(det2.dtype).min)
 
         b1, y1, x1, logp1 = self.random_sampler(det1)
-        b2, y2, x2, logp2 = self.random_sampler(det2)
+
+        if self.sample_matches:
+            b2, y2, x2, logp2 = self.find_matches(b1, x1, y1, aflow, det2)
+        else:
+            b2, y2, x2, logp2 = self.random_sampler(det2)
 
         # sample_logp is the log p(x=sample) for current sample, it's used for calculating DISK activation cost term (!)
         #  - would it be more reasonable to use e.g. log sum(p(x_i=sample_i))? or sum(sigmoid(det1))+sum(sigmoid(det2))?

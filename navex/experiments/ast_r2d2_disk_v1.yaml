@@ -83,8 +83,8 @@ loss:
     ngh: 2            # not used for disk
     border: 16        #
     subd_neg: -8      # not used for disk
-    max_neg_b: !h_int 1  # matches across these many pairs
-    maxpool_pos: 1    # not used for disk
+    max_neg_b: !h_int 1    # matches across these many pairs
+    maxpool_pos: !h_int 0  # recycled param: sample_matches, i.e. use ground truth to select features from img2
 
 optimizer:
   method: 'adam'
