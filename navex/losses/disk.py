@@ -51,7 +51,7 @@ class DiskLoss(BaseLoss):
             if e < 1.05:
                 ramp = max(0, min(1, 0.2 * (e - 0.05)))
             else:
-                ramp = max(0, 0.2 + 0.32 * (e - 1.05))  # 1.0 at e=3.55
+                ramp = min(1, 0.2 + 0.32 * (e - 1.05))  # 1.0 at e=3.55
 
         self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., 0.05 * e)  # 1.0 at e=20 (!)
         self._reward = 1.0 * self.reward

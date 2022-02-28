@@ -21,17 +21,16 @@ class R2D2(BasePoint):
             'qlt_head': qlt_head,
             'train_with_raw_act_fn': train_with_raw_act_fn,
         }
-        separate_des_head = not det_head['after_des'] or (not qlt_head['after_des'] and not qlt_head['skip'])
+        self.separate_des_head = not det_head['after_des'] or (not qlt_head['after_des'] and not qlt_head['skip'])
 
         assert width_mult * 128 == des_head['dimensions'], 'descriptor dimensions dont correspond with backbone width'
         self.backbone, bb_out_ch = self.create_backbone(arch=arch, cache_dir=cache_dir, pretrained=pretrained,
                                                         width_mult=width_mult, in_channels=in_channels,
-                                                        separate_des_head=separate_des_head)
+                                                        separate_des_head=self.separate_des_head)
 
-        if separate_des_head:
+        if self.separate_des_head:
             self.des_head = self.create_descriptor_head(bb_out_ch, des_head)
         else:
-            assert bb_out_ch == des_head['dimensions'], 'channel depths dont match'
             self.des_head = None
 
         # det_head single=True in r2d2 github code, in article was single=False though
@@ -45,7 +44,7 @@ class R2D2(BasePoint):
             raise NotImplemented()
         else:
             # Initialization
-            initialize_weights([self.backbone, self.det_head, self.qlt_head])
+            initialize_weights([m for m in (self.backbone, self.det_head, self.qlt_head, self.des_head) if m is not None])
 
     def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1,
                         separate_des_head=False, **kwargs):
