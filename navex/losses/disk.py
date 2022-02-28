@@ -37,19 +37,20 @@ class DiskLoss(BaseLoss):
         self.batch_count += 1
         e = self.batch_count.item() / self.warmup_batch_scale
         if 1:
-            # similar to original schedule
+            # original schedule
             if e < 250/5000:
                 ramp = 0.0
             elif e < 5250/5000:
                 ramp = 0.1
             else:
-                ramp = min(1., 0.1 + 0.2 * (e - 5250/5000 + 2))     # because in orig disk first e is short (1.0 at e=3.55)
+                # 1.0 at e=4.05, if allow float e, would be at 3.55
+                ramp = min(1., 0.1 + 0.2 * int(e - 250/5000 + 1))
         else:
             # smoother version of above
             if e < 1.05:
-                ramp = max(0, min(1, 0.1 * (e - 0.05)))
+                ramp = max(0, min(1, 0.2 * (e - 0.05)))
             else:
-                ramp = max(0, 0.1 + 0.2 * (e - 1.05))
+                ramp = max(0, 0.2 + 0.32 * (e - 1.05))  # 1.0 at e=3.55
 
         self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., 0.05 * e)  # 1.0 at e=20 (!)
         self._reward = 1.0 * self.reward
