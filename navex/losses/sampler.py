@@ -162,14 +162,6 @@ class DetectionSampler(torch.nn.Module):
         B, _, H, W = aflow.shape
         D = des1.shape[1]
 
-        # sanitize
-        if self.prob_input:
-            det1 = torch.nan_to_num(det1, 0.0, 1.0, 0.0)
-            det2 = torch.nan_to_num(det2, 0.0, 1.0, 0.0)
-        else:
-            det1 = torch.nan_to_num(det1, torch.finfo(det1.dtype).min)
-            det2 = torch.nan_to_num(det2, torch.finfo(det2.dtype).min)
-
         b1, y1, x1, logp1 = self.random_sampler(det1)
 
         if self.sample_matches:
@@ -266,6 +258,12 @@ class WeightedRandomSampler(torch.nn.Module):
             if self._unit_aflow is None:
                 self._unit_aflow = torch.LongTensor(unit_aflow(W, H)).permute((2, 0, 1)).to(det.device)
 
+            # sanitize
+            if self.act_logp:
+                det = torch.nan_to_num(det, torch.finfo(det.dtype).min)
+            else:
+                det = torch.nan_to_num(det, 0.0, 1.0, 0.0)
+
             d_det = F.pixel_unshuffle(det[:B, :, mt:-mb, ml:-mr], self.cell_d)
             d_xy = F.pixel_unshuffle(self._unit_aflow[None, :, None, mt:-mb, ml:-mr].expand(B, -1, 1, -1, -1), self.cell_d)
 
@@ -279,6 +277,9 @@ class WeightedRandomSampler(torch.nn.Module):
                 x, y = s_xy[:, 0, :, :].reshape(-1), s_xy[:, 1, :, :].reshape(-1)
 
             else:
+                if not np.isclose(self.random, 1.0):
+                    d_det = (d_det * self.random) if self.act_logp else (d_det ** self.random)
+
                 # Cell-wise weighted random suggestions, sample accept/discard from Bernoulli distribution
                 # det-activations taken to be un-normalized (log) probabilities, sample one px from each cell
                 dist = Categorical(**{'logits' if self.act_logp else 'probs': d_det.permute((0, 2, 3, 1))})
