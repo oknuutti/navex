@@ -262,7 +262,7 @@ class WeightedRandomSampler(torch.nn.Module):
             if self.act_logp:
                 det = torch.nan_to_num(det, torch.finfo(det.dtype).min)
             else:
-                det = torch.nan_to_num(det, 0.0, 1.0, 0.0)
+                det = torch.nan_to_num(det, 0.0, 1.0, 0.0) + 1e-8       # eps
 
             d_det = F.pixel_unshuffle(det[:B, :, mt:-mb, ml:-mr], self.cell_d)
             d_xy = F.pixel_unshuffle(self._unit_aflow[None, :, None, mt:-mb, ml:-mr].expand(B, -1, 1, -1, -1), self.cell_d)
