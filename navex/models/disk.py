@@ -24,7 +24,7 @@ class DISK(R2D2):
         kernel_size = 5
         down_channels = [16, 32, 64, 64, 64]
         up_channels = [64, 64, 64, bb_ch_out]
-        setup = {**unets.thin_setup, 'bias': True, 'padding': True}
+        setup = {**(unets.fat_setup if arch == 'fat' else unets.thin_setup), 'bias': True, 'padding': True}
 
         unet = unets.Unet(in_features=in_channels, size=kernel_size, down=down_channels, up=up_channels, setup=setup)
 
