@@ -48,8 +48,9 @@ class R2D2(BasePoint):
 
     def create_backbone(self, arch, cache_dir=None, pretrained=False, width_mult=1.0, in_channels=1,
                         separate_des_head=False, **kwargs):
-        def add_layer(l, in_ch, out_ch, k=3, p=1, d=1, bn=True, relu=True):
+        def add_layer(l, in_ch, out_ch, k=3, d=1, bn=True, relu=True):
             out_ch = int(out_ch)
+            p = ((k-1)*d)//2
             l.append(nn.Conv2d(in_ch, out_ch, kernel_size=k, padding=p, dilation=d))
             if bn:
                 l.append(nn.BatchNorm2d(out_ch, affine=False))
@@ -62,12 +63,12 @@ class R2D2(BasePoint):
         in_ch = add_layer(layers, in_ch, 8 * wm)
         in_ch = add_layer(layers, in_ch, 8 * wm)
         in_ch = add_layer(layers, in_ch, 16 * wm)
-        in_ch = add_layer(layers, in_ch, 16 * wm, p=2, d=2)
-        in_ch = add_layer(layers, in_ch, 32 * wm, p=2, d=2)
-        in_ch = add_layer(layers, in_ch, 32 * wm, p=4, d=4)
-        in_ch = add_layer(layers, in_ch, 32 * wm, p=2, d=4, k=2, relu=False)
-        in_ch = add_layer(layers, in_ch, 32 * wm, p=4, d=8, k=2, relu=False)
-        in_ch = add_layer(layers, in_ch, 32 * wm, p=8, d=16, k=2, relu=False, bn=separate_des_head)
+        in_ch = add_layer(layers, in_ch, 16 * wm, d=2)
+        in_ch = add_layer(layers, in_ch, 32 * wm, d=2)
+        in_ch = add_layer(layers, in_ch, 32 * wm, d=4)
+        in_ch = add_layer(layers, in_ch, 32 * wm, d=4, k=2, relu=False)
+        in_ch = add_layer(layers, in_ch, 32 * wm, d=8, k=2, relu=False)
+        in_ch = add_layer(layers, in_ch, 32 * wm, d=16, k=2, relu=separate_des_head, bn=separate_des_head)
 
         return nn.Sequential(*layers), in_ch
 
