@@ -12,6 +12,7 @@ from ..datasets.terrestrial.revisitop1m import WebImageSynthPairDataset
 from ..losses.r2d2 import R2D2Loss
 from ..models.astropoint import AstroPoint
 from ..models.disk import DISK
+from ..models.hynet import HyNet
 from ..models.mobile_ap import MobileAP
 from ..models.r2d2 import R2D2
 from .base import TrialBase
@@ -46,6 +47,12 @@ class TerrestrialTrial(TrialBase):
                 model_conf['qlt_head']['single'] = True
                 model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 model = DISK(**model_conf)
+            elif arch == 'hynet':
+                for k in ('partial_residual',):
+                    model_conf.pop(k)
+                model_conf['qlt_head']['single'] = True
+                model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
+                model = HyNet(**model_conf)
             elif arch == 'mob':
                 model = MobileAP(**model_conf)
             else:

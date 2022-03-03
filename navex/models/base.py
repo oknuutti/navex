@@ -157,7 +157,9 @@ class BasePoint(nn.Module):
 
 def initialize_weights(modules, std=0.01, mode='fan_out', nonlinearity='relu'):
     for m in modules:
-        if isinstance(m, nn.Conv2d):
+        if hasattr(m, 'initialize_weights'):
+            m.initialize_weights()
+        elif isinstance(m, nn.Conv2d):
             nn.init.kaiming_normal_(m.weight, mode=mode, nonlinearity=nonlinearity)
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
