@@ -20,7 +20,7 @@ class HyNet(R2D2):
             p = ((k - 1) * d) // 2
             l.append(nn.Conv2d(in_ch, out_ch, kernel_size=k, padding=p, dilation=d))
             if frn:
-                l.append(FRN(in_ch, affine=bn_affine))
+                l.append(FRN(out_ch, affine=bn_affine))
             if bn:
                 l.append(nn.BatchNorm2d(out_ch, affine=bn_affine))
             return out_ch
