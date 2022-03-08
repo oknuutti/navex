@@ -15,6 +15,7 @@ class DISK(R2D2):
     def __init__(self, arch, des_head, det_head, qlt_head, **kwargs):
         if det_head.get('d2d', False):
             det_head['after_des'] = True
+            det_head['act_fn'] = 'none'
         super(DISK, self).__init__(arch, des_head, det_head, qlt_head, **kwargs)
         if self.separate_des_head:
             self.des_head = None
@@ -104,5 +105,8 @@ class D2D(nn.Module):
         des_a = des_p[self._byx[0], self._byx[1], self._byx[2], :]
         des_n = torch.linalg.norm(des_p.view(B, 1, H, W, D).expand(B, self.k**2, H, W, D) - des_a, dim=4)
         s_rel = torch.mean(des_n, dim=1).view(B, 1, H, W)
+        s_raw = s_abs * s_rel
 
-        return s_abs * s_rel
+        # always positive, however, need to scale to range 0 - 1
+        s = s_raw / (s_raw + 1)
+        return s

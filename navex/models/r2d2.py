@@ -131,6 +131,7 @@ class R2D2(BasePoint):
     @staticmethod
     def activation(ux, T=1.0, fn_type='r2d2'):
         if T != 1.0:
+            # T is for temperature scaling, referred e.g. at https://arxiv.org/pdf/1706.04599.pdf
             ux = ux / T
 
         if fn_type.lower() == 'none':
@@ -142,13 +143,12 @@ class R2D2(BasePoint):
                 x = F.softplus(ux)
                 x = x / (1 + x)
             elif fn_type.lower() == 'sigmoid':
-                # used by e.g. DISK, also, seems cleaner
+                # used by e.g. DISK, seems cleaner but results are worse
                 x = torch.sigmoid(ux)
             else:
                 assert False, 'Wrong activation function type: %s' % fn_type
         elif ux.shape[1] == 2:
-            # T is for temperature scaling, referred e.g. at https://arxiv.org/pdf/1706.04599.pdf
-            x = F.softmax(ux, dim=1)[:, 1:2, :, :]   # was long time ":1" instead of "1:2" in own implementation
+            x = F.softmax(ux, dim=1)[:, 1:2, :, :]
         else:
             assert False, 'Wrong channel count for activation function: %d' % ux.shape[1]
 
