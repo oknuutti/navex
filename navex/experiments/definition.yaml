@@ -235,7 +235,7 @@ model:
 
     act_fn_type:
       alt: ['--det-aft']
-      choices: ['R2D2', 'Sigmoid']
+      choices: ['R2D2', 'Sigmoid', 'none']
       help: "activation function type"
 
     d2d:
@@ -278,7 +278,7 @@ model:
 
     act_fn_type:
       alt: ['--qlt-aft']
-      choices: ['R2D2', 'Sigmoid']
+      choices: ['R2D2', 'Sigmoid', 'none']
       help: "activation function type"
 
 

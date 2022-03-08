@@ -87,7 +87,7 @@ class D2D(nn.Module):
                            - torch.mean(des, dim=1, keepdim=True).pow(2))
 
         # s_rel[i,j] = sum(norm(des[i, j] - des[i+u, j+v]), uv=-k/2*d:k/2*d:d)
-        if self._byx is None:
+        if self._byx is None or self._byx[0].shape != (B, self.k ** 2, H, W):
             xy = torch.LongTensor(unit_aflow(W, H)).to(des.device).view(-1, 2).t()
             offsets = list(range(-(self.k//2)*self.d, self.k*(self.d//2) + 1, self.d))
             offsets = torch.LongTensor([(i, j) for i in offsets

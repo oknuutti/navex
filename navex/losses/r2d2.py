@@ -22,7 +22,7 @@ class R2D2Loss(BaseLoss):
             self.wpk = wpk
         else:
             self.peakiness_loss = PeakinessLoss(int(det_n))
-            self.wpk = 0.5  # wpk
+            self.wpk = abs(wpk)
 
         self.wdt = None if wdt == 0 else (-math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)])))
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
