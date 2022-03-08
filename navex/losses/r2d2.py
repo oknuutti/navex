@@ -108,7 +108,7 @@ class R2D2Loss(BaseLoss):
         #  => regression: -0.5*log(2*w); classification: -0.5*log(w)
         # log(sigma**2) is optimized
 
-        if self.wdt is not None:
+        if self.wdt is not None and (det1.requires_grad or det2.requires_grad):
             p_loss = self.peakiness_loss(det1, det2)
             c_loss = self.cosim_loss(det1, det2, aflow)
 

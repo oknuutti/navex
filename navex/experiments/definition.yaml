@@ -238,6 +238,11 @@ model:
       choices: ['R2D2', 'Sigmoid']
       help: "activation function type"
 
+    d2d:
+      type: int
+      default: 0
+      help: "instead of learning a detection head, use a describe-to-detect (D2D) scheme"
+
   qlt_head:
     __group__: 1
 
