@@ -20,7 +20,7 @@ from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, C
     RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
     PairRandomHorizontalFlip, Clamp, UniformNoise, MatchChannels
 
-from .tools import find_files_recurse, load_aflow
+from .tools import ImageDB, find_files, find_files_recurse, load_aflow
 
 from .. import RND_SEED
 
@@ -72,6 +72,37 @@ class ImagePairDataset(VisionDataset):
 
     def preprocess(self, idx, imgs, aflow):
         return imgs, aflow
+
+
+class DatabaseImagePairDataset(ImagePairDataset):
+    def __init__(self, *args, **kwargs):
+        self.indices, self.index = None, None
+        super(DatabaseImagePairDataset, self).__init__(*args, **kwargs)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['index']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        dbfile = os.path.join(self.root, 'dataset_all.sqlite')
+        self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
+
+    def _load_samples(self):
+        dbfile = os.path.join(self.root, 'dataset_all.sqlite')
+        self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
+
+        index = dict(self.index.get_all(('id', 'file')))
+        aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png')
+
+        get_id = lambda f, i: int(f.split(os.path.sep)[-1].split('.')[0].split('_')[i])
+        aflow = [f for f in aflow if get_id(f, 0) in index and get_id(f, 1) in index]
+        self.indices = [(get_id(f, 0), get_id(f, 1)) for f in aflow]
+        imgs = [(os.path.join(self.root, index[i]), os.path.join(self.root, index[j])) for i, j in self.indices]
+
+        samples = list(zip(imgs, aflow))
+        return samples
 
 
 class PairIndexFileLoader:

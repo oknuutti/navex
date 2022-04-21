@@ -223,20 +223,20 @@ def angle_between_v(v1, v2, direction=False):
             d = c.dot(direction)
             ra = math.asin(np.clip(np.linalg.norm(c), -1, 1))
 
-            if ca > 0 and d > 0:
+            if ca >= 0 and d >= 0:
                 # 1st quadrant
                 angle = ra
-            elif ca < 0 and d > 0:
+            elif ca <= 0 and d >= 0:
                 # 2nd quadrant
                 angle = np.pi - ra
-            elif ca < 0 and d < 0:
+            elif ca <= 0 and d <= 0:
                 # 3rd quadrant
                 angle = -np.pi + ra
-            elif ca > 0 and d < 0:
+            elif ca >= 0 and d <= 0:
                 # 4th quadrant
                 angle = -ra
             else:
-                assert False, 'invalid logic'
+                assert False, 'invalid logic: ca=%s, d=%s, ra=%s' % (ca, d, ra)
         else:
             angle = math.acos(np.clip(ca, -1, 1))
     except TypeError as e:
@@ -264,6 +264,27 @@ def preprocess_image(data, gamma):
         img = np.clip(img, 0, 1) ** (1 / gamma)
     img = np.clip(255 * img + 0.5, 0, 255).astype(np.uint8)
     return img, (bot_v, top_v)
+
+
+def rotate_array(arr, angle, fullsize=False, border=cv2.BORDER_REPLICATE, border_val=None):
+    arr = np.array(arr).squeeze()
+    h, w, *c = arr.shape
+    c = c[0] if len(c) > 0 else 1
+    border_val = border_val if border_val is None else [border_val] * c
+
+    if fullsize:
+        rw = int((h * abs(math.sin(angle))) + (w * abs(math.cos(angle))))
+        rh = int((h * abs(math.cos(angle))) + (w * abs(math.sin(angle))))
+    else:
+        rw, rh = w, h
+
+    cx, cy = w / 2, h / 2
+    mx = cv2.getRotationMatrix2D((cx, cy), math.degrees(angle), 1)
+    mx[0, 2] += rw / 2 - cx
+    mx[1, 2] += rh / 2 - cy
+    rarr = cv2.warpAffine(arr, mx, (rw, rh), flags=cv2.INTER_NEAREST, borderMode=border, borderValue=border_val)
+
+    return rarr
 
 
 def rotate_expand_border(img, angle, fullsize=False, lib='opencv', to_pil=False):
@@ -363,6 +384,8 @@ class ImageDB:
                     sc_trg_x REAL DEFAULT NULL,
                     sc_trg_y REAL DEFAULT NULL,
                     sc_trg_z REAL DEFAULT NULL,
+                    hz_fov REAL DEFAULT NULL,
+                    img_angle REAL DEFAULT 0.0,
                     vd REAL DEFAULT NULL,
                     cx1 REAL DEFAULT NULL,
                     cy1 REAL DEFAULT NULL,
@@ -385,6 +408,10 @@ class ImageDB:
                 for col in ('sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'sc_sun_x', 'sc_sun_y', 'sc_sun_z',
                             'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z'):
                     self._cursor.execute(f"ALTER TABLE images ADD COLUMN {col} REAL DEFAULT NULL")
+                self._conn.commit()
+            if 'hz_fov' not in sql:
+                for col, default in (('hz_fov', 'NULL'), ('img_angle', '0')):
+                    self._cursor.execute(f"ALTER TABLE images ADD COLUMN {col} REAL DEFAULT {default}")
                 self._conn.commit()
 
     def add(self, fields: Tuple[str, ...], values: List[Tuple]) -> None:

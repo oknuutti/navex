@@ -8,17 +8,15 @@ import quaternion
 import scipy.interpolate as interp
 import cv2
 
-from navex.datasets.base import ImagePairDataset, SynthesizedPairDataset
-from navex.datasets.tools import ImageDB, find_files, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
+from ..base import SynthesizedPairDataset, DatabaseImagePairDataset
+from ..tools import ImageDB, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
     unit_aflow, show_pair, save_aflow, valid_asteriod_area, rotate_expand_border
 
 
-class AsteroidImagePairDataset(ImagePairDataset):
+class AsteroidImagePairDataset(DatabaseImagePairDataset):
     def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, model_north=(0, 0, 1),
                  cam_axis=(0, 0, 1), cam_up=(0, -1, 0), aflow_rot_norm=True, preproc_path=None,
                  extra_crop=None, **kwargs):
-        self.indices, self.index = None, None
-
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
         # NOTE: impossible to cache aflow rotated images as rotations depend on each pair
@@ -33,31 +31,6 @@ class AsteroidImagePairDataset(ImagePairDataset):
         if self.trg_north_ra is None or self.trg_north_dec is None:
             # fall back on ecliptic north, in equatorial ICRF system:
             self.trg_north_ra, self.trg_north_dec = math.radians(270), math.radians(66.56)
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state['index']
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        dbfile = os.path.join(self.root, 'dataset_all.sqlite')
-        self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
-
-    def _load_samples(self):
-        dbfile = os.path.join(self.root, 'dataset_all.sqlite')
-        self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
-
-        index = dict(self.index.get_all(('id', 'file')))
-        aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png')
-
-        get_id = lambda f, i: int(f.split(os.path.sep)[-1].split('.')[0].split('_')[i])
-        aflow = [f for f in aflow if get_id(f, 0) in index and get_id(f, 1) in index]
-        self.indices = [(get_id(f, 0), get_id(f, 1)) for f in aflow]
-        imgs = [(os.path.join(self.root, index[i]), os.path.join(self.root, index[j])) for i, j in self.indices]
-
-        samples = list(zip(imgs, aflow))
-        return samples
 
     def preprocess(self, idx, imgs, aflow):
         assert tuple(np.flip(aflow.shape[:2])) == imgs[0].size, \

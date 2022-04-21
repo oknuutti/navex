@@ -1,5 +1,6 @@
 import re
 import os
+import math
 import argparse
 import logging
 import warnings
@@ -8,10 +9,132 @@ from tqdm import tqdm
 import numpy as np
 import cv2
 
-from navex.datasets.tools import find_files_recurse
+from kapture.io.csv import kapture_from_dir
+from kapture.io.records import get_record_fullpath
+
+from .tools import create_image_pairs, safe_split
+from ..tools import find_files_recurse, ImageDB, angle_between_v, rotate_expand_border, q_times_v, vector_rejection
 
 
 def main():
+    """
+    Construct image pairs from geo-referenced Nokia Båtvik data
+     - for georeferencing, see hw_visnav.preprocess and .depthmaps
+    """
+    parser = argparse.ArgumentParser('Construct image pairs from geo-referenced Nokia Båtvik data')
+
+    parser.add_argument('--src', action='append', required=True, help="source folders")
+    parser.add_argument('--dst', required=True, help="output folder")
+    parser.add_argument('--index', default='dataset_all.sqlite',
+                        help="index file name in the output folder")
+    parser.add_argument('--start', type=float, default=0.0, help="where to start processing [0-1]")
+    parser.add_argument('--end', type=float, default=1.0, help="where to stop processing [0-1]")
+
+    parser.add_argument('--pairs', default='pairs.txt', help="pairing file to create in root")
+    parser.add_argument('--aflow', default='aflow', help="subfolder where the aflow files are generated")
+    parser.add_argument('--img-max', type=int, default=3, help="how many times same images can be repeated in pairs")
+    parser.add_argument('--max-angle', type=float, default=0,
+                        help="max angle (deg) on the unit sphere for pair creation")
+    parser.add_argument('--min-matches', type=int, default=10000,
+                        help="min pixel matches in order to approve generated pair")
+
+    parser.add_argument('--aflow-match-coef', type=float, default=1.0,
+                        help="expand pixel matching distance by setting value larger than 1.0")
+
+    parser.add_argument('--overwrite', action='store_true', help='clear all, overwrite rotated images')
+
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO)
+
+    SENSOR_NAME = 'cam'
+
+    os.makedirs(args.dst, exist_ok=True)
+    index_path = os.path.join(args.dst, args.index)
+    source_paths = {src_path.split(os.sep)[-1]: src_path for src_path in args.src}
+
+    def pathfun(fname, subfolder, ext):
+        subset, *rest = fname.split(os.sep)
+        return os.path.join(source_paths[subset], 'exr', subfolder, *rest)[:-4] + ext
+
+    geom_pathfun = lambda fname: pathfun(fname, 'geometry', '.xyz.exr')
+    depth_pathfun = lambda fname: pathfun(fname, 'depth', '.d.exr')
+
+    if args.overwrite or not os.path.exists(index_path):
+        logging.info('Building the index by scanning the source folders...')
+
+        frames, angles = [], {}
+        for src_path in args.src:
+            subset_path = src_path.split(os.sep)[-1]
+            kapt_path = os.path.join(src_path, 'kapture')
+            kapt = kapture_from_dir(kapt_path)
+            sensor_id, width, height, fl_x, fl_y, pp_x, pp_y, *dist_coefs = get_cam_params(kapt, SENSOR_NAME)
+            hz_fov = math.degrees(2 * math.atan(width/2/fl_x))
+
+            for fid, img_files in tqdm(kapt.records_camera.items(), desc='Copying images from %s' % src_path):
+                src_path = get_record_fullpath(kapt_path, img_files[sensor_id])
+                rel_dst_path = os.path.join(subset_path, src_path.split('/')[-1])
+
+                geom_path = geom_pathfun(rel_dst_path)
+                if not os.path.exists(geom_path):
+                    # dont include image if geometry data missing
+                    continue
+
+                dst_path = os.path.join(args.dst, rel_dst_path)
+
+                ori = kapt.trajectories[fid][sensor_id].r
+                loc = kapt.trajectories[fid][sensor_id].t.flatten()
+                angle = rotate_image(src_path, dst_path, ori)
+                angles[rel_dst_path] = angle
+
+                frames.append((rel_dst_path, hz_fov, angle) + safe_split(ori, True) + safe_split(loc, False))
+
+        index = ImageDB(index_path, truncate=True)
+        frames = sorted(frames, key=lambda x: x[0])
+        index.add(('id', 'file', 'hz_fov', 'img_angle',
+                   'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
+                   'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
+                  [(i, *frame) for i, frame in enumerate(frames)])
+    else:
+        index = ImageDB(index_path)
+
+    create_image_pairs(args.dst, index, args.pairs, geom_pathfun, args.aflow, args.img_max, None,
+                       0, args.max_angle, args.min_matches, read_meta=True, start=args.start,
+                       end=args.end, exclude_shadowed=False, across_subsets=True,
+                       cluster_unit_vects=False, depth_src=depth_pathfun, aflow_match_coef=args.aflow_match_coef)
+
+
+def rotate_image(src, dst, ori):
+    img = cv2.imread(src, cv2.IMREAD_UNCHANGED)
+    assert img is not None, 'image not found at %s' % src
+
+    # assume in cam frame: +z down (cam axis), -y towards north (up), +x is right wing (east)
+    north_v = np.array([0, -1, 0])
+    cam_axis = np.array([0, 0, 1])
+    cam_up = np.array([0, -1, 0])
+
+    sc_north = q_times_v(ori, north_v)
+    img_north = vector_rejection(sc_north, cam_axis)
+    angle = angle_between_v(cam_up, img_north, direction=cam_axis)
+
+    rimg = rotate_expand_border(img, angle, fullsize=True, lib='opencv')
+
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    cv2.imwrite(dst, rimg, (cv2.IMWRITE_PNG_COMPRESSION, 9))
+
+    return angle
+
+
+def get_cam_params(kapt, sensor_name):
+    sid, sensor = None, None
+    for id, s in kapt.sensors.items():
+        if s.name == sensor_name:
+            sid, sensor = id, s
+            break
+    sp = sensor.sensor_params
+    return (sid,) + tuple(map(int, sp[1:3])) + tuple(map(float, sp[3:]))
+
+
+def main_old():
     """
     Extract frames from Nokia Båtvik videos
     """

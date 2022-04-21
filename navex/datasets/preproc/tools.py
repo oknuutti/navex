@@ -12,9 +12,6 @@ from typing import Callable
 import json
 import logging
 
-from osgeo import gdal
-import pvl
-
 import numpy as np
 import quaternion
 import matplotlib.pyplot as plt
@@ -24,8 +21,8 @@ from scipy.cluster.vq import kmeans
 from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
-from navex.datasets.tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
-    q_times_v, angle_between_v, valid_asteriod_area, nadir_unit_v, preprocess_image
+from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
+    q_times_v, angle_between_v, valid_asteriod_area, nadir_unit_v, preprocess_image, rotate_array
 from navex.experiments.parser import nested_filter
 
 
@@ -50,17 +47,21 @@ def create_image_pairs_script():
 
     args = parser.parse_args()
     create_image_pairs(root=args.root, index=args.index, pairs=args.pairs, src=args.src, aflow=args.aflow,
-                       img_max=args.img_max, hz_fov=args.hz_fov, min_angle=args.min_angle, max_angle=args.max_angle,
+                       img_max=args.img_max, def_hz_fov=args.hz_fov, min_angle=args.min_angle, max_angle=args.max_angle,
                        min_matches=args.min_matches, read_meta=args.read_meta, show_only=args.show_only)
 
 
-def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angle,
-                       max_angle, min_matches, read_meta, max_sc_diff=1.5, show_only=False, start=0.0, end=1.0):
-
+def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov, min_angle,
+                       max_angle, min_matches, read_meta, max_sc_diff=1.5, max_dist=None, show_only=False, start=0.0, end=1.0,
+                       exclude_shadowed=True, across_subsets=False, depth_src=None, cluster_unit_vects=True,
+                       aflow_match_coef=1.0):
     aflow_path = os.path.join(root, aflow)
     index_path = index if isinstance(index, ImageDB) else os.path.join(root, index)
     pairs_path = os.path.join(root, pairs)
-    src_path = os.path.join(root, src)
+    geom_src_fun = (lambda fname: os.path.join(root, geom_src, fname)) if isinstance(geom_src, str) else geom_src
+
+    depth_src = depth_src or geom_src
+    depth_src_fun = (lambda fname: os.path.join(root, depth_src, fname[:-4] + '.d.exr')) if isinstance(depth_src, str) else depth_src
 
     os.makedirs(aflow_path, exist_ok=True)
 
@@ -80,30 +81,31 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
         is_new = True
 
     if is_new:
+        assert isinstance(geom_src, str), 'source path function not supported without existing index'
         logging.info('building the index file...')
-        files = find_files(src_path, ext='.xyz.exr', relative=True)
-        files = [(i, file[:-8]) for i, file in enumerate(files)]
+        files = find_files(os.path.join(root, geom_src), ext='.xyz.exr', relative=True)
+        files = [(i, file[:-8] + '.png') for i, file in enumerate(files)]
     else:
-        files = [(id, file[:-4]) for id, file in
+        files = [(id, file) for id, file in
                  index.get_all(('id', 'file'), cond='cx1 is null', start=start, end=end)]
 
     if is_new or read_meta:
-        logging.info('clustering *.xyz.exr file contents...')
-        for i, fname in tqdm(files):
+        for i, fname in tqdm(files, desc='Clustering *.xyz.exr file contents'):
             try:
-                xyz = load_xyzs(os.path.join(src_path, fname), skip_s=True).reshape((-1, 3))
+                xyz = load_xyzs(geom_src_fun(fname), skip_s=True, hide_shadow=exclude_shadowed).reshape((-1, 3))
             except Exception as e:
-                raise Exception('Failed to open file %s' % os.path.join(src_path, fname)) from e
+                raise Exception('Failed to open file %s' % geom_src_fun(fname)) from e
 
             I = np.logical_not(np.any(np.isnan(xyz), axis=1))
             vd, u = np.nan, np.ones((4, 3)) * np.nan
             if np.sum(I) > 0:
                 ut, _ = kmeans(xyz[I, :], 4)
-                ut /= np.atleast_2d(np.linalg.norm(ut, axis=1)).T
+                if cluster_unit_vects:
+                    ut /= np.atleast_2d(np.linalg.norm(ut, axis=1)).T
                 vd = np.max(np.abs(ut - np.mean(ut, axis=0)))
                 u[:len(ut), :] = ut
 
-            values = [(i, fname + '.png', vd, *u.flatten())]
+            values = [(i, fname, vd, *u.flatten())]
             if is_new:
                 index.add(('id', 'file', 'vd', 'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
                                                'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
@@ -112,40 +114,45 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                                                'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
 
     # read index file
-    ids, files, unit_vectors, max_dists, dists, coords = [], [], [], [], [], []
-    for id, fname, vd, stx, sty, stz, sqw, sqx, sqy, sqz, tqw, tqx, tqy, tqz, \
+    ids, files, hz_fovs, angles, centroid_vects, max_dists, dists, coords = [], [], [], [], [], [], [], []
+    for id, fname, hz_fov, angle, vd, stx, sty, stz, sqw, sqx, sqy, sqz, tqw, tqx, tqy, tqz, \
         cx1, cy1, cz1, cx2, cy2, cz2, cx3, cy3, cz3, cx4, cy4, cz4 \
-            in index.get_all(('id', 'file', 'vd', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z',
+            in index.get_all(('id', 'file', 'hz_fov', 'img_angle', 'vd', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z',
                               'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz',
                               'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
                               'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), start=start, end=end):
         assert cx1 is not None, 'centroids not set for id=%d, file=%s' % (id, fname)
-        if np.isnan(float(cx1)) or tqw is None:
+        if np.isnan(float(cx1)) or (tqw is None and sqw is None):
             continue
         ids.append(int(id))
         files.append(fname)
+        hz_fovs.append(hz_fov)
+        angles.append(angle)
         max_dists.append(float(vd))
         dists.append(np.linalg.norm([stx, sty, stz]))
+        # FIX: nadir_unit_v does not work for Nokia data as the coord frame is different there
         coords.append(nadir_unit_v((np.quaternion(sqw, sqx, sqy, sqz) if sqw is not None else quaternion.one).conj() *
-                                   np.quaternion(tqw, tqx, tqy, tqz)))
-        unit_vectors.append([[float(a) for a in u] for u in ((cx1, cy1, cz1), (cx2, cy2, cz2),
-                                                             (cx3, cy3, cz3), (cx4, cy4, cz4))])
+                                   (np.quaternion(tqw, tqx, tqy, tqz) if tqw is not None else quaternion.one)))
+        centroid_vects.append([[float(a) for a in u] for u in ((cx1, cy1, cz1), (cx2, cy2, cz2),
+                                                               (cx3, cy3, cz3), (cx4, cy4, cz4))])
 
     if show_only:
         show_all_pairs(aflow_path, root, dict(zip(ids, files)))
         return
 
     from scipy.spatial.ckdtree import cKDTree
-    unit_vectors = np.array(unit_vectors).reshape((-1, 3))
-    I = np.logical_not(np.any(np.isnan(unit_vectors), axis=1))
-    tree = cKDTree(unit_vectors[I, :])
+    centroid_vects = np.array(centroid_vects).reshape((-1, 3))
+    I = np.logical_not(np.any(np.isnan(centroid_vects), axis=1))
+    tree = cKDTree(centroid_vects[I, :])
     idxs = np.stack((np.repeat(np.atleast_2d(np.arange(0, len(ids))).T, 4, axis=1),
                      np.repeat(np.atleast_2d(np.arange(0, 4)), len(ids), axis=0)), axis=2).reshape((-1, 2))[I, :]
 
-    if max_angle > 0:
-        max_dist = 2 * math.sin(math.radians(max_angle) / 2)
-    else:
-        max_dist = np.median(max_dists)
+    if max_dist is None:
+        if max_angle > 0 and cluster_unit_vects:
+            max_dist = 2 * math.sin(math.radians(max_angle) / 2)
+        else:
+            max_dist = np.median(max_dists)
+
     pairs = tree.query_pairs(max_dist, eps=0.05)
 
     logging.info('building the pair file...')
@@ -164,8 +171,7 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
                 if ratio != 'nan':
                     image_count.update((int(i), int(j)))
 
-    logging.info('calculating aflow for qualifying pairs...')
-    pbar = tqdm(pairs, mininterval=5)
+    pbar = tqdm(pairs, mininterval=5, desc='Calculating aflow for qualifying pairs')
     add_count = 0
     for tot, (ii, jj) in enumerate(pbar):
         (i, a), (j, b) = idxs[ii, :], idxs[jj, :]
@@ -177,17 +183,25 @@ def create_image_pairs(root, index, pairs, src, aflow, img_max, hz_fov, min_angl
         # angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i + a] - unit_vectors[j + b]) / 2))
 
         sc_diff = max(dists[i] / dists[j], dists[j] / dists[i])
+        fi, fj = files[i], files[j]
 
-        if min_angle <= angle <= max_angle and sc_diff < max_sc_diff and id_i != id_j and (id_i, id_j) not in added_pairs and (
-                image_count[id_i] < img_max or image_count[id_j] < img_max):
-            xyzs0 = load_xyzs(os.path.join(src_path, files[i]), hz_fov=hz_fov)
-            xyzs1 = load_xyzs(os.path.join(src_path, files[j]), hz_fov=hz_fov)
+        across_subset_ok = True
+        if across_subsets and len(fi.split(os.sep)) > 1 and len(fj.split(os.sep)) > 1:
+            across_subset_ok = fi.split(os.sep)[0] != fj.split(os.sep)[0]
+
+        if min_angle <= angle <= max_angle and sc_diff < max_sc_diff and id_i != id_j \
+                and (id_i, id_j) not in added_pairs and (image_count[id_i] < img_max or image_count[id_j] < img_max) \
+                and across_subset_ok:
+            xyzs0 = load_xyzs(geom_src_fun(fi), d_file=depth_src_fun(fi), hide_shadow=exclude_shadowed,
+                              hz_fov=hz_fovs[i] or def_hz_fov, rotate_angle=angles[i])
+            xyzs1 = load_xyzs(geom_src_fun(fj), d_file=depth_src_fun(fj), hide_shadow=exclude_shadowed,
+                              hz_fov=hz_fovs[j] or def_hz_fov, rotate_angle=angles[j])
             max_matches = min(np.sum(np.logical_not(np.isnan(xyzs0[:, :, 0]))),
                               np.sum(np.logical_not(np.isnan(xyzs1[:, :, 0]))))
 
             ratio, matches = np.nan, -1
             if max_matches >= min_matches:
-                aflow = calc_aflow(xyzs0, xyzs1)
+                aflow = calc_aflow(xyzs0, xyzs1, uncertainty_coef=aflow_match_coef)
                 matches = np.sum(np.logical_not(np.isnan(aflow[:, :, 0])))
 
                 if matches >= min_matches:
@@ -238,45 +252,62 @@ def gen_aflow_script():
             save_aflow(os.path.join(args.dst, '%d_%d.aflow.png' % (iid0, iid1)), aflow)
 
 
-def load_xyzs(fname, skip_s=False, hz_fov=None):
-    if fname[-4:].lower() in ('.png', '.jpg'):
-        fname = fname[:-4]
+def load_xyzs(i_file, g_file=None, s_file=None, d_file=None, h_file=None,
+              skip_s=False, hz_fov=None, hide_shadow=True, rotate_angle=None):
+    if i_file[-4:].lower() in ('.png', '.jpg'):
+        g_file = g_file or (i_file[:-4] + '.xyz.exr')
+    elif i_file[-8:] == '.xyz.exr':
+        g_file = g_file or i_file
+        i_file = i_file[-8:] + '.png'
+    else:
+        g_file = g_file or (i_file + '.xyz.exr')
+        i_file = i_file + '.png'
 
-    xyz = cv2.imread(fname + '.xyz.exr', cv2.IMREAD_UNCHANGED)
+    xyz = cv2.imread(g_file, cv2.IMREAD_UNCHANGED)
     if xyz is None:
-        raise FileNotFoundError("couldn't read file %s" % (fname + '.xyz.exr',))
+        raise FileNotFoundError("couldn't read file %s" % g_file)
 
     # hide parts that are in shadow
-    if os.path.exists(fname + '.sdw'):
-        mask = cv2.imread(fname + '.sdw', cv2.IMREAD_UNCHANGED).astype(bool)
-    else:
-        img = cv2.imread(fname + '.png', cv2.IMREAD_UNCHANGED)
-        if img is None:
-            raise FileNotFoundError("couldn't read file %s" % (fname + '.png',))
-        mask = valid_asteriod_area(img, 50, remove_limb=False)
-        mask = np.logical_not(mask)
-        cv2.imwrite(fname + '.sdw.png', mask.astype(np.uint8)*255, (cv2.IMWRITE_PNG_COMPRESSION, 9))
-        os.rename(fname + '.sdw.png', fname + '.sdw')
+    if hide_shadow:
+        h_file = h_file or (i_file[:-4] + '.sdw')
+        if os.path.exists(h_file):
+            mask = cv2.imread(h_file, cv2.IMREAD_UNCHANGED).astype(bool)
+        else:
+            img = cv2.imread(i_file, cv2.IMREAD_UNCHANGED)
+            if img is None:
+                raise FileNotFoundError("couldn't read file %s" % (i_file,))
+            mask = valid_asteriod_area(img, 50, remove_limb=False)
+            mask = np.logical_not(mask)
+            cv2.imwrite(h_file + '.png', mask.astype(np.uint8) * 255, (cv2.IMWRITE_PNG_COMPRESSION, 9))
+            os.rename(h_file + '.png', h_file)
 
-    shape = xyz.shape
-    xyz = xyz.reshape((-1, 3))
-    xyz[mask.flatten(), :] = np.nan
-    xyz = xyz.reshape(shape)
+        shape = xyz.shape
+        xyz = xyz.reshape((-1, 3))
+        xyz[mask.flatten(), :] = np.nan
+        xyz = xyz.reshape(shape)
 
     if skip_s:
+        if rotate_angle:
+            xyz = rotate_array(xyz, rotate_angle, fullsize=True, border=cv2.BORDER_CONSTANT, border_val=np.nan)
         return xyz
 
-    if hz_fov is not None and not os.path.exists(fname + '.s.exr'):
-        d = cv2.imread(fname + '.d.exr', cv2.IMREAD_UNCHANGED)
+    s_file = s_file or (i_file[:-4] + '.s.exr')
+    d_file = d_file or (i_file[:-4] + '.d.exr')
+    if hz_fov is not None and not os.path.exists(s_file):
+        d = cv2.imread(d_file, cv2.IMREAD_UNCHANGED)
         coef = 2 * math.sin(math.radians(hz_fov / d.shape[1]) / 2)
         s = d * coef
     else:
-        s = cv2.imread(fname + '.s.exr', cv2.IMREAD_UNCHANGED)
+        s = cv2.imread(s_file, cv2.IMREAD_UNCHANGED)
 
-    return np.concatenate((xyz, np.atleast_3d(s)), axis=2)
+    xyzs = np.concatenate((xyz, np.atleast_3d(s)), axis=2)
+    if rotate_angle:
+        xyzs = rotate_array(xyzs, rotate_angle, fullsize=True, border=cv2.BORDER_CONSTANT, border_val=np.nan)
+
+    return xyzs
 
 
-def calc_aflow(xyzs0, xyzs1):
+def calc_aflow(xyzs0, xyzs1, uncertainty_coef=1.0):
     h0, w0 = xyzs0.shape[:2]
     h1, w1 = xyzs1.shape[:2]
 
@@ -286,7 +317,7 @@ def calc_aflow(xyzs0, xyzs1):
     # prepare x, doesnt support nans
     x = xyzs1[:, :, :3].reshape((-1, 3)).astype(np.float32)
     I = np.logical_not(np.isnan(x[:, 0]))
-    len_sc = max(np.nanquantile(xyzs0[:, :, -1], 0.9), np.nanquantile(xyzs1[:, :, -1], 0.9))
+    len_sc = max(np.nanquantile(xyzs0[:, :, -1], 0.9), np.nanquantile(xyzs1[:, :, -1], 0.9)) * uncertainty_coef
 
     interp = NearestKernelNDInterpolator(x[I, :], img_xy1[I], k_nearest=8, kernel_sc=len_sc, max_distance=len_sc * 3)
     aflow = interp(xyzs0[:, :, :3].reshape((-1, 3)).astype(np.float32)).reshape((h0, w0))
@@ -320,8 +351,11 @@ def show_all_pairs(aflow_path, img_path, image_db):
             show_pair(img0, img1, aflow, image_db[id0], image_db[id1])
 
 
-def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=1.0, disp_dir=None,
+def read_raw_img(path, bands, gdtype=None, ndtype=np.float32, gamma=1.0, disp_dir=None,
                  metadata_type='esa/jaxa', q_wxyz=True, crop=None):
+    from osgeo import gdal
+
+    gdtype = gdal.GDT_Float32 if gdtype is None else gdtype
     handle = gdal.Open(path, gdal.GA_ReadOnly)
     w, h, n = handle.RasterXSize, handle.RasterYSize, handle.RasterCount
 
@@ -384,6 +418,8 @@ def read_raw_img(path, bands, gdtype=gdal.GDT_Float32, ndtype=np.float32, gamma=
 
 
 def parse_metadata(path, q_wxyz=True):
+    import pvl
+
     # return metadata in J2000 frame
     meta = pvl.load(path)
 

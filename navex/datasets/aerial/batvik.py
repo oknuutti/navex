@@ -2,7 +2,7 @@ import itertools
 import math
 import os
 
-from ..base import SynthesizedPairDataset, AugmentedPairDatasetMixin
+from ..base import SynthesizedPairDataset, DatabaseImagePairDataset, AugmentedPairDatasetMixin
 from ..tools import find_files_recurse
 
 
@@ -25,4 +25,17 @@ class BatvikSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin):
         paths = [self.root]
         if self.subset is not None:
             paths = [os.path.join(self.root, s) for s in self.subset]
-        return list(itertools.chain(*[find_files_recurse(path, ext='.png') for path in paths]))
+        return list(itertools.chain(*[find_files_recurse(path, ext='.jpg') for path in paths]))
+
+
+class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
+    def __init__(self, root='data', folder='batvik', noise_max=0.20, rnd_gain=(0.5, 2), image_size=512,
+                 margin=16, eval=False, rgb=False, npy=False):
+        assert not npy, '.npy format not supported'
+        assert not rgb, 'rgb images not supported'
+        self.folder = folder
+
+        AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
+                                           max_sc=1.0, margin=margin, fill_value=0, eval=eval, rgb=False,
+                                           resize_max_sc=1.0, blind_crop=False)
+        DatabaseImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms)
