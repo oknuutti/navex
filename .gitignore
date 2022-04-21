@@ -2,7 +2,9 @@
 !/.gitignore
 !/navex
 !/README.md
-!/LICENSE
+!/LICENSE.txt
+!/environment.yml
+!/setup.py
 
 __pycache__
 
