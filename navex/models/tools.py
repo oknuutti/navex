@@ -8,8 +8,6 @@ import torch
 from torch import nn
 from torch.functional import F
 
-from navex.models.r2d2orig import R2D2
-
 
 def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt_lim=0.02,
                       border=16, interp='bicubic'):
@@ -191,6 +189,7 @@ def load_model(path, device, model_only=False):
     model_type = 'orig' if os.path.basename(path)[:1] == '_' or path[-3:] == '.pt' else 'own'
 
     if model_type == 'orig':
+        from navex.models.r2d2orig import R2D2
         model = R2D2(path=path)
         model.to(device)
     else:
@@ -210,7 +209,10 @@ def is_rgb_model(model):
     fst, rgb = model, None
     while True:
         try:
-            fst = next(fst.children())
+            c = fst.children()
+            for fst in c:
+                if hasattr(fst, 'in_channels'):
+                    break
         except:
             rgb = fst.in_channels == 3
             break

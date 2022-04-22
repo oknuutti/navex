@@ -1,17 +1,15 @@
 import math
-import operator
 import threading
-from functools import reduce
 from typing import Union, Dict, Any, Optional
 from argparse import Namespace
 
 import torch
-import torchvision
+from torch import Tensor
+
 from pytorch_lightning import Trainer
 from pytorch_lightning.trainer.connectors.slurm_connector import SLURMConnector
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.trainer.training_loop import TrainLoop
-from torch import Tensor
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
