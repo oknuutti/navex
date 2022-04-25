@@ -38,9 +38,34 @@ class DISK(R2D2):
 
         return unet, up_channels[-1]
 
+    def _maybe_pad(self, input):
+        div = 2**len(self.backbone.down)
+        hpad = (-input.shape[-1]) % div
+        vpad = (-input.shape[-2]) % div
+        l = hpad // 2
+        r = l + hpad % 2
+        t = vpad // 2
+        b = t + vpad % 2
+        padding = [l, r, t, b]
+
+        if sum(padding):
+            input = F.pad(input, padding, 'replicate')
+
+        return input, padding
+
+    def _maybe_crop(self, features, padding):
+        if sum(padding):
+            l, t = padding[0], padding[2]
+            r = None if padding[1] == 0 else -padding[1]
+            b = None if padding[3] == 0 else -padding[3]
+            features = features[:, :, t:b, l:r]
+        return features
+
     def forward(self, input):
-        # input is a pair of images
+        # input is a pair of images, backbone requires divisibility by 2**len(down)
+        input, padding = self._maybe_pad(input)
         features = self.backbone(input)
+        features = self._maybe_crop(features, padding)
 
         if self.separate_des_head:
             dn = self.conf['descriptor_dim']

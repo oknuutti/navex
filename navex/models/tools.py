@@ -206,16 +206,18 @@ def load_model(path, device, model_only=False):
 
 
 def is_rgb_model(model):
-    fst, rgb = model, None
-    while True:
-        try:
-            c = fst.children()
-            for fst in c:
-                if hasattr(fst, 'in_channels'):
-                    break
-        except:
-            rgb = fst.in_channels == 3
-            break
+    found, fst, c, rgb = False, None, [model], None
+    while not found:
+        for fst in c:
+            c = list(fst.children())
+            if len(c) > 0:
+                break
+            elif hasattr(fst, 'in_channels'):
+                found = True
+                break
+
+    assert found, 'could not find the expected channel width of model input'
+    rgb = fst.in_channels == 3
     return rgb
 
 
