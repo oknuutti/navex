@@ -98,7 +98,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
 
             I = np.logical_not(np.any(np.isnan(xyz), axis=1))
             vd, u = np.nan, np.ones((4, 3)) * np.nan
-            if np.sum(I) > 0:
+            if np.sum(I) >= min_matches:
                 ut, _ = kmeans(xyz[I, :], 4)
                 if cluster_unit_vects:
                     ut /= np.atleast_2d(np.linalg.norm(ut, axis=1)).T

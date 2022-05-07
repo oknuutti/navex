@@ -16,9 +16,9 @@ class AerialTrial(TerrestrialTrial):
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})
 
             ds = []
-            if 1:
-                ds.append(BatvikSynthPairDataset(self.data_conf['path'], subset=None, **common))
             if 0:
+                ds.append(BatvikSynthPairDataset(self.data_conf['path'], subset=None, **common))
+            if 1:
                 ds.append(BatvikPairDataset(self.data_conf['path'], **common))
 
             if 1:
