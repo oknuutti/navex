@@ -117,6 +117,7 @@ def main():
         print('saved lr_finder object in file %s' % (path,))
         return
 
+    print('Starting to train (trn: %d, val: %d):' % (len(trn_dl), len(val_dl)))
     trainer.fit(model, trn_dl, val_dl)
 
     if PROFILING_ONLY:

@@ -20,7 +20,9 @@ class AerialTrial(TerrestrialTrial):
                 ds.append(BatvikSynthPairDataset(self.data_conf['path'],
                                                  subset=('14', '18', '20', '24', '31', '33'), **common))
             if 1:
-                ds.append(BatvikPairDataset(self.data_conf['path'], **common))
+                common['noise_max'] = 0.0
+                common['rnd_gain'] = 1.0
+                ds.append(BatvikPairDataset(self.data_conf['path'], resize_max_sc=1.0, **common))
 
             if 1:
                 tst_set = None

@@ -73,14 +73,14 @@ loss:
   wap: !h_float 2.0      # weight for expected ap loss
   wqt: !h_float -1.0      # weight for expected ap loss
   det_n: !h_int  24       # detector neighbourhood size
-  base: !h_float 0.5      # quality loss target mAP
+  base: !h_float 0.6      # quality loss target mAP
   nq: 20              # quantizer bins for ap calc
   sampler:
     subq: -8          # cell_d, 	diameter of rectangular cell that is searched for max detection score
     subd: 3           # neg_step, 	negative sampling step
-    pos_d: 20         # pos_r,  	radius from inside which positive samples are gathered
-    neg_d: !h_int 30  # neg_min_r, 	min radius for negative samples
-    ngh: 3            # neg_max_r=neg_d+ngh,  max radius for negative samples
+    pos_d: 25         # pos_r,  	radius from inside which positive samples are gathered
+    neg_d: !h_int 35  # neg_min_r, 	min radius for negative samples
+    ngh: 2            # neg_max_r=neg_d+ngh,  max radius for negative samples
     border: 32        # border, 	border width, don't sample if closer than this to image borders
     subd_neg: -8      # -, 		not used
     max_neg_b: 8      # max_neg_b, 	get distractors from at most this amount of images in the mini-batch
@@ -95,12 +95,12 @@ optimizer:
 
 data:
   max_sc:  !h_float 1.091    # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
-  max_rot: !h_float 10.0     # in degrees, synth pair warp related
-  max_shear: !h_float 0.0    # synth pair warp related
-  max_proj: !h_float 0.75    # synth pair warp related
-  noise_max: !h_float 0.03
-  rnd_gain: !h_float 1.2
-  image_size: !h_int 224
+  max_rot: !h_float 10.0     # related synth pair warp [deg]
+  max_shear: !h_float 0.0    # related to synth pair warp
+  max_proj: !h_float 0.75    # related to synth pair warp
+  noise_max: !h_float 0.03   # related to all dataset types
+  rnd_gain: !h_float 1.2     # related to all dataset types
+  image_size: !h_int 224     # related to all dataset types
   path: 'data'
   npy: 'false'
   trn_ratio: 0.90
