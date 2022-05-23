@@ -8,6 +8,7 @@ import quaternion
 import scipy.interpolate as interp
 import cv2
 
+from .. import tools
 from ..base import SynthesizedPairDataset, DatabaseImagePairDataset
 from ..tools import ImageDB, spherical2cartesian, q_times_v, vector_rejection, angle_between_v, \
     unit_aflow, show_pair, save_aflow, valid_asteriod_area, rotate_expand_border
@@ -97,23 +98,27 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
                 # rotate image based on this angle
                 img = rotate_expand_border(img, -angle, fullsize=True, lib='opencv', to_pil=True)
                 proc_imgs.append((np.array([[math.cos(angle), -math.sin(angle)],
-                                            [math.sin(angle),  math.cos(angle)]], dtype=np.float32), img))
+                                            [math.sin(angle),  math.cos(angle)]], dtype=np.float32), img, angle))
 
-        # rotate aflow content so that points to new rotated img1
-        (ow1, oh1), (ow2, oh2) = imgs[0].size, imgs[1].size
-        (nw1, nh1), (nw2, nh2) = proc_imgs[0][1].size, proc_imgs[1][1].size
-        r_aflow = aflow - np.array([[[ow2/2, oh2/2]]], dtype=np.float32)
-        r_aflow = r_aflow.reshape((-1, 2)).dot(proc_imgs[1][0].T).reshape((oh1, ow1, 2))
-        r_aflow = r_aflow + np.array([[[nw2/2, nh2/2]]], dtype=np.float32)
+        if 1:
+            n_aflow = tools.rotate_aflow(aflow, (imgs[1].size[1], imgs[1].size[0]), proc_imgs[0][2], proc_imgs[1][2],
+                                         legacy=True)   # TODO: switch to legacy=False
+        else:
+            # rotate aflow content so that points to new rotated img1
+            (ow1, oh1), (ow2, oh2) = imgs[0].size, imgs[1].size
+            (nw1, nh1), (nw2, nh2) = proc_imgs[0][1].size, proc_imgs[1][1].size
+            r_aflow = aflow - np.array([[[ow2/2, oh2/2]]], dtype=np.float32)
+            r_aflow = r_aflow.reshape((-1, 2)).dot(proc_imgs[1][0].T).reshape((oh1, ow1, 2))
+            r_aflow = r_aflow + np.array([[[nw2/2, nh2/2]]], dtype=np.float32)
 
-        # rotate aflow indices same way as img0 was rotated
-        ifun = interp.RegularGridInterpolator((np.arange(-oh1/2, oh1/2, dtype=np.float32),
-                                               np.arange(-ow1/2, ow1/2, dtype=np.float32)), r_aflow,
-                                              method="nearest", bounds_error=False, fill_value=np.nan)
+            # rotate aflow indices same way as img0 was rotated
+            ifun = interp.RegularGridInterpolator((np.arange(-oh1/2, oh1/2, dtype=np.float32),
+                                                   np.arange(-ow1/2, ow1/2, dtype=np.float32)), r_aflow,
+                                                  method="nearest", bounds_error=False, fill_value=np.nan)
 
-        grid = unit_aflow(nw1, nh1) - np.array([[[nw1/2, nh1/2]]])
-        grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0]).T).reshape((nh1, nw1, 2))
-        n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
+            grid = unit_aflow(nw1, nh1) - np.array([[[nw1/2, nh1/2]]])
+            grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0]).T).reshape((nh1, nw1, 2))
+            n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
 
         img1, img2 = [t[1] for t in proc_imgs]
         if self.preproc_path is None:

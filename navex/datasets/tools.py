@@ -76,8 +76,10 @@ def load_aflow(fname, img1_size=None, img2_size=None):
     return aflow.reshape((h, w, 2)) / 8
 
 
-def show_pair(img1, img2, aflow, file1='', file2='', afile='', pts=8):
-    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+def show_pair(img1, img2, aflow, file1='', file2='', afile='', pts=8, axs=None, show=True):
+    if axs is None:
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+
     axs[0].imshow(np.array(img1))
     axs[1].imshow(np.array(img2))
     for i in range(pts):
@@ -90,9 +92,11 @@ def show_pair(img1, img2, aflow, file1='', file2='', afile='', pts=8):
         axs[1].set_title(file2)
 
     if afile:
-        fig.suptitle(afile)
-    plt.tight_layout()
-    plt.show()
+        plt.gcf().suptitle(afile)
+
+    if show:
+        plt.tight_layout()
+        plt.show()
 
 
 def valid_asteriod_area(img, min_intensity=50, remove_limb=True):
@@ -142,6 +146,18 @@ def q_times_v(q, v):
     qv = np.quaternion(0, *v)
     qv2 = q * qv * q.conj()
     return np.array([qv2.x, qv2.y, qv2.z])
+
+
+def q_times_mx(q, mx):
+    qqmx = q * mx2qmx(mx) * q.conj()
+    aqqmx = quaternion.as_float_array(qqmx)
+    return aqqmx[:, 1:]
+
+
+def mx2qmx(mx):
+    qmx = np.zeros((mx.shape[0], 4))
+    qmx[:, 1:] = mx
+    return quaternion.as_quat_array(qmx)
 
 
 def spherical2cartesian(lat, lon, r):
@@ -273,8 +289,7 @@ def rotate_array(arr, angle, fullsize=False, border=cv2.BORDER_REPLICATE, border
     border_val = border_val if border_val is None else [border_val] * c
 
     if fullsize:
-        rw = int((h * abs(math.sin(angle))) + (w * abs(math.cos(angle))))
-        rh = int((h * abs(math.cos(angle))) + (w * abs(math.sin(angle))))
+        rh, rw = rot_arr_shape((h, w), angle)
     else:
         rw, rh = w, h
 
@@ -285,6 +300,44 @@ def rotate_array(arr, angle, fullsize=False, border=cv2.BORDER_REPLICATE, border
     rarr = cv2.warpAffine(arr, mx, (rw, rh), flags=cv2.INTER_NEAREST, borderMode=border, borderValue=border_val)
 
     return rarr
+
+
+def rot_arr_shape(shape, angle):
+    h, w = shape
+    rw = int((h * abs(math.sin(angle))) + (w * abs(math.cos(angle))))
+    rh = int((h * abs(math.cos(angle))) + (w * abs(math.sin(angle))))
+    return rh, rw
+
+
+def rotate_aflow(aflow, shape2, angle1, angle2, legacy=False):
+    # rotate aflow content so that points to new rotated img1
+    (oh2, ow2), (nh2, nw2) = shape2, rot_arr_shape(shape2, angle2)
+    R2 = np.array([[math.cos(angle2), -math.sin(angle2)],
+                   [math.sin(angle2),  math.cos(angle2)]], dtype=np.float32)
+
+    r_aflow = aflow - np.array([[[ow2 / 2, oh2 / 2]]], dtype=np.float32)
+    r_aflow = r_aflow.reshape((-1, 2)).dot(R2.T.T).reshape(aflow.shape)     # not sure why need extra .T
+    r_aflow = r_aflow + np.array([[[nw2 / 2, nh2 / 2]]], dtype=np.float32)
+
+    if legacy:
+        # TODO: remove legacy code when new way validated
+        # rotate aflow indices same way as img0 was rotated
+        import scipy.interpolate as interp
+        R1 = np.array([[math.cos(angle1), -math.sin(angle1)],
+                       [math.sin(angle1), math.cos(angle1)]], dtype=np.float32)
+        (oh1, ow1), (nh1, nw1) = aflow.shape[:2], rot_arr_shape(aflow.shape[:2], angle1)
+
+        ifun = interp.RegularGridInterpolator((np.arange(-oh1 / 2, oh1 / 2, dtype=np.float32),
+                                               np.arange(-ow1 / 2, ow1 / 2, dtype=np.float32)), r_aflow,
+                                              method="nearest", bounds_error=False, fill_value=np.nan)
+
+        grid = unit_aflow(nw1, nh1) - np.array([[[nw1 / 2, nh1 / 2]]])
+        grid = grid.reshape((-1, 2)).dot(np.linalg.inv(R1).T).reshape((nh1, nw1, 2))
+        n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
+    else:
+        n_aflow = rotate_array(r_aflow, angle1, fullsize=True, border=cv2.BORDER_REPLICATE, border_val=np.nan)
+
+    return n_aflow
 
 
 def rotate_expand_border(img, angle, fullsize=False, lib='opencv', to_pil=False):
@@ -347,6 +400,8 @@ class Camera:
         self.f_num = f_num
         self.matrix = matrix
         self.dist_coefs = dist_coefs
+        self._inv_matrix = None
+
         if self.matrix is None:
             # camera borehole +z axis, up -y axis
             cx, cy = (resolution[0] / 2 - 0.5, resolution[1] / 2 - 0.5) if center is None else center
@@ -357,6 +412,54 @@ class Camera:
                                     [0, 0, 1]], dtype=float)
         if self.dist_coefs is None:
             self.dist_coefs = np.array([0, 0, 0, 0])
+
+    @property
+    def width(self):
+        return self.resolution[0]
+
+    @property
+    def height(self):
+        return self.resolution[1]
+
+    @property
+    def inv_matrix(self):
+        if self._inv_matrix is None:
+            self._inv_matrix = np.linalg.inv(self.matrix)
+        return self._inv_matrix
+
+    def project(self, pts3d):
+        return self._project(pts3d, self.matrix, self.dist_coefs)
+
+    @staticmethod
+    def _project(P, K, dist_coefs):
+        return cv2.projectPoints(P.reshape((-1, 3)), #np.hstack([P, np.ones((len(P), 1))]).reshape((-1, 1, 4)),
+                                 np.array([0, 0, 0], dtype=np.float32), np.array([0, 0, 0], dtype=np.float32),
+                                 K, np.array(dist_coefs),
+                                 jacobian=False)[0].squeeze()
+
+    def backproject(self, xi, yi, z_off, undistort=True):
+        """ xi and yi are unaltered image coordinates, z_off is usually negative  """
+        single = isinstance(xi, (int, float))
+
+        if undistort and self.dist_coefs is not None and np.sum(np.abs(self.dist_coefs)) > 0:
+            P = np.array([[xi, yi]]) if single else np.hstack((xi[:, None], yi[:, None]))
+            uP = self.undistort(P)
+            xi, yi = uP[0, 0, :] if single else uP.squeeze().T
+
+        xi, yi = xi + 0.5, yi + 0.5
+        P = np.array([[xi, yi, 1]]) if single else np.hstack((xi[:, None], yi[:, None], np.ones((len(xi), 1))))
+        bP = self.inv_matrix.dot(P.T) * z_off
+        return tuple(bP.flatten()) if single else bP.T
+
+    def undistort(self, P):
+        return self._undistort(P, self.matrix, self.dist_coefs)
+
+    @staticmethod
+    def _undistort(P, cam_mx, dist_coefs):
+        if len(P) > 0:
+            pts = cv2.undistortPoints(P.reshape((-1, 1, 2)), cam_mx, np.array(dist_coefs), None, cam_mx)
+            return pts
+        return P
 
 
 class ImageDB:
@@ -369,6 +472,7 @@ class ImageDB:
                 CREATE TABLE images (
                     id INTEGER PRIMARY KEY ASC NOT NULL,
                     rand REAL NOT NULL,
+                    set_id INTEGER DEFAULT NULL,
                     file CHAR(128) NOT NULL,
                     sc_qw REAL DEFAULT NULL,
                     sc_qx REAL DEFAULT NULL,
@@ -400,6 +504,23 @@ class ImageDB:
                     cy4 REAL DEFAULT NULL,
                     cz4 REAL DEFAULT NULL
                 )""")
+            self._cursor.execute("DROP TABLE IF EXISTS subset")
+            self._cursor.execute("""
+                CREATE TABLE subset (
+                    id INTEGER PRIMARY KEY ASC NOT NULL,
+                    name CHAR(128) NOT NULL UNIQUE,
+                    w INTEGER NOT NULL,
+                    h INTEGER NOT NULL,
+                    fx REAL NOT NULL,
+                    fy REAL NOT NULL,
+                    cx REAL NOT NULL,
+                    cy REAL NOT NULL,
+                    k1 REAL DEFAULT 0.0,
+                    k2 REAL DEFAULT 0.0,
+                    p1 REAL DEFAULT 0.0,
+                    p2 REAL DEFAULT 0.0,
+                    k3 REAL DEFAULT 0.0
+            )""")
             self._conn.commit()
         else:
             r = self._cursor.execute("SELECT sql FROM sqlite_schema WHERE name = 'images'")
@@ -412,6 +533,9 @@ class ImageDB:
             if 'hz_fov' not in sql:
                 for col, default in (('hz_fov', 'NULL'), ('img_angle', '0')):
                     self._cursor.execute(f"ALTER TABLE images ADD COLUMN {col} REAL DEFAULT {default}")
+                self._conn.commit()
+            if 'set_id' not in sql:
+                self._cursor.execute("ALTER TABLE images ADD COLUMN set_id INTEGER DEFAULT NULL")
                 self._conn.commit()
 
     def add(self, fields: Tuple[str, ...], values: List[Tuple]) -> None:
@@ -471,6 +595,34 @@ class ImageDB:
     def query(self, fields: Union[Tuple[str, ...], List[str]], cond: str = None):
         query = "SELECT " + ','.join(fields) + " FROM images WHERE %s" % cond
         r = self._cursor.execute(query)
+        row = r.fetchone()
+        return row
+
+    def set_subset(self, name, w, h, fx, fy, cx, cy, k1=0.0, k2=0.0, p1=0.0, p2=0.0, k3=0.0):
+        fields = ['name', 'w', 'h', 'fx', 'fy', 'cx', 'cy', 'k1', 'k2', 'p1', 'p2', 'k3']
+        values = [[name, w, h, fx, fy, cx, cy, k1, k2, p1, p2, k3]]
+        ignore_on_update = ['name']
+
+        self._cursor.execute(
+            "INSERT INTO subset (" + ','.join(fields) + ") VALUES " +
+            ",".join([("(" + ",".join(['null' if v is None else ("'%s'" % str(v)) for v in row]) + ")")
+                      for row in values]) +
+            "ON CONFLICT(id) DO UPDATE SET " +
+            ",\n".join(['%s = excluded.%s' % (f, f) for f in fields if f not in ignore_on_update])
+        )
+        self._conn.commit()
+        r = self._cursor.execute("SELECT id FROM subset WHERE name = '%s'" % name)
+        row = r.fetchone()
+        return int(row[0])
+
+    def get_subset(self, id=None, name=None):
+        assert (id or name) and (id and not name or not id and name), 'give either id or name'
+        if id:
+            cond = "id = %d" % int(id)
+        else:
+            cond = "name = '%s'" % name
+        fields = ['w', 'h', 'fx', 'fy', 'cx', 'cy', 'k1', 'k2', 'p1', 'p2', 'k3']
+        r = self._cursor.execute("SELECT " + ','.join(fields) + " FROM subset WHERE %s" % cond)
         row = r.fetchone()
         return row
 

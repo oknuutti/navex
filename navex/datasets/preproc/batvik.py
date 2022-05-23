@@ -13,7 +13,8 @@ from kapture.io.csv import kapture_from_dir
 from kapture.io.records import get_record_fullpath
 
 from .tools import create_image_pairs, safe_split
-from ..tools import find_files_recurse, ImageDB, angle_between_v, rotate_expand_border, q_times_v, vector_rejection
+from ..tools import find_files_recurse, ImageDB, angle_between_v, rotate_expand_border, q_times_v, vector_rejection, \
+    Camera
 
 
 def main():
@@ -40,6 +41,7 @@ def main():
 
     parser.add_argument('--aflow-match-coef', type=float, default=1.0,
                         help="expand pixel matching distance by setting value larger than 1.0")
+    parser.add_argument('--trust-georef', action='store_true', help='Trust georeferencing; don\'t estimate aflow using ICP')
 
     parser.add_argument('--overwrite', action='store_true', help='clear all, overwrite rotated images')
 
@@ -61,14 +63,16 @@ def main():
 
     if args.overwrite or not os.path.exists(index_path):
         logging.info('Building the index by scanning the source folders...')
+        index = ImageDB(index_path, truncate=True)
 
         frames, angles = [], {}
         for src_path in args.src:
             subset_path = src_path.split(os.sep)[-1]
             kapt_path = os.path.join(src_path, 'kapture')
             kapt = kapture_from_dir(kapt_path)
-            sensor_id, width, height, fl_x, fl_y, pp_x, pp_y, *dist_coefs = get_cam_params(kapt, SENSOR_NAME)
+            sensor_id, width, height, fl_x, fl_y, pp_x, pp_y, *dist_coefs = cam_p = get_cam_params(kapt, SENSOR_NAME)
             hz_fov = math.degrees(2 * math.atan(width/2/fl_x))
+            set_id = index.set_subset(subset_path, *cam_p[1:12])
 
             for fid, img_files in tqdm(kapt.records_camera.items(), desc='Copying images from %s' % src_path):
                 src_path = get_record_fullpath(kapt_path, img_files[sensor_id])
@@ -86,11 +90,10 @@ def main():
                 angle = rotate_image(src_path, dst_path, ori)
                 angles[rel_dst_path] = angle
 
-                frames.append((rel_dst_path, hz_fov, angle) + safe_split(ori, True) + safe_split(loc, False))
+                frames.append((set_id, rel_dst_path, hz_fov, angle) + safe_split(ori, True) + safe_split(loc, False))
 
-        index = ImageDB(index_path, truncate=True)
         frames = sorted(frames, key=lambda x: x[0])
-        index.add(('id', 'file', 'hz_fov', 'img_angle',
+        index.add(('id', 'set_id', 'file', 'hz_fov', 'img_angle',
                    'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
                    'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
                   [(i, *frame) for i, frame in enumerate(frames)])
@@ -99,7 +102,7 @@ def main():
 
     create_image_pairs(args.dst, index, args.pairs, geom_pathfun, args.aflow, args.img_max, None,
                        0, args.max_angle, args.min_matches, read_meta=True, start=args.start,
-                       end=args.end, exclude_shadowed=False, across_subsets=True,
+                       end=args.end, exclude_shadowed=False, across_subsets=True, trust_georef=args.trust_georef,
                        cluster_unit_vects=False, depth_src=depth_pathfun, aflow_match_coef=args.aflow_match_coef)
 
 

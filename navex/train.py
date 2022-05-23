@@ -92,7 +92,7 @@ def main():
                         max_steps=31 if PROFILING_ONLY else args.epochs,  # TODO (1): rename param
                         progress_bar_refresh_rate=args.print_freq,
                         check_val_every_n_epoch=sys.maxsize,
-                        val_check_interval=args.test_freq,
+                        val_check_interval=min(args.test_freq, len(trn_dl)),
                         limit_train_batches=0.002 if PROFILING_ONLY else 1.0,
                         limit_val_batches=0.004 if args.test_freq <= 20 or PROFILING_ONLY else 1.0,
                         resume_from_checkpoint=getattr(args, 'resume', None),

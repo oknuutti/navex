@@ -21,8 +21,9 @@ from scipy.cluster.vq import kmeans
 from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
 
+from navex.datasets import tools
 from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
-    q_times_v, angle_between_v, valid_asteriod_area, nadir_unit_v, preprocess_image, rotate_array
+    q_times_v, angle_between_v, valid_asteriod_area, nadir_unit_v, preprocess_image, rotate_array, Camera
 from navex.experiments.parser import nested_filter
 
 
@@ -54,7 +55,7 @@ def create_image_pairs_script():
 def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov, min_angle,
                        max_angle, min_matches, read_meta, max_sc_diff=1.5, max_dist=None, show_only=False, start=0.0, end=1.0,
                        exclude_shadowed=True, across_subsets=False, depth_src=None, cluster_unit_vects=True,
-                       aflow_match_coef=1.0):
+                       aflow_match_coef=1.0, trust_georef=True):
     aflow_path = os.path.join(root, aflow)
     index_path = index if isinstance(index, ImageDB) else os.path.join(root, index)
     pairs_path = os.path.join(root, pairs)
@@ -114,10 +115,11 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
                                                'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), values)
 
     # read index file
-    ids, files, hz_fovs, angles, centroid_vects, max_dists, dists, coords = [], [], [], [], [], [], [], []
-    for id, fname, hz_fov, angle, vd, stx, sty, stz, sqw, sqx, sqy, sqz, tqw, tqx, tqy, tqz, \
+    ids, files, hz_fovs, angles, centroid_vects, max_dists, dists, coords, poses = [], [], [], [], [], [], [], [], []
+    set_ids, cams = [], {}
+    for id, set_id, fname, hz_fov, angle, vd, stx, sty, stz, sqw, sqx, sqy, sqz, tqw, tqx, tqy, tqz, \
         cx1, cy1, cz1, cx2, cy2, cz2, cx3, cy3, cz3, cx4, cy4, cz4 \
-            in index.get_all(('id', 'file', 'hz_fov', 'img_angle', 'vd', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z',
+            in index.get_all(('id', 'set_id', 'file', 'hz_fov', 'img_angle', 'vd', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z',
                               'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz',
                               'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
                               'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), start=start, end=end):
@@ -125,14 +127,22 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
         if np.isnan(float(cx1)) or (tqw is None and sqw is None):
             continue
         ids.append(int(id))
+        set_ids.append(int(set_id or -1))
         files.append(fname)
         hz_fovs.append(hz_fov)
         angles.append(angle)
         max_dists.append(float(vd))
-        dists.append(np.linalg.norm([stx, sty, stz]))
-        # FIX: nadir_unit_v does not work for Nokia data as the coord frame is different there
-        coords.append(nadir_unit_v((np.quaternion(sqw, sqx, sqy, sqz) if sqw is not None else quaternion.one).conj() *
-                                   (np.quaternion(tqw, tqx, tqy, tqz) if tqw is not None else quaternion.one)))
+
+        if set_id and set_id not in cams:
+            cams[set_id] = cam_obj(index.get_subset(set_id))
+
+        stv = np.array([stx, sty, stz])
+        stq = ((np.quaternion(tqw, tqx, tqy, tqz) if tqw is not None else quaternion.one).conj() *
+               (np.quaternion(sqw, sqx, sqy, sqz) if sqw is not None else quaternion.one))
+
+        poses.append((stv, stq))
+        dists.append(np.linalg.norm(stv))
+        coords.append(nadir_unit_v(stq))  # FIX(ed?): nadir_unit_v does not work for Nokia data, coord frame different there
         centroid_vects.append([[float(a) for a in u] for u in ((cx1, cy1, cz1), (cx2, cy2, cz2),
                                                                (cx3, cy3, cz3), (cx4, cy4, cz4))])
 
@@ -185,26 +195,38 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
         sc_diff = max(dists[i] / dists[j], dists[j] / dists[i])
         fi, fj = files[i], files[j]
 
-        across_subset_ok = True
-        if across_subsets and len(fi.split(os.sep)) > 1 and len(fj.split(os.sep)) > 1:
-            across_subset_ok = fi.split(os.sep)[0] != fj.split(os.sep)[0]
-
         if min_angle <= angle <= max_angle and sc_diff < max_sc_diff and id_i != id_j \
                 and (id_i, id_j) not in added_pairs and (image_count[id_i] < img_max or image_count[id_j] < img_max) \
-                and across_subset_ok:
+                and (set_ids[i] != set_ids[j] if across_subsets else True):
             xyzs0 = load_xyzs(geom_src_fun(fi), d_file=depth_src_fun(fi), hide_shadow=exclude_shadowed,
-                              hz_fov=hz_fovs[i] or def_hz_fov, rotate_angle=angles[i])
+                              hz_fov=hz_fovs[i] or def_hz_fov, xyzd=not trust_georef)
             xyzs1 = load_xyzs(geom_src_fun(fj), d_file=depth_src_fun(fj), hide_shadow=exclude_shadowed,
-                              hz_fov=hz_fovs[j] or def_hz_fov, rotate_angle=angles[j])
+                              hz_fov=hz_fovs[j] or def_hz_fov, xyzd=not trust_georef)
             max_matches = min(np.sum(np.logical_not(np.isnan(xyzs0[:, :, 0]))),
                               np.sum(np.logical_not(np.isnan(xyzs1[:, :, 0]))))
 
             ratio, matches = np.nan, -1
             if max_matches >= min_matches:
-                aflow = calc_aflow(xyzs0, xyzs1, uncertainty_coef=aflow_match_coef)
+                if trust_georef:
+                    aflow = calc_aflow(xyzs0, xyzs1, uncertainty_coef=aflow_match_coef)
+                else:
+                    aflow = est_aflow(xyzs0, xyzs1, poses[i], poses[j], cams[set_ids[i]], cams[set_ids[j]],
+                                      os.path.join(root, fi), os.path.join(root, fj), angles[i], angles[j],
+                                      min_n=min_matches)
+
+                if 0:
+                    debug_aflow(aflow, os.path.join(root, fi), os.path.join(root, fj), angles[i], angles[j],
+                                cams[set_ids[i]], cams[set_ids[j]], xyzs0, xyzs1)
+
                 matches = np.sum(np.logical_not(np.isnan(aflow[:, :, 0])))
 
                 if matches >= min_matches:
+                    aflow = tools.rotate_aflow(aflow, xyzs1.shape[:2], angles[i], angles[j])
+
+                    if 0:
+                        debug_aflow(aflow, os.path.join(root, fi), os.path.join(root, fj), 0, 0,
+                                    cams[set_ids[i]], cams[set_ids[j]], xyzs0, xyzs1)
+
                     add_count += 1
                     image_count.update((id_i, id_j))
                     ratio = matches / max_matches
@@ -216,6 +238,13 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
                 fh.write('%d %d %.3f %.3f %.3f %d\n' % (id_i, id_j, sc_diff, angle, ratio, matches))
 
         pbar.set_postfix({'added': add_count, 'ratio': add_count/(tot + 1)}, refresh=False)
+
+
+def cam_obj(cam_params):
+    width, height, fl_x, fl_y, pp_x, pp_y, *dist_coefs = cam_params
+    cam_mx = np.array([[fl_x, 0, pp_x], [0, fl_y, pp_y], [0, 0, 1]])
+    cam = Camera(cam_mx, [width, height], dist_coefs=dist_coefs)
+    return cam
 
 
 def gen_aflow_script():
@@ -252,8 +281,8 @@ def gen_aflow_script():
             save_aflow(os.path.join(args.dst, '%d_%d.aflow.png' % (iid0, iid1)), aflow)
 
 
-def load_xyzs(i_file, g_file=None, s_file=None, d_file=None, h_file=None,
-              skip_s=False, hz_fov=None, hide_shadow=True, rotate_angle=None):
+def load_xyzs(i_file, g_file=None, s_file=None, d_file=None, h_file=None, skip_s=False,
+              hz_fov=None, hide_shadow=True, rotate_angle=None, xyzd=False):
     if i_file[-4:].lower() in ('.png', '.jpg'):
         g_file = g_file or (i_file[:-4] + '.xyz.exr')
     elif i_file[-8:] == '.xyz.exr':
@@ -293,14 +322,15 @@ def load_xyzs(i_file, g_file=None, s_file=None, d_file=None, h_file=None,
 
     s_file = s_file or (i_file[:-4] + '.s.exr')
     d_file = d_file or (i_file[:-4] + '.d.exr')
-    if hz_fov is not None and not os.path.exists(s_file):
+    if hz_fov is not None and not os.path.exists(s_file) or xyzd:
         d = cv2.imread(d_file, cv2.IMREAD_UNCHANGED)
-        coef = 2 * math.sin(math.radians(hz_fov / d.shape[1]) / 2)
-        s = d * coef
+        if not xyzd:
+            coef = 2 * math.sin(math.radians(hz_fov / d.shape[1]) / 2)
+            s = d * coef
     else:
         s = cv2.imread(s_file, cv2.IMREAD_UNCHANGED)
 
-    xyzs = np.concatenate((xyz, np.atleast_3d(s)), axis=2)
+    xyzs = np.concatenate((xyz, np.atleast_3d(d if xyzd else s)), axis=2)
     if rotate_angle:
         xyzs = rotate_array(xyzs, rotate_angle, fullsize=True, border=cv2.BORDER_CONSTANT, border_val=np.nan)
 
@@ -324,6 +354,114 @@ def calc_aflow(xyzs0, xyzs1, uncertainty_coef=1.0):
     aflow = np.stack((np.real(aflow[:, :]), np.imag(aflow[:, :])), axis=2).astype(np.float32)
 
     return aflow
+
+
+def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0, angle1, min_n):
+    # transform d0 so that close to d1
+    ixy0 = unit_aflow(cam0.width, cam0.height)
+    ixy1 = unit_aflow(cam1.width, cam1.height)
+    rel_pose_ini = pose_diff(pose1, pose0)
+
+    c_xyz0 = cam0.backproject(ixy0[:, :, 0].flatten(), ixy0[:, :, 1].flatten(), xyzd0[:, :, 3].flatten())
+    c_xyz1 = cam1.backproject(ixy1[:, :, 0].flatten(), ixy1[:, :, 1].flatten(), xyzd1[:, :, 3].flatten())
+    c_xyz0_1 = tools.q_times_mx(rel_pose_ini[1], c_xyz0) + rel_pose_ini[0]
+
+    # run ICP to get pose adjustment
+    # TODO: if either depth map is too flat (i.e. featureless) or err is large, use template matching on images instead
+    adj_rel_pose, err = icp(c_xyz0_1, c_xyz1, margin=5, max_n1=200000, max_n2=100000, min_n=min_n)
+    if adj_rel_pose is None:
+        return np.ones(xyzd0.shape[:2] + (2,)) * np.nan
+
+    c_xyz0_1a = tools.q_times_mx(adj_rel_pose[1], c_xyz0_1) + adj_rel_pose[0]
+
+    # project to image-plane-1 to get aflow
+    aflow = cam1.project(c_xyz0_1a)
+    aflow[np.any(aflow < 0, axis=1), :] = np.nan
+    aflow[np.logical_or(aflow[:, 0] > cam1.width - 1, aflow[:, 1] > cam1.height - 1), :] = np.nan
+    aflow = aflow.reshape((cam0.height, cam0.width, 2))
+
+    return aflow
+
+
+def debug_aflow(aflow, imgfile0, imgfile1, angle0, angle1, cam0, cam1, xyzd0, xyzd1):
+    img0 = np.flip(cv2.imread(imgfile0, cv2.IMREAD_COLOR), axis=2)
+    img1 = np.flip(cv2.imread(imgfile1, cv2.IMREAD_COLOR), axis=2)
+
+    if angle0:
+        img0 = rotate_array(img0, -angle0, fullsize=True)
+        img1 = rotate_array(img1, -angle1, fullsize=True)
+
+        cx0, cy0 = (img0.shape[1] - cam0.width) / 2, (img0.shape[0] - cam0.height) / 2
+        cx1, cy1 = (img1.shape[1] - cam1.width) / 2, (img1.shape[0] - cam1.height) / 2
+
+        img0 = img0[math.floor(cy0):-math.ceil(cy0), math.floor(cx0):-math.ceil(cx0)]
+        img1 = img1[math.floor(cy1):-math.ceil(cy1), math.floor(cx1):-math.ceil(cx1)]
+
+    fig, axs = plt.subplots(2, 2)
+    show_pair(img0, img1, aflow, pts=20, axs=axs.flatten(), show=False)
+    if 1:
+        axs[1][0].scatter(xyzd0[::2, ::2, 0].flatten(), xyzd0[::2, ::2, 1].flatten(), c=xyzd0[::2, ::2, 2].flatten(),
+                          s=20, marker='o', vmin=-15., vmax=40.)
+        axs[1][0].set_aspect('equal')
+        axs[1][1].scatter(xyzd1[::2, ::2, 0].flatten(), xyzd1[::2, ::2, 1].flatten(), c=xyzd1[::2, ::2, 2].flatten(),
+                          s=20, marker='o', vmin=-15., vmax=40.)
+        axs[1][1].set_aspect('equal')
+    else:
+        axs[1][0].imshow(xyzd0[:, :, 3])
+        axs[1][1].imshow(xyzd1[:, :, 3])
+    plt.tight_layout()
+    plt.show()
+
+
+def pose_diff(pose1, pose0):
+    """ returns: pose1 - pose0 """
+
+    # -pose0
+    npose0 = [tools.q_times_v(pose0[1].conj(), -pose0[0]), pose0[1].conj()]
+
+    # -pose0 + pose1
+    return [tools.q_times_v(pose1[1], npose0[0]) + pose1[0], (pose1[1] * npose0[1]).normalized()]
+
+
+def icp(xyz0, xyz1, margin=None, max_n1=None, max_n2=None, min_n=100):
+    xyz0 = xyz0[np.logical_not(np.isnan(xyz0[:, 0])), :]
+    xyz1 = xyz1[np.logical_not(np.isnan(xyz1[:, 0])), :]
+
+    if margin is not None:
+        lo0 = np.min(xyz0, axis=0) - margin
+        hi0 = np.max(xyz0, axis=0) + margin
+        lo1 = np.min(xyz1, axis=0) - margin
+        hi1 = np.max(xyz1, axis=0) + margin
+        I = np.logical_and(np.all(xyz0 > lo1, axis=1), np.all(xyz0 < hi1, axis=1))
+        xyz0 = xyz0[I, :]
+        I = np.logical_and(np.all(xyz1 > lo0, axis=1), np.all(xyz1 < hi0, axis=1))
+        xyz1 = xyz1[I, :]
+
+    if min(len(xyz0), len(xyz1)) < min_n:
+        return None, None
+
+    def limit_points(xyz0, xyz1, max_n):
+        if len(xyz0) > max_n:
+            I = np.floor(np.arange(0, len(xyz0) - 0.5, len(xyz0)/max_n)).astype(int)
+            xyz0 = xyz0[I, :]
+        if len(xyz1) > max_n:
+            I = np.floor(np.arange(0, len(xyz1) - 0.5, len(xyz1)/max_n)).astype(int)
+            xyz1 = xyz1[I, :]
+        return xyz0, xyz1
+
+    if max_n1:
+        xyz0, xyz1 = limit_points(xyz0, xyz1, max_n1)
+
+    ok, xyz0 = cv2.ppf_match_3d.computeNormalsPC3d(xyz0, 20, True, (0, 0, 0))
+    ok, xyz1 = cv2.ppf_match_3d.computeNormalsPC3d(xyz1, 20, True, (0, 0, 0))
+
+    if max_n2:
+        xyz0, xyz1 = limit_points(xyz0, xyz1, max_n2)
+
+    ok, err, T = cv2.ppf_match_3d_ICP().registerModelToScene(xyz1, xyz0)
+
+    rel_pose = [T[:3, 3], quaternion.from_rotation_matrix(T[:3, :3])]
+    return rel_pose, err
 
 
 def relative_pose(trg_xyz, cam):
