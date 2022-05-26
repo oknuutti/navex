@@ -20,6 +20,7 @@ import scipy
 from scipy.cluster.vq import kmeans
 from tqdm import tqdm
 from scipy.interpolate import NearestNDInterpolator
+import numba as nb
 
 from navex.datasets import tools
 from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
@@ -356,7 +357,7 @@ def calc_aflow(xyzs0, xyzs1, uncertainty_coef=1.0):
     return aflow
 
 
-def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0, angle1, min_n):
+def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0, angle1, min_n, margin=10):
     # transform d0 so that close to d1
     ixy0 = unit_aflow(cam0.width, cam0.height)
     ixy1 = unit_aflow(cam1.width, cam1.height)
@@ -366,9 +367,49 @@ def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0
     c_xyz1 = cam1.backproject(ixy1[:, :, 0].flatten(), ixy1[:, :, 1].flatten(), xyzd1[:, :, 3].flatten())
     c_xyz0_1 = tools.q_times_mx(rel_pose_ini[1], c_xyz0) + rel_pose_ini[0]
 
-    # run ICP to get pose adjustment
+    I0 = np.logical_not(np.isnan(c_xyz0_1[:, 0]))
+    I1 = np.logical_not(np.isnan(c_xyz1[:, 0]))
+    cropped_P0 = c_xyz0_1[I0, :]
+    cropped_P1 = c_xyz1[I1, :]
+
+    lo0, hi0 = np.min(cropped_P0, axis=0), np.max(cropped_P0, axis=0)
+    lo1, hi1 = np.min(cropped_P1, axis=0), np.max(cropped_P1, axis=0)
+    I0[I0] = np.logical_and(np.all(cropped_P0 > lo1, axis=1), np.all(cropped_P0 < hi1, axis=1))
+    I1[I1] = np.logical_and(np.all(cropped_P1 > lo0 - margin, axis=1), np.all(cropped_P1 < hi0 + margin, axis=1))
+    cropped_P0 = c_xyz0_1[I0, :]
+    cropped_P1 = c_xyz1[I1, :]
+
+    if min(len(cropped_P0), len(cropped_P1)) < min_n:
+        return np.ones(xyzd0.shape[:2] + (2,)) * np.nan
+
+    if 1:
+        # adjust scale
+        med_z0 = np.median(cropped_P0[:, 2])
+        med_z1 = np.median(cropped_P1[:, 2])
+        cropped_P0 *= med_z1 / med_z0
+        c_xyz0_1 *= med_z1 / med_z0
+
     # TODO: if either depth map is too flat (i.e. featureless) or err is large, use template matching on images instead
-    adj_rel_pose, err = icp(c_xyz0_1, c_xyz1, margin=5, max_n1=200000, max_n2=100000, min_n=min_n)
+    if 0:
+        # run ICP to get pose adjustment
+        adj_rel_pose, err = icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
+    elif 0:
+        # run template matching on images to get pose adjustment
+        img0 = load_image(imgfile0, angle0, cam0)
+        img1 = load_image(imgfile1, angle1, cam1)
+        adj_rel_pose, err = match_template(img0, img1, I0, cropped_P0, cam1)
+    else:
+        # run template matching on depth maps to get pose adjustment  (best results, very slow though)
+        dm0 = c_xyz0_1[:, 2].reshape(xyzd1.shape[:2])
+        adj_rel_pose, err = match_template(dm0, xyzd1[:, :, 3], I0, cropped_P0, cam1, margin_px=60, skip=2,
+                                           depthmap=True, use_edges=False)
+
+        if 0:
+            # seems to just make it worse
+            c_xyz0_1 = tools.q_times_mx(adj_rel_pose[1], c_xyz0_1) + adj_rel_pose[0]
+            cropped_P0 = tools.q_times_mx(adj_rel_pose[1], cropped_P0) + adj_rel_pose[0]
+            adj_rel_pose, err = icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
+
     if adj_rel_pose is None:
         return np.ones(xyzd0.shape[:2] + (2,)) * np.nan
 
@@ -380,26 +421,52 @@ def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0
     aflow[np.logical_or(aflow[:, 0] > cam1.width - 1, aflow[:, 1] > cam1.height - 1), :] = np.nan
     aflow = aflow.reshape((cam0.height, cam0.width, 2))
 
+    if 0:
+        comp_aflow = cam1.project(c_xyz0_1)
+        comp_aflow[np.any(comp_aflow < 0, axis=1), :] = np.nan
+        comp_aflow[np.logical_or(comp_aflow[:, 0] > cam1.width - 1, comp_aflow[:, 1] > cam1.height - 1), :] = np.nan
+        comp_aflow = comp_aflow.reshape((cam0.height, cam0.width, 2))
+        debug_aflow(comp_aflow, imgfile0, imgfile1, angle0, angle1, cam0, cam1, xyzd0, xyzd1, comp_aflow=aflow)
+
     return aflow
 
 
-def debug_aflow(aflow, imgfile0, imgfile1, angle0, angle1, cam0, cam1, xyzd0, xyzd1):
-    img0 = np.flip(cv2.imread(imgfile0, cv2.IMREAD_COLOR), axis=2)
-    img1 = np.flip(cv2.imread(imgfile1, cv2.IMREAD_COLOR), axis=2)
+def load_image(imgfile, angle, cam):
+    img = np.flip(cv2.imread(imgfile, cv2.IMREAD_COLOR), axis=2)
 
-    if angle0:
-        img0 = rotate_array(img0, -angle0, fullsize=True)
-        img1 = rotate_array(img1, -angle1, fullsize=True)
+    if angle:
+        img = rotate_array(img, -angle, fullsize=True)
+        cx, cy = (img.shape[1] - cam.width) / 2, (img.shape[0] - cam.height) / 2
+        img = img[math.floor(cy):-math.ceil(cy), math.floor(cx):-math.ceil(cx)]
 
-        cx0, cy0 = (img0.shape[1] - cam0.width) / 2, (img0.shape[0] - cam0.height) / 2
-        cx1, cy1 = (img1.shape[1] - cam1.width) / 2, (img1.shape[0] - cam1.height) / 2
+    return img
 
-        img0 = img0[math.floor(cy0):-math.ceil(cy0), math.floor(cx0):-math.ceil(cx0)]
-        img1 = img1[math.floor(cy1):-math.ceil(cy1), math.floor(cx1):-math.ceil(cx1)]
+
+def project_image(img0, I0, P0_1, cam1):
+    ixy = (cam1.project(P0_1) + 0.5).astype(int)
+    I = np.logical_and.reduce((ixy[:, 0] >= 0, ixy[:, 0] < cam1.width,
+                               ixy[:, 1] >= 0, ixy[:, 1] < cam1.height))
+    I0[I0] = I
+    ixy = ixy[I, :]
+    img0 = img0.reshape((-1, img0.shape[2] if len(img0.shape) > 2 else 1))
+    px_vals = img0[I0, :]
+
+    # draw image
+    img0_1 = np.ones((cam1.height, cam1.width, px_vals.shape[1]), dtype=np.float32) * np.nan
+    img0_1[ixy[:, 1], ixy[:, 0], :] = px_vals
+
+    return img0_1.squeeze()
+
+
+def debug_aflow(aflow, imgfile0, imgfile1, angle0, angle1, cam0, cam1, xyzd0, xyzd1, comp_aflow=None):
+    img0 = load_image(imgfile0, angle0, cam0)
+    img1 = load_image(imgfile1, angle1, cam1)
 
     fig, axs = plt.subplots(2, 2)
     show_pair(img0, img1, aflow, pts=20, axs=axs.flatten(), show=False)
-    if 1:
+    if comp_aflow is not None:
+        show_pair(img0, img1, comp_aflow, pts=20, axs=axs.flatten()[2:], show=False)
+    elif 1:
         axs[1][0].scatter(xyzd0[::2, ::2, 0].flatten(), xyzd0[::2, ::2, 1].flatten(), c=xyzd0[::2, ::2, 2].flatten(),
                           s=20, marker='o', vmin=-15., vmax=40.)
         axs[1][0].set_aspect('equal')
@@ -423,23 +490,88 @@ def pose_diff(pose1, pose0):
     return [tools.q_times_v(pose1[1], npose0[0]) + pose1[0], (pose1[1] * npose0[1]).normalized()]
 
 
-def icp(xyz0, xyz1, margin=None, max_n1=None, max_n2=None, min_n=100):
-    xyz0 = xyz0[np.logical_not(np.isnan(xyz0[:, 0])), :]
-    xyz1 = xyz1[np.logical_not(np.isnan(xyz1[:, 0])), :]
+def match_template(img0, img1, I0, P0_1, cam1, margin_px=60, skip=1, depthmap=False, use_edges=False):
+    def edges(img):
+        if 0:
+            return cv2.Canny(img, 100, 200)
+        img = cv2.Laplacian(np.float64(img), cv2.CV_64F, None, 3)
+        return np.uint8(np.abs(img))
 
-    if margin is not None:
-        lo0 = np.min(xyz0, axis=0) - margin
-        hi0 = np.max(xyz0, axis=0) + margin
-        lo1 = np.min(xyz1, axis=0) - margin
-        hi1 = np.max(xyz1, axis=0) + margin
-        I = np.logical_and(np.all(xyz0 > lo1, axis=1), np.all(xyz0 < hi1, axis=1))
-        xyz0 = xyz0[I, :]
-        I = np.logical_and(np.all(xyz1 > lo0, axis=1), np.all(xyz1 < hi0, axis=1))
-        xyz1 = xyz1[I, :]
+    if use_edges:
+        img0, img1 = map(edges, (img0, img1))
 
-    if min(len(xyz0), len(xyz1)) < min_n:
-        return None, None
+    img0_1 = project_image(img0, I0, P0_1, cam1)
 
+    nonnan = np.logical_not(np.isnan(img0_1))
+    xs = np.where(np.any(nonnan, axis=0))[0]
+    ys = np.where(np.any(nonnan, axis=1))[0]
+    xmin0, xmax0, ymin0, ymax0 = xs[0], xs[-1], ys[0], ys[-1]
+    xmin1, ymin1 = max(0, xmin0 - margin_px), max(0, ymin0 - margin_px)
+    xmax1, ymax1 = min(img1.shape[1], xmax0 + margin_px), min(img1.shape[0], ymax0 + margin_px)
+    tcx0, tcy0 = -margin_px, -margin_px
+
+    p_img1 = np.ones((ymax0 - ymin0 + margin_px * 2, xmax0 - xmin0 + margin_px * 2)) * np.nan
+    ox, ow = xmin1 - (xmin0 - margin_px), xmax1 - xmin1
+    oy, oh = ymin1 - (ymin0 - margin_px), ymax1 - ymin1
+    p_img1[oy:oy+oh, ox:ox+ow] = img1[ymin1:ymax1, xmin1:xmax1]
+    p_img0 = img0_1[ymin0:ymax0, xmin0:xmax0]
+
+    if 0:
+        shape0 = p_img0.shape
+        p_img0 = p_img0.flatten()
+        I = np.isnan(p_img0)
+        p_img0[I] = 0
+        mask = np.logical_not(I).astype(np.uint8).reshape(shape0)
+        p_img0 = p_img0.astype(np.uint8).reshape(shape0)
+
+        metric = [cv2.TM_SQDIFF, cv2.TM_CCORR_NORMED][1]
+        scores = cv2.matchTemplate(p_img1, p_img0, metric, mask=mask)
+    else:
+        # TODO: a faster version, using numba or some numpy-fu?
+        metric = cv2.TM_SQDIFF
+        sh, sw, th, tw = p_img1.shape[:2] + p_img0.shape[:2]
+        scores = np.ones((sh - th + 1, sw - tw + 1)) * np.nan
+        template_match_nb(p_img0, p_img1, scores, skip)
+
+    ij = (np.argmin if metric in (cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED) else np.argmax)(scores)
+    tcyi, tcxi = np.unravel_index(ij, scores.shape)
+    tcy, tcx = tcyi + tcy0, tcxi + tcx0
+
+    if 0:
+        c = 1 if depthmap else 255
+        p_img0 = (np.float64(p_img0) / c) ** (1 / 4 if use_edges else 1)
+        p_img1 = (np.float64(img1) / c) ** (1 / 4 if use_edges else 1)
+        p0 = np.nanquantile(p_img0, (0.01, 0.99))
+        p1 = np.nanquantile(p_img1, (0.01, 0.99))
+        vmin, vmax = min(p0[0], p1[0]), max(p0[1], p1[1])
+
+        fig, axs = plt.subplots(2, 2)
+        axs = axs.flatten()
+        axs[0].imshow(p_img0, vmin=vmin, vmax=vmax)
+        axs[0].plot([p_img0.shape[1]/2], [p_img0.shape[0]/2], 'x')
+        axs[1].imshow(p_img1, vmin=vmin, vmax=vmax)
+        axs[1].plot([xmin0 + p_img0.shape[1]/2 + tcx], [ymin0 + p_img0.shape[0]/2 + tcy], 'x')
+        axs[1].plot([xmin0 + p_img0.shape[1]/2], [ymin0 + p_img0.shape[0]/2], 'o', mfc='none')
+        axs[2].imshow((scores))  # - np.nanmin(scores))) #  / (np.max(res) - np.min(res)))
+        axs[2].plot([tcxi], [tcyi], 'C1x')
+        plt.show()
+
+    # get metric displacement from pixel displacement
+    r = np.nanmedian(P0_1[:, 2])
+    tr_vect = r * np.array([-tcx, -tcy, 0]) / np.array([cam1.matrix[0, 0], cam1.matrix[1, 1], 1])
+
+    return [tr_vect, quaternion.one], None
+
+
+@nb.njit(nogil=True, parallel=False, cache=False)
+def template_match_nb(templ, img, scores, skip):
+    th, tw = templ.shape[:2]
+    for i in range(0, scores.shape[0], skip):
+        for j in range(0, scores.shape[1], skip):
+            scores[i, j] = np.nanmean((img[i:i + th, j:j + tw] - templ) ** 2)  # squared difference
+
+
+def icp(xyz0, xyz1, max_n1=None, max_n2=None):
     def limit_points(xyz0, xyz1, max_n):
         if len(xyz0) > max_n:
             I = np.floor(np.arange(0, len(xyz0) - 0.5, len(xyz0)/max_n)).astype(int)
