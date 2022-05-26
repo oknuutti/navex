@@ -527,15 +527,24 @@ def match_template(img0, img1, I0, P0_1, cam1, margin_px=60, skip=1, depthmap=Fa
         metric = [cv2.TM_SQDIFF, cv2.TM_CCORR_NORMED][1]
         scores = cv2.matchTemplate(p_img1, p_img0, metric, mask=mask)
     else:
-        # TODO: a faster version, using numba or some numpy-fu?
         metric = cv2.TM_SQDIFF
+        if skip > 1:
+            def nanresize(img, sc):
+                n = np.isnan(img)
+                img.flatten()[n.flatten()] = 0
+                sc_img = cv2.resize(img, None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
+                sc_nn = cv2.resize(np.logical_not(n).astype(np.uint8), None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
+                with np.errstate(invalid='ignore'):
+                    sc_img /= sc_nn
+                return sc_img
+            p_img0, p_img1 = map(lambda x: nanresize(x, 1/skip), (p_img0, p_img1))
         sh, sw, th, tw = p_img1.shape[:2] + p_img0.shape[:2]
         scores = np.ones((sh - th + 1, sw - tw + 1)) * np.nan
-        template_match_nb(p_img0, p_img1, scores, skip)
+        template_match_nb(p_img0, p_img1, scores, 10)
 
     ij = (np.argmin if metric in (cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED) else np.argmax)(scores)
     tcyi, tcxi = np.unravel_index(ij, scores.shape)
-    tcy, tcx = tcyi + tcy0, tcxi + tcx0
+    tcy, tcx = tcyi * skip + tcy0, tcxi * skip + tcx0
 
     if 0:
         c = 1 if depthmap else 255
@@ -564,11 +573,13 @@ def match_template(img0, img1, I0, P0_1, cam1, margin_px=60, skip=1, depthmap=Fa
 
 
 @nb.njit(nogil=True, parallel=False, cache=False)
-def template_match_nb(templ, img, scores, skip):
+def template_match_nb(templ, img, scores, max_err):
     th, tw = templ.shape[:2]
-    for i in range(0, scores.shape[0], skip):
-        for j in range(0, scores.shape[1], skip):
-            scores[i, j] = np.nanmean((img[i:i + th, j:j + tw] - templ) ** 2)  # squared difference
+    for i in range(scores.shape[0]):
+        for j in range(scores.shape[1]):
+            sqrd = ((img[i:i + th, j:j + tw] - templ) ** 2).flatten()  # squared difference
+            sqrd[sqrd > max_err ** 2] = max_err ** 2
+            scores[i, j] = np.nanmean(sqrd)
 
 
 def icp(xyz0, xyz1, max_n1=None, max_n2=None):
