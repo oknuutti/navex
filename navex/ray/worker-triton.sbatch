@@ -56,7 +56,8 @@ done
 set -x    # echo all commands for debug purposes
 
 # forward and reverse tunnels
-ssh -f -N -T -L "$HEAD_PORT:127.0.0.1:$HEAD_PORT" \
+ssh -f -N -T -o StrictHostKeyChecking=no \
+             -L "$HEAD_PORT:127.0.0.1:$HEAD_PORT" \
              -L "$H_SHARD_PORTS:127.0.0.1:$H_SHARD_PORTS" \
              -L "$H_OBJ_M_PORT:127.0.0.1:$H_OBJ_M_PORT" \
              -L "$H_NODE_M_PORT:127.0.0.1:$H_NODE_M_PORT" \
