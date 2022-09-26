@@ -38,7 +38,7 @@ training:
   deterministic: 1
 
 model:
-  arch: !h_str 'r2d2-own_vgg'
+  arch: !h_str 'disk-def'
   in_channels: !h_int 1
   partial_residual: 0   # not in use
   width_mult:       !h_float  1.0
@@ -68,12 +68,12 @@ model:
 
 loss:
   loss_type: !h_str thresholded
-  wpk: !h_float -0.5      # peakiness vs cosim
-  wdt: !h_float -1.5      # weight for peakiness and cosim losses
-  wap: !h_float -2.0      # weight for expected ap loss
+  wpk: !h_float -0.2      # peakiness vs cosim
+  wdt: !h_float  0.5      # weight for peakiness and cosim losses
+  wap: !h_float  2.0      # weight for expected ap loss
   wqt: !h_float -1.0      # weight for expected ap loss
   det_n: !h_int  24       # detector neighbourhood size
-  base: !h_float 0.8      # quality loss target mAP
+  base: !h_float 0.6      # quality loss target mAP
   nq: 20              # quantizer bins for ap calc
   sampler:            # was for a descriptor head that is same resolution than input image of size [192, 192]
     subq: -8          # was -8      # grid step size for positive samples

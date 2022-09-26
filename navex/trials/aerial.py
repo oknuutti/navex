@@ -22,7 +22,9 @@ class AerialTrial(TerrestrialTrial):
             if 1:
                 common['noise_max'] = 0.0
                 common['rnd_gain'] = 1.0
-                ds.append(BatvikPairDataset(self.data_conf['path'], resize_max_sc=1.0, **common))
+                pconf = dict(fixed_ground_res=0.25,  # 0.25; None
+                             resize_max_sc=1.0)
+                ds.append(BatvikPairDataset(self.data_conf['path'], **common, **pconf))
 
             if 1:
                 tst_set = None

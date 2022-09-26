@@ -39,18 +39,21 @@ class TerrestrialTrial(TrialBase):
                     model_conf.pop(k)
                 model_conf['des_head']['dimensions'] = 128
                 model_conf['qlt_head']['single'] = True  # False is always a bad idea, leads to polarized qlt output
+                model_conf['qlt_head']['skip'] = loss_conf['loss_type'] in ('disk', 'disk-p')
                 model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 model = R2D2(**model_conf)
             elif arch == 'disk':
                 for k in ('partial_residual',):
                     model_conf.pop(k)
                 model_conf['qlt_head']['single'] = True
+                model_conf['qlt_head']['skip'] = loss_conf['loss_type'] in ('disk', 'disk-p')
                 model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 model = DISK(**model_conf)
             elif arch == 'hynet':
                 for k in ('partial_residual',):
                     model_conf.pop(k)
                 model_conf['qlt_head']['single'] = True
+                model_conf['qlt_head']['skip'] = loss_conf['loss_type'] in ('disk', 'disk-p')
                 model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 model = HyNet(**model_conf)
             elif arch == 'mob':

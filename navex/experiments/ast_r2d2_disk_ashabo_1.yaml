@@ -18,7 +18,7 @@ search:
   port: 0
 
 training:
-  trial: 'ast_hafe_lr2d2'
+  trial: 'ast_hafe_ldisk'
   name: 'v1'
   cache: 'cache'
   output: 'output'
@@ -67,24 +67,24 @@ model:
     act_fn_type: 'R2D2'
 
 loss:
-  loss_type: thresholded
-  wpk: !h_tune2_loguniform  '(-0.22, -0.18), (-0.5, -0.05)'
-  wdt: !h_tune2_loguniform  '(0.23, 0.27), (0.1, 1.0)'      # weight for peakiness and cosim losses
-  wap:  1.0       # weight for expected ap loss
-  wqt: -1.0       # only for loss type "discounted"
-  det_n: !h_tune2_randint  '(23, 25), (16, 32)'     # detector neighbourhood size
-  base: !h_tune2_uniform  '(0.58, 0.62), (0.5, 0.99)'       # quality loss target mAP
-  nq: 20          # quantizer bins for ap calc
-  sampler:        # was for a descriptor head that is same resolution than input image of size [192, 192]
-    subq: -8      # was -8      # grid step size for positive samples
-    subd:  1      # was 1       # neigbourhood sampling interval
-    pos_d: !h_tune2_randint  '(1, 2), (1, 5)'   # was 3       # positive samples generated up to this far from ideal location
-    neg_d: !h_tune2_randint  '(9, 11), (6, 20)'  # was 5      # negative samples generated starting from distance from ideal location
-    ngh:   2      # was 7       # neighbourhood size in descriptor cells
-    border: 16    # was 16
-    subd_neg: -8  # was -8      # grid step size for generating additional negative samples
-    max_neg_b: 8                # distractors mined from max this number of images from same batch
-    maxpool_pos: 1              # False: use all positive samples, or True: only the best matching one
+  loss_type: 'disk-p'
+  wpk: !h_tune2_loguniform  '(0.9e-3, 1.1e-3), (1.0e-4, 1.0e-2)'  # recycled param: sampling_cost for disk
+  wdt: !h_tune2_uniform  '(0.23, 0.27), (0.0, 0.5)'  # recycled param: penalty for disk
+  wap: 1.0             # N/A
+  wqt: 1.0                                         # recycled param: reward for disk
+  det_n: !h_tune2_randint   '(7, 9), (6, 32)'      # detector neighbourhood size
+  base: !h_tune2_loguniform '(48.0, 52.0), (20.0, 500.0)'  # recycled param: match_theta for disk
+  nq: !h_tune2_randint     '(1400, 1600), (500, 5000)'     # recycled param: warmup_batch_scale for disk
+  sampler:
+    subq: -8             # N/A
+    subd: 1              # N/A
+    pos_d: !h_tune2_uniform '(1.4, 1.6), (1.0, 5.0)'  # disk max repr err to still consider successful match
+    neg_d: 10            # N/A
+    ngh: 2               # N/A
+    border: 16           #
+    subd_neg: -8         # N/A
+    max_neg_b:  4        # matches across these many (n-1) other mini-batch pairs   (alias: --max-neg-imgs)
+    maxpool_pos: !h_tune2_choice '[0], [0, 1]'  # recycled param: sample_matches, i.e. use ground truth to select features from img2
 
 optimizer:
   method: 'adam'

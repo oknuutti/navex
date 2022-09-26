@@ -399,9 +399,15 @@ def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0
         img1 = load_image(imgfile1, angle1, cam1)
         adj_rel_pose, err = match_template(img0, img1, I0, cropped_P0, cam1)
     else:
+        if 0:
+            # seems to improve result marginally
+            adj_rel_pose, err = icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
+            c_xyz0_1 = tools.q_times_mx(adj_rel_pose[1], c_xyz0_1) + adj_rel_pose[0]
+            cropped_P0 = tools.q_times_mx(adj_rel_pose[1], cropped_P0) + adj_rel_pose[0]
+
         # run template matching on depth maps to get pose adjustment  (best results, very slow though)
         dm0 = c_xyz0_1[:, 2].reshape(xyzd1.shape[:2])
-        adj_rel_pose, err = match_template(dm0, xyzd1[:, :, 3], I0, cropped_P0, cam1, margin_px=60, skip=2,
+        adj_rel_pose, err = match_template(dm0, xyzd1[:, :, 3], I0, cropped_P0, cam1, margin_px=120, skip=2,
                                            depthmap=True, use_edges=False)
 
         if 0:
@@ -426,7 +432,8 @@ def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0
         comp_aflow[np.any(comp_aflow < 0, axis=1), :] = np.nan
         comp_aflow[np.logical_or(comp_aflow[:, 0] > cam1.width - 1, comp_aflow[:, 1] > cam1.height - 1), :] = np.nan
         comp_aflow = comp_aflow.reshape((cam0.height, cam0.width, 2))
-        debug_aflow(comp_aflow, imgfile0, imgfile1, angle0, angle1, cam0, cam1, xyzd0, xyzd1, comp_aflow=aflow)
+        debug_aflow(comp_aflow, imgfile0, imgfile1, angle0, angle1, cam0, cam1, xyzd0, xyzd1, comp_aflow=aflow,
+                    plot_depth=False)
 
     return aflow
 
@@ -458,9 +465,17 @@ def project_image(img0, I0, P0_1, cam1):
     return img0_1.squeeze()
 
 
-def debug_aflow(aflow, imgfile0, imgfile1, angle0, angle1, cam0, cam1, xyzd0, xyzd1, comp_aflow=None):
-    img0 = load_image(imgfile0, angle0, cam0)
-    img1 = load_image(imgfile1, angle1, cam1)
+def debug_aflow(aflow, imgfile0, imgfile1, angle0, angle1, cam0, cam1, xyzd0, xyzd1, comp_aflow=None, plot_depth=False):
+    if plot_depth:
+        img0 = xyzd0[:, :, 3]
+        img1 = xyzd1[:, :, 3]
+        min_val = max(np.nanmin(img0), np.nanmin(img1))
+        max_val = min(np.nanmax(img0), np.nanmax(img1))
+        img0 = np.clip(img0, min_val, max_val)
+        img1 = np.clip(img1, min_val, max_val)
+    else:
+        img0 = load_image(imgfile0, angle0, cam0)
+        img1 = load_image(imgfile1, angle1, cam1)
 
     fig, axs = plt.subplots(2, 2)
     show_pair(img0, img1, aflow, pts=20, axs=axs.flatten(), show=False)
@@ -535,7 +550,7 @@ def match_template(img0, img1, I0, P0_1, cam1, margin_px=60, skip=1, depthmap=Fa
                 sc_img = cv2.resize(img, None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
                 sc_nn = cv2.resize(np.logical_not(n).astype(np.uint8), None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
                 with np.errstate(invalid='ignore'):
-                    sc_img /= sc_nn
+                    sc_img /= sc_nn         # also puts nans back
                 return sc_img
             p_img0, p_img1 = map(lambda x: nanresize(x, 1/skip), (p_img0, p_img1))
         sh, sw, th, tw = p_img1.shape[:2] + p_img0.shape[:2]

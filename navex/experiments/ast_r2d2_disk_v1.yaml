@@ -38,7 +38,7 @@ training:
   deterministic: 1
 
 model:
-  arch: !h_str 'r2d2-own_vgg'
+  arch: !h_str 'disk-def'
   in_channels: !h_int 1
   partial_residual: 0   # not in use
   width_mult:       !h_float  1.0
@@ -56,39 +56,39 @@ model:
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
-    act_fn_type: 'Sigmoid'
+    act_fn_type: 'R2D2'
   qlt_head:
-    skip:        !h_int 1
+    skip:        !h_int 0
     after_des:   !h_int 1
     hidden_ch:   !h_int 0
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
-    act_fn_type: 'Sigmoid'
+    act_fn_type: 'R2D2'
 
 loss:
-  loss_type: !h_str 'disk'
-  wpk: !h_float 1e-5  # recycled param: sampling_cost for disk
-  wdt:  0.0           # not used for disk
-  wap:  1.0           # for main disk loss
-  wqt:  1.0           # for disk used for activation/sampling loss
-  det_n: !h_int  8    # detector neighbourhood size
-  base: !h_float 50   # recycled param: match_theta for disk
-  nq: !h_int 500      # recycled param: warmup_batch_scale for disk
+  loss_type: !h_str 'disk-p'
+  wpk: !h_float  1e-3  # recycled param: sampling_cost for disk
+  wdt: !h_float  0.25  # recycled param: penalty for disk
+  wap: 1.0             # N/A
+  wqt: !h_float  1.0   # recycled param: reward for disk
+  det_n: !h_int  8     # detector neighbourhood size
+  base: !h_float 50    # recycled param: match_theta for disk
+  nq: !h_int     1500  # recycled param: warmup_batch_scale for disk
   sampler:
-    subq: -8          # not used for disk
-    subd: 1           # not used for disk
-    pos_d: !h_float 3   # disk max repr err to still consider successful match
-    neg_d: 10         # not used for disk
-    ngh: 2            # not used for disk
-    border: 16        #
-    subd_neg: -8      # not used for disk
-    max_neg_b: !h_int 1    # matches across these many pairs
+    subq: -8             # N/A
+    subd: 1              # N/A
+    pos_d: !h_float 1.5  # disk max repr err to still consider successful match
+    neg_d: 10            # N/A
+    ngh: 2               # N/A
+    border: 16           #
+    subd_neg: -8         # N/A
+    max_neg_b: !h_int 4    # matches across these many (n-1) other mini-batch pairs   (alias: --max-neg-imgs)
     maxpool_pos: !h_int 0  # recycled param: sample_matches, i.e. use ground truth to select features from img2
 
 optimizer:
   method: 'adam'
-  learning_rate: !h_float 3e-4
+  learning_rate: !h_float 1e-3
   weight_decay: !h_float 1e-6
   split_params: 0
   eps: !h_float 1e-8

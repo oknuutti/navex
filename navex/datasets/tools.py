@@ -340,6 +340,22 @@ def rotate_aflow(aflow, shape2, angle1, angle2, legacy=False):
     return n_aflow
 
 
+def resize_aflow(aflow, size1, size2, sc2):
+    w1, h1 = size1
+    r_aflow = cv2.resize(aflow, size1, interpolation=cv2.INTER_NEAREST).reshape((-1, 2))
+
+    w2, h2 = size2
+    r_aflow = (r_aflow - np.array([[w2/sc2/2, h2/sc2/2]], dtype=r_aflow.dtype)) * sc2 \
+               + np.array([[w2/2, h2/2]], dtype=r_aflow.dtype)
+
+    # massage aflow
+    r_aflow[np.any(r_aflow < 0, axis=1), :] = np.nan
+    r_aflow[np.logical_or(r_aflow[:, 0] > w2 - 1, r_aflow[:, 1] > h2 - 1), :] = np.nan
+    r_aflow = r_aflow.reshape((h1, w1, 2))
+
+    return r_aflow
+
+
 def rotate_expand_border(img, angle, fullsize=False, lib='opencv', to_pil=False):
     """
     opencv (v4.0.1) is fastest, pytorch (v1.8.1) on cpu is x20-25 slower, scipy (v1.6.0) is x28-36 slower
