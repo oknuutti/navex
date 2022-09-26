@@ -219,9 +219,14 @@ class RayTuneHeadNode:
         for type, nodes in grouped_nodes.items():
             tn = min(n - n_handled, round(n * len(nodes) / len(all_nodes)))
             n_handled += tn
+            overflow = 0
             for i in range(tn):
                 if i < n-1:
                     k = len(nodes) // tn
+                    overflow += len(nodes) / tn - k
+                    if overflow >= 1:
+                        k += 1
+                        overflow -= 1
                     sub_list = set(random.sample(nodes - selected, k))
                     selected.update(sub_list)
                 else:
