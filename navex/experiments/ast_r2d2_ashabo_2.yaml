@@ -91,7 +91,7 @@ optimizer:
   learning_rate: 0.001    # for some reason cant use exp form, e.g. 3e-4
   weight_decay:  !h_tune2_loguniform  '(0.9e-6, 1.1e-6), (1e-8, 1e-3)'
   split_params:  0
-  eps:           1e-8   # tried to optimize, doesn't seem to affect much
+  eps:           0.00000001   # tried to optimize, doesn't seem to affect much
 
 data:
   max_sc:    1.091  # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
