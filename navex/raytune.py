@@ -189,16 +189,23 @@ class RayTuneHeadNode:
             logging.info('exiting')
 
     def _populate_node_configs(self, n):
-        cmd = 'sinfo --partition=gpu,gpushort --Node -o "%N %f"'
+        cmd = 'sinfo --Node -o "%N %f %l"'
         types = set(self.node_cpus.keys())
 
         # NODELIST AVAIL_FEATURES
         # gpu1 skl,volta,avx,avx2,avx512
         # ...
         out, err = self.ssh.exec(cmd)
-        node_list = [(tuple(types.intersection(line.split(' ')[1].split(',')))[0], line.split(' ')[0])
-                    for line in out.split('\n')[1:]
-                    if len(types.intersection(line.split(' ')[1].split(','))) > 0]
+        node_list = []
+        for line in out.split('\n')[1:]:
+            node, feats, timelim = line.split(' ')
+            feats = feats.split(',')
+            feat = types.intersection(feats)
+            d, time = timelim.split('-')
+            h, m, s = time.split(':')
+            timelim = int(d)*24 + int(h) + int(m)/60 + int(s)/3600
+            if len(feat) > 0 and timelim >= 12:  # in hours, should correspond to worker-*.sbatch time
+                node_list.append((list(feat)[0], node))
 
         all_nodes = set()
         grouped_nodes = {type: set() for type in self.node_cpus.keys()}
@@ -338,7 +345,7 @@ class ScheduledWorkerNode:
         cmd = ("sbatch %s -c %d %s "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
              "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
-             "NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=\"%s\" "
+             "NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=\"%s\",WRKDIR=\"$WRKDIR\" "
              "$HOME/navex/navex/ray/worker-%s.sbatch") % (
                 '' if type is None else ('-C %s' % type),
                 cpus or head.config['data']['workers'],
@@ -353,6 +360,7 @@ class ScheduledWorkerNode:
                 self.worker_ports_start,
                 self.worker_ports_start + self.max_workers + 1,
                 head.config['data']['path'],
+
                 'triton' if head.search_conf['host'].endswith('triton.aalto.fi') else 'csc',
             )
         logging.debug('Executing command:\n%s' % cmd)
