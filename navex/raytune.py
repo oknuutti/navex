@@ -201,7 +201,7 @@ class RayTuneHeadNode:
             node, feats, timelim = line.split(' ')
             feats = feats.split(',')
             feat = types.intersection(feats)
-            d, time = timelim.split('-')
+            d, time = timelim.split('-') if '-' in timelim else ('0', timelim)
             h, m, s = time.split(':')
             timelim = int(d)*24 + int(h) + int(m)/60 + int(s)/3600
             if len(feat) > 0 and timelim >= 12:  # in hours, should correspond to worker-*.sbatch time
