@@ -18,8 +18,8 @@ search:
   port: 0
 
 training:
-  trial: 'ast_hafe_ldisk'
-  name: 'v1'
+  trial: 'ast'
+  name: 'ast_hafe_ldisk'
   cache: 'cache'
   output: 'output'
   batch_size: 8

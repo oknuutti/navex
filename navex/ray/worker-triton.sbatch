@@ -40,8 +40,8 @@ done
 
 ## start to process
 cd "$WRKDIR/navex"
-module load anaconda
-source activate "$WRKDIR/conda/envs/navex"
+source "$WRKDIR/conda/envs/navex/etc/profile.d/conda.sh"
+conda activate navex
 
 H_WPORT_TUNNELS=""
 for ((p=H_WPORT_S;p<=H_WPORT_E;p++)); do

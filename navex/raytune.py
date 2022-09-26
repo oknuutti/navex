@@ -353,7 +353,7 @@ class ScheduledWorkerNode:
                 self.worker_ports_start,
                 self.worker_ports_start + self.max_workers + 1,
                 head.config['data']['path'],
-                'triton' if head.search_conf['host'] == 'triton.aalto.fi' else 'csc',
+                'triton' if head.search_conf['host'].endswith('triton.aalto.fi') else 'csc',
             )
         logging.debug('Executing command:\n%s' % cmd)
         out, err = ssh.exec(cmd)
