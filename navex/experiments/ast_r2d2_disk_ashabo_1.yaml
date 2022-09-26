@@ -71,8 +71,8 @@ loss:
   wpk: !h_tune2_loguniform  '(0.9e-3, 1.1e-3), (1.0e-4, 1.0e-2)'  # recycled param: sampling_cost for disk
   wdt: !h_tune2_uniform  '(0.23, 0.27), (0.0, 0.5)'  # recycled param: penalty for disk
   wap: 1.0             # N/A
-  wqt: 1.0                                         # recycled param: reward for disk
-  det_n: !h_tune2_randint   '(7, 9), (6, 32)'      # detector neighbourhood size
+  wqt: 1.0                                            # recycled param: reward for disk
+  det_n: !h_tune2_choice  '[8], [6, 8, 12, 16, 24]'   # detector neighbourhood size, need: (w-2b)/n == (w-2b)//n
   base: !h_tune2_loguniform '(48.0, 52.0), (20.0, 500.0)'  # recycled param: match_theta for disk
   nq: !h_tune2_randint     '(1400, 1600), (500, 5000)'     # recycled param: warmup_batch_scale for disk
   sampler:
