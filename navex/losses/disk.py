@@ -13,6 +13,11 @@ class DiskLoss(BaseLoss):
     def __init__(self, reward=-1.0, penalty=0.25, sampling_cost=0.001, cell_d=8, match_theta=50, sampler=None,
                  warmup_batch_scale=500, prob_input=False):
         super(DiskLoss, self).__init__()
+        assert (reward <= 0 and penalty >= 0 and sampling_cost >= 0 and cell_d > 0 and match_theta > 0 and
+                warmup_batch_scale > 0 and sampler['border'] >= 0 and sampler['max_neg_b'] >= 0), \
+            'invalid param value in %s' % (list(map(str, (reward, penalty, sampling_cost, cell_d, match_theta,
+                                                          warmup_batch_scale, sampler['border'], sampler['max_neg_b']))),)
+
         self.sampler = DetectionSampler(cell_d=cell_d, border=sampler['border'], random=1.0, max_b=sampler['max_neg_b'],
                                         prob_input=prob_input, sample_matches=sampler['maxpool_pos'] > 0)
         self.max_px_err = sampler['pos_d']

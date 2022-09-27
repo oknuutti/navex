@@ -30,31 +30,25 @@ class TerrestrialTrial(TrialBase):
                 model_conf['arch'] = arch[1]
                 arch = arch[0]
 
+            # False is always a bad idea, leads to polarized qlt output
+            model_conf['qlt_head']['single'] = True
+            for k in ('partial_residual',):     # unused, TODO: remove from definition.yaml
+                model_conf.pop(k)
+
+            if loss_conf['loss_type'] in ('disk', 'disk-p'):
+                model_conf['qlt_head']['skip'] = True
+                model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
+                if loss_conf['sampler']['max_neg_b'] < 0:
+                    loss_conf['sampler']['max_neg_b'] = round(4 * (batch_size / 8) * (loss_conf['det_n'] / 8) ** 2)
+
             if arch == 'ap':
-                for k in ('partial_residual',):
-                    model_conf.pop(k)
                 model = AstroPoint(**model_conf)
             elif arch == 'r2d2':
-                for k in ('partial_residual',):
-                    model_conf.pop(k)
                 model_conf['des_head']['dimensions'] = 128
-                model_conf['qlt_head']['single'] = True  # False is always a bad idea, leads to polarized qlt output
-                model_conf['qlt_head']['skip'] = loss_conf['loss_type'] in ('disk', 'disk-p')
-                model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 model = R2D2(**model_conf)
             elif arch == 'disk':
-                for k in ('partial_residual',):
-                    model_conf.pop(k)
-                model_conf['qlt_head']['single'] = True
-                model_conf['qlt_head']['skip'] = loss_conf['loss_type'] in ('disk', 'disk-p')
-                model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 model = DISK(**model_conf)
             elif arch == 'hynet':
-                for k in ('partial_residual',):
-                    model_conf.pop(k)
-                model_conf['qlt_head']['single'] = True
-                model_conf['qlt_head']['skip'] = loss_conf['loss_type'] in ('disk', 'disk-p')
-                model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 model = HyNet(**model_conf)
             elif arch == 'mob':
                 model = MobileAP(**model_conf)
