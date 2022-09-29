@@ -80,25 +80,22 @@ class WeightedAPLoss(DiscountedAPLoss):
 
 
 class ThresholdedAPLoss(DiscountedAPLoss):
-    def __init__(self, *args, update_coef=0.003, **kwargs):
+    def __init__(self, *args, warmup_batches=500, **kwargs):
         super(ThresholdedAPLoss, self).__init__(*args, **kwargs)
-        self.current_map = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
-        self.update_coef = update_coef
+        self.batch_count = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
+        self.warmup_batches = warmup_batches
 
     def losses(self, ap, qlt):
         # q*(1-a) + (1-q)*(1-b) => q - q*a + 1 - b - q + q*b => 1 - (q*a +b -q*b) => 1 - (q*a + (1-q)*b)
-        a_loss = 1 - (qlt * ap + (1 - qlt) * self.current_map * self.base)
+        a_loss = 1 - (qlt * ap + (1 - qlt) * self.ap_base)
         return a_loss, None
 
     def batch_end_update(self, accs):
-        map = accs[3] if 0 else 1.0
-
-        # update after every training batch
-        self.current_map.set_(self.update_coef * map + (1 - self.update_coef) * self.current_map)
+        self.batch_count += 1
 
     @property
     def ap_base(self):
-        return self.current_map * self.base
+        return self.base * min(1, self.batch_count / self.warmup_batches)
 
 
 class LogThresholdedAPLoss(ThresholdedAPLoss):
@@ -108,15 +105,15 @@ class LogThresholdedAPLoss(ThresholdedAPLoss):
         #  - if qlt ~ 1, ap needs to be very close to 1
         #  - never good idea for qlt ~ 0,  ...
         if 0:
-            a_loss = -(torch.log(1 - qlt + eps) * (1 - ap) + torch.log(qlt + eps) * (1 - self.current_map * self.base))
+            a_loss = -(torch.log(1 - qlt + eps) * (1 - ap) + torch.log(qlt + eps) * (1 - self.ap_base))
         elif 1:
-            a_loss = -(torch.log(ap + eps) * qlt + torch.log(self.current_map * self.base + eps) * (1 - qlt))
+            a_loss = -(torch.log(ap + eps) * qlt + torch.log(self.ap_base + eps) * (1 - qlt))
         else:
             a_loss = torch.log(1 - qlt + eps) * torch.log(ap + eps) \
-                     + torch.log(qlt + eps) * torch.log(self.current_map * self.base + eps)
+                     + torch.log(qlt + eps) * torch.log(self.ap_base + eps)
 
         # was first:
-        # a_loss = -torch.log(qlt * ap + (1 - qlt) * self.current_map * self.base + eps)
+        # a_loss = -torch.log(qlt * ap + (1 - qlt) * self.ap_base + eps)
         return a_loss, None
 
 

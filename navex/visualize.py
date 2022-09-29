@@ -7,7 +7,7 @@ from datetime import datetime
 import cv2
 import numpy as np
 import quaternion
-from torch import tensor
+from torch.functional import F
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import torch
@@ -22,8 +22,8 @@ from navex.models.tools import is_rgb_model, load_model
 def main():
     parser = argparse.ArgumentParser("visualize features from images")
     parser.add_argument("--model", type=str, required=True, help='model path')
-    parser.add_argument("--images", type=str, required=True, help='image folder')
-    parser.add_argument("--images2", type=str, help='second image folder')
+    parser.add_argument("--images", action='append', type=str, required=True, help='image folder')
+    parser.add_argument("--images2", action='append', type=str, help='second image folder')
     parser.add_argument("--subdirs", type=int, default=0, help='recurse folders')
     parser.add_argument("--images-ext", type=str, default='png', help='image extension')
     parser.add_argument("--tag", type=str, default='astr', help='feature file tag')
@@ -42,6 +42,11 @@ def main():
     parser.add_argument("--best-n", type=int, default=5)
     parser.add_argument("--gpu", type=int, default=1)
     parser.add_argument("--video", type=int, default=0)
+    parser.add_argument("--cluster-desc", action="store_true", help="cluster descriptors using mini-batch kmeans")
+    parser.add_argument("--cluster-n", type=int, default=32, help="cluster count")
+    parser.add_argument("--cluster-centers", help="save cluster centers to this file")
+    parser.add_argument("--plot-clusters", action="store_true",
+                        help="plot descriptor classification result based on cluster centers")
     parser.add_argument("--detection-only", action="store_true", help="only view feature detection overlay")
     args = parser.parse_args()
 
@@ -71,7 +76,7 @@ def main():
 
     dataset1 = ExtractionImageDataset(args.images, rgb=rgb, recurse=args.subdirs)
 
-    if args.images2 and not args.detection_only:
+    if args.images2 and not args.detection_only and not args.cluster_desc and not args.cluster_plot:
         dataset2 = ExtractionImageDataset(args.images2, rgb=rgb, recurse=args.subdirs)
         n1, n2 = len(dataset1), len(dataset2)
         inlier_counts = np.zeros((n1, n2))
@@ -113,31 +118,132 @@ def main():
                 match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args, device=device, save_img='output/temp/m%d.png' % bst[k])
 
     else:
-        data_loader = model.wrap_ds(dataset1, shuffle=False)
         img0, xys0, desc0, scores0 = [None] * 4
+        all_descs = []
 
-        for i, data in enumerate(data_loader):
-            img1 = ExtractionImageDataset.tensor2img(data)[0]
-            data = data.to(device)
+        if args.plot_clusters and os.path.exists(args.cluster_centers):
+            kmeans = load_kmeans(args.cluster_centers)
+        else:
+            do_matching = not (args.cluster_desc or args.plot_clusters) and not args.detection_only
+            for i in tqdm(range(len(dataset1)), desc="Extracting features"):
+                img1, xys1, desc1, scores1 = get_image_and_features(dataset1, i, model, device, args,
+                                                                    as_tensor=do_matching)
 
-            xys1, desc1, scores1 = extract(model, data, args)
+                if args.cluster_desc or args.plot_clusters:
+                    all_descs.append(np.squeeze(desc1).T)
+                elif img0 is not None and not args.detection_only:
+                    match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, device=device)
 
-            if img0 is not None and not args.detection_only:
-                match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, device=device)
+                img0, scores0, xys0, desc0 = img1, scores1, xys1, desc1
 
-            img0, scores0, xys0, desc0 = img1, scores1, xys1, desc1
+            if args.cluster_desc or args.plot_clusters:
+                all_descs = np.concatenate(all_descs, axis=0)
+                kmeans = cluster(all_descs, args.cluster_n, args.cluster_centers)
+                del all_descs
+
+        if args.plot_clusters:
+            assert kmeans is not None, 'failed to load/fit kmeans'
+            data_loader = model.wrap_ds(dataset1, shuffle=True)
+            for i, data in enumerate(data_loader):
+                img = ExtractionImageDataset.tensor2img(data)[0]
+                data = data.to(device)
+
+                b, c, h0, w0 = data.shape
+                sc = min(1, args.max_size / h0, args.max_size / w0)
+                h, w = round(h0 * sc), round(w0 * sc)
+                mode = 'bilinear' if sc > 0.5 else 'area'
+
+                with torch.no_grad():
+                    data = F.interpolate(data, (h, w), mode=mode, align_corners=False if mode == 'bilinear' else None)
+                    des, det, qlt = model(data)
+                des, det, qlt = map(lambda x: x.cpu().numpy(), (des, det, qlt))
+                B, D, H, W = des.shape
+                classes = kmeans.predict(np.moveaxis(des[0, :, :, :], 0, -1).reshape((-1, D))).reshape((H, W))
+                overlay_classes(img, classes)
 
 
-def get_image_and_features(dataset, idx, model, device, args):
+def overlay_classes(img, classes, ax=None):
+    overlay = cv2.applyColorMap((classes * 255 / np.max(classes)).astype(np.uint8), cv2.COLORMAP_HSV)
+    overlay = cv2.resize(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB), (img.shape[1], img.shape[0]))
+    if len(img.shape) < 3 or img.shape[2] == 1:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    img = cv2.addWeighted(overlay, 0.3, img, 0.7, 0)
+
+    if ax is None:
+        plt.imshow(img)
+        plt.show()
+    else:
+        ax.imshow(img)
+
+
+def cluster(all_descs, n, save_file):
+    from sklearn.cluster import MiniBatchKMeans
+
+    np.random.shuffle(all_descs)
+    if 0:
+        cluster_num_plot(all_descs[:10000, :], range(2, 128))
+
+    kmeans = MiniBatchKMeans(n_clusters=n,
+                             init_size=4096 * 4,
+                             batch_size=4096,
+                             n_init=20,
+                             max_iter=100,
+                             random_state=42,
+                             compute_labels=False,
+                             verbose=1)
+    kmeans.fit(all_descs)
+
+    print('Saving cluster to %s...' % (save_file,))
+    np.savez(save_file, (kmeans.cluster_centers_, np.array([n, 0, 0])))
+    return kmeans
+
+
+def cluster_num_plot(X, ns):
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
+
+    ns = list(ns)
+    sses = []
+    sscores = []
+    for n in tqdm(ns, desc='Clustering with varying n'):
+        kmeans = KMeans(n_clusters=n, n_init=30, max_iter=300, random_state=42).fit(X)
+        sscores.append(silhouette_score(X, kmeans.labels_))
+        sses.append(kmeans.inertia_)
+
+    plt.figure(1)
+    plt.plot(ns, sses, label='SSE')
+    plt.title('SSE')
+    plt.figure(2)
+    plt.plot(ns, sscores, label='Silhouette')
+    plt.title('Silhouette')
+    plt.show()
+
+
+def load_kmeans(save_file):
+    from sklearn.cluster import KMeans
+    cluster_centers, stats = np.load(save_file, allow_pickle=True)['arr_0']
+    n, inertia, sscore = stats
+    print('Clustering (n=%d) SSE: %f, Silhouette Score: %f' % (n, inertia, sscore))
+    kmeans = KMeans(cluster_centers)
+    kmeans.cluster_centers_ = cluster_centers
+    kmeans._n_threads = os.cpu_count()
+    return kmeans
+
+
+def get_image_and_features(dataset, idx, model, device, args, as_tensor=True):
     data1 = dataset[idx][None, :, :, :]
     img1 = ExtractionImageDataset.tensor2img(data1)[0]
 
     kpfile = dataset.samples[idx] + '.' + args.tag
     if os.path.exists(kpfile):
-        xys1, desc1, scores1 = load_features(kpfile, device)
+        xys1, desc1, scores1 = load_features(kpfile)
     else:
         xys1, desc1, scores1 = extract(model, data1.to(device), args)
         save_features(kpfile, data1.shape[2:], xys1, desc1, scores1)
+
+    if as_tensor and not isinstance(desc1, torch.Tensor):
+        # desc1 = torch.Tensor(desc1).squeeze().permute((1, 0))[None, :, :].to(device)
+        desc1 = torch.Tensor(desc1).to(device)
 
     return img1, xys1, desc1, scores1
 
@@ -150,14 +256,10 @@ def save_features(kpfile, imsize, xys, desc, scores):
                  scores=scores)
 
 
-def load_features(kpfile, device):
+def load_features(kpfile):
     with open(kpfile, 'rb') as fh:
         tmp = np.load(fh)
         xys1, desc1, scores1 = [tmp[k] for k in ('keypoints', 'descriptors', 'scores')]
-    if 0:
-        desc1 = tensor(desc1).squeeze().permute((1, 0))[None, :, :].to(device)
-    else:
-        desc1 = tensor(desc1).to(device)
     return xys1, desc1, scores1
 
 

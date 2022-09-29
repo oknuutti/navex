@@ -11,24 +11,24 @@ from .sampler import DetectionSampler
 
 class DiskLoss(BaseLoss):
     def __init__(self, reward=-1.0, penalty=0.25, sampling_cost=0.001, cell_d=8, match_theta=50, sampler=None,
-                 warmup_batch_scale=500, prob_input=False):
+                 warmup_batches=1500, prob_input=False):
         super(DiskLoss, self).__init__()
         assert (reward <= 0 and penalty >= 0 and sampling_cost >= 0 and cell_d > 0 and match_theta > 0 and
-                warmup_batch_scale > 0 and sampler['border'] >= 0 and sampler['max_neg_b'] >= 0), \
+                warmup_batches > 0 and sampler['border'] >= 0 and sampler['max_neg_b'] >= 0), \
             'invalid param value in %s' % (list(map(str, (reward, penalty, sampling_cost, cell_d, match_theta,
-                                                          warmup_batch_scale, sampler['border'], sampler['max_neg_b']))),)
+                                                          warmup_batches, sampler['border'], sampler['max_neg_b']))),)
 
         self.sampler = DetectionSampler(cell_d=cell_d, border=sampler['border'], random=1.0, max_b=sampler['max_neg_b'],
                                         prob_input=prob_input, sample_matches=sampler['maxpool_pos'] > 0)
         self.max_px_err = sampler['pos_d']
-        self.warmup_batch_scale = warmup_batch_scale
+        self.warmup_batches = warmup_batches
         self.prob_input = prob_input
         self.match_theta = match_theta
         self.reward = reward
         self.penalty = penalty
         self.sampling_cost = sampling_cost
 
-        self.batch_count = torch.nn.Parameter(torch.Tensor([-1]), requires_grad=False)
+        self.batch_count = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
         self._match_theta = None
         self._reward = None
         self._penalty = None
@@ -40,8 +40,7 @@ class DiskLoss(BaseLoss):
         return self.sampler.border
 
     def batch_end_update(self, accs):
-        self.batch_count += 1
-        e = self.batch_count.item() / self.warmup_batch_scale
+        e = 3.55 * self.batch_count.item() / self.warmup_batches
         if 0:
             # original schedule
             if e < 250/5000:
@@ -58,7 +57,8 @@ class DiskLoss(BaseLoss):
             else:
                 ramp = min(1, 0.2 + 0.32 * (e - 1.05))  # 1.0 at e=3.55
 
-        self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., 0.05 * e)  # 1.0 at e=20 (!)
+        theta_ramp = 1/3.55  # NOTE: with original ramp of 0.05 reach max at e=20 (!), consider setting value to 1/3.55
+        self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., theta_ramp * e)
         self._reward = 1.0 * self.reward
         self._penalty = ramp * self.penalty
         self._sampling_cost = ramp * self.sampling_cost
@@ -66,6 +66,8 @@ class DiskLoss(BaseLoss):
         for loss_fn in (self.sampler, ):
             if hasattr(loss_fn, 'batch_end_update'):
                 loss_fn.batch_end_update(accs)
+
+        self.batch_count += 1
 
     def params_to_optimize(self, split=False):
 #        params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'wqt')]

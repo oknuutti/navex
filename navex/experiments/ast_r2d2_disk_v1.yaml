@@ -51,14 +51,14 @@ model:
     use_se:      0
     dropout:     0.0
   det_head:
-    after_des:   !h_int 1
+    after_des:   !h_int 0
     hidden_ch:   !h_int 0
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
     act_fn_type: 'R2D2'
   qlt_head:
-    skip:        !h_int 0
+    skip:        !h_int 1
     after_des:   !h_int 1
     hidden_ch:   !h_int 0
     exp_coef:    0.0
@@ -71,7 +71,7 @@ loss:
   wpk: !h_float  1e-3  # recycled param: sampling_cost for disk
   wdt: !h_float  0.25  # recycled param: penalty for disk
   wap: 1.0             # N/A
-  wqt: !h_float  1.0   # recycled param: reward for disk
+  wqt: 1.0             # recycled param: reward for disk
   det_n: !h_int  8     # detector neighbourhood size
   base: !h_float 50    # recycled param: match_theta for disk
   nq: !h_int     1500  # recycled param: warmup_batch_scale for disk

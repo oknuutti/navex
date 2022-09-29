@@ -463,7 +463,7 @@ def split_tiered_data(primary, secondary, r_trn, r_val, r_tst):
 
 
 class ExtractionImageDataset(torch.utils.data.Dataset):
-    def __init__(self, path, recurse=True, eval=True, rgb=False, regex=None):
+    def __init__(self, paths, recurse=True, eval=True, rgb=False, regex=None):
         if eval:
             self.transforms = tr.Compose([
                 MatchChannels(rgb),
@@ -474,22 +474,31 @@ class ExtractionImageDataset(torch.utils.data.Dataset):
         else:
             assert False, 'not implemented'
 
-        if isinstance(path, np.ndarray):
-            # image already loaded
-            self.samples = [path]
-        else:
-            # load samples
-            exts = ('.jpg', '.png', '.bmp', '.jpeg', '.ppm') if regex is None else re.compile(regex)
-            if os.path.isdir(path):
-                self.samples = find_files_recurse(path, ext=exts, depth=100 if recurse else 0)
-                self.samples = sorted(self.samples, key=lambda x: tuple(map(int, re.findall(r'\d+', x))))
-            elif isinstance(exts, re.Pattern) and re.match(exts, path) \
-                    or isinstance(exts, tuple) and (path[-4:] in exts or path[-5:] == '.jpeg'):
-                self.samples = [path]
+        if not isinstance(paths, list):
+            paths = [paths]
+
+        self.samples = []
+        skip_sort = False
+        for path in paths:
+            if isinstance(path, np.ndarray):
+                # image already loaded
+                self.samples.append(path)
+                skip_sort = True
             else:
-                with open(path) as fh:
-                    path = os.path.dirname(path)
-                    self.samples = list(map(lambda x: os.path.join(path, x.strip()), fh))
+                # load samples
+                exts = ('.jpg', '.png', '.bmp', '.jpeg', '.ppm') if regex is None else re.compile(regex)
+                if os.path.isdir(path):
+                    self.samples.extend(find_files_recurse(path, ext=exts, depth=100 if recurse else 0))
+                elif isinstance(exts, re.Pattern) and re.match(exts, path) \
+                        or isinstance(exts, tuple) and (path[-4:] in exts or path[-5:] == '.jpeg'):
+                    self.samples.append(path)
+                else:
+                    with open(path) as fh:
+                        path = os.path.dirname(path)
+                        self.samples.extend(list(map(lambda x: os.path.join(path, x.strip()), fh)))
+
+        if not skip_sort:
+            self.samples = sorted(self.samples, key=lambda x: tuple(map(int, re.findall(r'\d+', x))))
 
     @staticmethod
     def tensor2img(data):
