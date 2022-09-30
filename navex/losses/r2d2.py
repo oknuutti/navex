@@ -34,7 +34,7 @@ class R2D2Loss(BaseLoss):
         elif loss_type == 'weighted':
             self.ap_loss = WeightedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type == 'thresholded':
-            self.ap_loss = ThresholdedAPLoss(base=base, nq=nq, warmup_batches=500, sampler_conf=sampler)
+            self.ap_loss = ThresholdedAPLoss(base=base, nq=nq, warmup_batches=1500, sampler_conf=sampler)
         elif loss_type == 'logthresholded':
             self.ap_loss = LogThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type in ('disk', 'disk-p'):
