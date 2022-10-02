@@ -134,8 +134,7 @@ class DiskLoss(BaseLoss):
 
             des_logp_mx = des_logp12 + des_logp21
             with torch.no_grad():
-                eps = 1e-8  # NOTE: need to add eps? in original they did not need
-                des_p_mx = torch.exp(des_logp_mx) + eps
+                des_p_mx = torch.exp(des_logp_mx)     # would adding an eps make sense? tried earlier, no great impact
 
             # notice that des_p_mx needs to be detached
             sample_plogp = des_p_mx * (des_logp_mx + det_logp_mx)

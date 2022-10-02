@@ -425,7 +425,9 @@ def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, colo
             plt.imshow(img)
             plt.show()
         else:
-            ax.imshow(img)
+            if not isinstance(ax, (tuple, list, np.ndarray)):
+                ax = [ax]
+            ax[i].imshow(img)
 
 
 def draw_matches(img0, xys0, img1, xys1, matches, height=None, pause=True, show=True,
