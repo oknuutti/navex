@@ -18,13 +18,14 @@ from navex.models.tools import is_rgb_model, load_model
 from navex.visualize import plot_tensor
 
 # TODO:
-#   - how big is the capturing area? why the plate pattern?!
-#   -
 #   - show loss of each image as plot title
 #   - plot x at the center of the image
-#   - try blurring image before feeding to model
-#   - try earlier model, the one that maximized the validation metric (maybe current model overfits?)
+#   - how big is the capturing area? plot a box on the images
+#   - plot various cluster centers (cols) and variations of them (rows)
+#   -
 #   - plot detection and quality images
+#   - try earlier model, the one that maximized the validation metric (maybe current model overfits?)
+#   - try blurring image before feeding to model
 
 
 def main():
@@ -44,11 +45,13 @@ def main():
     rgb = is_rgb_model(model)
     model.eval()
 
-    image_shape = (1, 3 if rgb else 1, args.height, args.width)
+    image_shape = (15, 3 if rgb else 1, args.height, args.width)
     loss_fn = nn.L1Loss() if 1 else nn.MSELoss()
     generator = RegularizedOutputSpecificImageGeneration(model, loss_fn, image_shape, device, orig_opt=False,
-                                                         blur_sd=1.0, target_noise_sd=0.0, clipping_value=0.0,
-                                                         iters=150, lr=1e-0, wd=1e-5, plot_freq=20)
+                                                         clipping_value=0.0, plot_freq=12,
+                                                         anneal={100: 0.2, 150: 0.05},
+                                                         periodic_blur=False, blur_sd=1.0, target_noise_sd=0.0,  # TODO: try with noise_sd
+                                                         iters=200, lr=10e-0, wd=1e-3)
 
     cluster_centers, stats = np.load(args.cluster_center_file, allow_pickle=True)['arr_0']
     des_target = torch.Tensor(cluster_centers[args.cluster_id, :].reshape((1, -1, 1, 1))).to(device)
@@ -67,7 +70,7 @@ def main():
     n = last_image_num(args.output) + 1
     cv2.imwrite(os.path.join(args.output, 'image_%04d.png' % n), rescale255(img))
 
-    plt.imshow(img)
+    # plt.imshow(img)
     plt.show()
 
 
@@ -106,7 +109,8 @@ class RegularizedOutputSpecificImageGeneration:
     """
 
     def __init__(self, model, loss_fn, image_shape, device, init_sd=1.0, iters=200, blur_freq=4, blur_sd=1.0,
-                 lr=1.0, wd=1e-4, clipping_value=0.1, plot_freq=25, target_noise_sd=0.01, orig_opt=False):
+                 lr=1.0, wd=1e-4, clipping_value=0.1, plot_freq=25, target_noise_sd=0.01,
+                 anneal=0.0, periodic_blur=True, orig_opt=False):
         """
         Besides the defaults, this combination has produced good images:
         blur_freq=6, blur_rad=0.8, wd = 0.05
@@ -138,6 +142,8 @@ class RegularizedOutputSpecificImageGeneration:
         self.clipping_value = clipping_value
         self.target_noise_sd = target_noise_sd
         self.plot_freq = plot_freq
+        self.anneal = anneal
+        self.periodic_blur = periodic_blur
         self.orig_opt = orig_opt
 
     def generate(self, target, target_mask):
@@ -162,15 +168,15 @@ class RegularizedOutputSpecificImageGeneration:
         # in SGD, wd = 2 * L2 regularization (https://bbabenko.github.io/weight-decay/)
         if not self.orig_opt:
             if 0:
-                optimizer = SGD([image], lr=self.lr, weight_decay=self.wd)
+                optimizer = SGD([image], lr=self.lr, momentum=0.9, dampening=0.0, weight_decay=self.wd)
             else:
-                optimizer = Adam([image], lr=self.lr, weight_decay=self.wd)
+                optimizer = Adam([image], lr=self.lr, betas=(0.9, 0.999), weight_decay=self.wd)
 
         ax = None
         pbar = tqdm(range(1, self.iters), desc="Optimizing Image")
         for i in pbar:
             # implement gaussian blurring every ith iteration to improve output
-            if self.blur_sd and i % self.blur_freq == 0:  # and i < self.iters/2:  # and False:
+            if self.periodic_blur and self.blur_sd and i % self.blur_freq == 0:  # and i < self.iters/2:  # and False:
                 with torch.no_grad():
                     image = F.gaussian_blur(image, [int(self.blur_sd * 3) * 2 + 1] * 2, [self.blur_sd] * 2)
                 image = Variable(image, requires_grad=True)
@@ -181,7 +187,11 @@ class RegularizedOutputSpecificImageGeneration:
                 optimizer = Adam([image], lr=self.lr*1, weight_decay=self.wd*1)  # SGD or Adam
 
             # Forward
-            output = self.model(image)
+            if not self.periodic_blur and self.blur_sd:
+                interm = F.gaussian_blur(image, [int(self.blur_sd * 3) * 2 + 1] * 2, [self.blur_sd] * 2)
+            else:
+                interm = image
+            output = self.model(interm)
 
             # Massage outputs and targets
             if isinstance(output, (tuple, list)):
@@ -202,7 +212,7 @@ class RegularizedOutputSpecificImageGeneration:
                     target = [target]
                     target_mask = [target_mask]
 
-            loss = 0  # image.abs().sum() * self.wd
+            loss = 0
             for out, trg, mask, lfn in zip(output, target, target_mask, loss_fn):
                 selected_out = torch.reshape(torch.masked_select(out, mask), (-1, *trg.shape[1:]))
                 noisy_trg = trg + self.target_noise_sd * torch.randn(trg.shape, device=self.device) \
@@ -218,11 +228,16 @@ class RegularizedOutputSpecificImageGeneration:
             loss.backward()
 
             if self.clipping_value:
-                torch.nn.utils.clip_grad_norm_(image, self.clipping_value, 'inf')
-                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clipping_value, 'inf')
+                torch.nn.utils.clip_grad_norm_(image, self.clipping_value)
 
             # Update image
             optimizer.step()
+
+            # Anneal lr, wd
+            if self.anneal and i in self.anneal:
+                for pg in optimizer.param_groups:
+                    pg['lr'] *= self.anneal[i]
+                    pg['weight_decay'] *= self.anneal[i]
 
             pbar.set_postfix({'loss': "{0:.6f}".format(loss.item())})
             if self.plot_freq and i % self.plot_freq == 0:
@@ -234,7 +249,11 @@ class RegularizedOutputSpecificImageGeneration:
                     ax = ax.flatten() if isinstance(ax, np.ndarray) else ax
                 with torch.no_grad():
                     plot_tensor(image, ax=ax)
-                plt.pause(0.05)
+                if 1:
+                    plt.pause(0.05)
+                else:
+                    plt.show()
+                    ax = None
 
         return image.detach()
 
