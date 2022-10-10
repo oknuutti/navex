@@ -233,6 +233,10 @@ class WeightedRandomSampler(torch.nn.Module):
         self.act_logp = act_logp    # are det activations treated as un-normalized log probabilities or as probabilities
         self._unit_aflow = None
 
+    def train(self, *args, **kwargs):
+        self._unit_aflow = None
+        return super(WeightedRandomSampler, self).train(*args, **kwargs)
+
     def forward(self, det):
         B, _, H, W = det.shape
 

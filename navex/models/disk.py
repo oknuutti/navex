@@ -7,6 +7,7 @@ from torch.nn import functional as F
 #            `pip install git+https://github.com/jatentaki/torch-dimcheck`
 import unets
 
+from . import tools
 from .r2d2 import R2D2
 from navex.datasets.tools import unit_aflow
 
@@ -40,13 +41,7 @@ class DISK(R2D2):
 
     def _maybe_pad(self, input):
         div = 2**len(self.backbone.down)
-        hpad = (-input.shape[-1]) % div
-        vpad = (-input.shape[-2]) % div
-        l = hpad // 2
-        r = l + hpad % 2
-        t = vpad // 2
-        b = t + vpad % 2
-        padding = [l, r, t, b]
+        padding = tools.calc_padding(input, div)
 
         if sum(padding):
             input = F.pad(input, padding, 'replicate')

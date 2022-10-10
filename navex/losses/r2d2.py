@@ -19,10 +19,10 @@ class R2D2Loss(BaseLoss):
         self.cosim_loss = CosSimilarityLoss(int(det_n), use_max=wpk > 0)
         if wpk > 0:
             self.peakiness_loss = ActivationLoss()
-            self.wpk = wpk
+            self._wpk = wpk
         else:
             self.peakiness_loss = PeakinessLoss(int(det_n))
-            self.wpk = abs(wpk)
+            self._wpk = abs(wpk)
 
         self.wdt = None if wdt == 0 else (-math.log(wdt) if wdt >= 0 else nn.Parameter(torch.Tensor([-math.log(-wdt)])))
         self.wap = -math.log(wap) if wap >= 0 else nn.Parameter(torch.Tensor([-math.log(-wap)]))
@@ -39,11 +39,22 @@ class R2D2Loss(BaseLoss):
             self.ap_loss = LogThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type in ('disk', 'disk-p'):
             self.wdt = None
-            self.ap_loss = DiskLoss(reward=-abs(wqt), penalty=abs(wdt), sampling_cost=abs(wpk), cell_d=int(det_n),
-                                    match_theta=base, warmup_batches=nq, sampler=sampler,
-                                    prob_input=loss_type == 'disk-p')
+            self.ap_loss = DiskLoss(reward=-abs(wqt), penalty=abs(wdt), sampling_cost=abs(wpk),
+                                    sampling_cost_coef=sampler['subd'], cell_d=int(det_n), match_theta=base,
+                                    warmup_batches=nq, sampler=sampler, prob_input=loss_type == 'disk-p')
         else:
             assert False, 'invalid loss_type: %s' % loss_type
+
+    @property
+    def wpk(self):
+        return self.ap_loss.sampling_cost if isinstance(self.ap_loss, DiskLoss) else self._wpk
+
+    @wpk.setter
+    def wpk(self, wpk):
+        if isinstance(self.ap_loss, DiskLoss):
+            self.ap_loss.sampling_cost = wpk
+        else:
+            self._wpk = wpk
 
     @property
     def base(self):

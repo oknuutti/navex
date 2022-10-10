@@ -99,7 +99,7 @@ class TerrestrialTrial(TrialBase):
     def log_values(self):
         log = {}
         funs = {'n': lambda x: x, 'e': lambda x: torch.exp(-x)}
-        for p, f in (('wdt', 'e'), ('wap', 'e'), ('wqt', 'e'), ('base', 'n'), ('ap_base', 'n')):
+        for p, f in (('wdt', 'e'), ('wap', 'e'), ('wqt', 'e'), ('base', 'n'), ('ap_base', 'n'), ('wpk', 'n')):
             val = getattr(self.loss_fn, p, None)
             if isinstance(val, torch.Tensor):
                 log[p] = funs[f](val)

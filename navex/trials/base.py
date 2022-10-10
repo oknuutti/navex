@@ -192,9 +192,9 @@ class TrialBase(abc.ABC, torch.nn.Module):
         _, _, H2, W2 = det2.shape
 
         yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
-                                                     qlt_lim=qlt_lim, border=border)
+                                                     qlt_lim=qlt_lim, border=border, mode='grid', kernel_size=16)
         yx2, conf2, descr2 = tools.detect_from_dense(des2, det2, qlt2, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
-                                                     qlt_lim=qlt_lim, border=border)
+                                                     qlt_lim=qlt_lim, border=border, mode='grid', kernel_size=16)
 
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
         matches, norm, mask, dist = tools.match(descr1, descr2, mutual=mutual, ratio=ratio)
@@ -292,9 +292,9 @@ class StudentTrialMixin:
             det_lim *= 0.5
 
         yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
-                                                     qlt_lim=qlt_lim, border=border)
+                                                     qlt_lim=qlt_lim, border=border, mode='grid', kernel_size=16)
         yx2, conf2, descr2 = tools.detect_from_dense(des2, det2, qlt2, top_k=top_k, feat_d=feat_d, det_lim=det_lim,
-                                                     qlt_lim=qlt_lim, border=border)
+                                                     qlt_lim=qlt_lim, border=border, mode='grid', kernel_size=16)
 
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
         matches, norm, mask, dist = tools.match(descr1, descr2, mutual=mutual, ratio=ratio)

@@ -77,7 +77,7 @@ loss:
   nq: !h_int     1500  # recycled param: warmup_batch_scale for disk
   sampler:
     subq: -8             # N/A
-    subd: 1              # N/A
+    subd: !h_float 1.01  # recycled param: sampling_cost_coef for disk
     pos_d: !h_float 1.5  # disk max repr err to still consider successful match
     neg_d: 10            # N/A
     ngh: 2               # N/A

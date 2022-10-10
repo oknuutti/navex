@@ -9,8 +9,19 @@ from torch import nn
 from torch.functional import F
 
 
+def calc_padding(tensor, div):
+    hpad = (-tensor.shape[-1]) % div
+    vpad = (-tensor.shape[-2]) % div
+    l = hpad // 2
+    r = l + hpad % 2
+    t = vpad // 2
+    b = t + vpad % 2
+    padding = [l, r, t, b]
+    return padding
+
+
 def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt_lim=0.02,
-                      border=16, interp='bicubic'):
+                      border=16, kernel_size=3, mode='nms', interp='bicubic'):
     B, D, Hs, Ws = des.shape
     _, _, Ht, Wt = det.shape
     _, _, Hq, Wq = qlt.shape
@@ -21,10 +32,32 @@ def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt
     if (Hq, Wq) != (Ht, Wt):
         qlt = F.interpolate(qlt, (Ht, Wt), mode=interp, align_corners=False)
 
-    # local maxima
+    # filter to remove high freq, likely spurious detections
     det = F.avg_pool2d(det, kernel_size=3, stride=1, padding=1)
-    max_filter = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
-    maxima = (det == max_filter(det))  # [b, 1, h, w]
+
+    if mode == 'nms':
+        # local maxima
+        max_filter = nn.MaxPool2d(kernel_size=kernel_size, stride=1, padding=1)
+        maxima = (det == max_filter(det))  # [b, 1, h, w]
+    elif mode == 'grid':
+        # gridded maxima
+        hpad = -((det.shape[-1] - 2*border + kernel_size//2) % kernel_size - kernel_size//2)
+        vpad = -((det.shape[-2] - 2*border + kernel_size//2) % kernel_size - kernel_size//2)
+        assert hpad < border and vpad < border, \
+            f'invalid gridded detection kernel_size={kernel_size}, w={det.shape[-1]}, h={det.shape[-2]}, b={border}'
+        cdet = F.pixel_unshuffle(det[:, :, border:-border+vpad, border:-border+hpad], kernel_size)
+        cmaxima = (cdet == torch.max(cdet, dim=1, keepdim=True)[0])
+        maxima = torch.zeros_like(det, dtype=torch.bool)
+        maxima[:, :, border:-border+vpad, border:-border+hpad] = F.pixel_shuffle(cmaxima, kernel_size)
+        del cdet, cmaxima
+
+        # remove double detections at grid borders
+        sdet = det * maxima
+        max_filter = nn.MaxPool2d(kernel_size=5, stride=1, padding=2)
+        maxima = (det == max_filter(sdet))  # [b, 1, h, w]
+        del sdet
+    else:
+        assert False, f'invalid mode="{mode}"'
 
     # remove low confidence detections
     maxima *= (det >= det_lim)

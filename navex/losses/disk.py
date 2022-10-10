@@ -10,8 +10,8 @@ from .sampler import DetectionSampler
 
 
 class DiskLoss(BaseLoss):
-    def __init__(self, reward=-1.0, penalty=0.25, sampling_cost=0.001, cell_d=8, match_theta=50, sampler=None,
-                 warmup_batches=1500, prob_input=False):
+    def __init__(self, reward=-1.0, penalty=0.25, sampling_cost=0.001, sampling_cost_coef=1.01, cell_d=8,
+                 match_theta=50, sampler=None, warmup_batches=1500, prob_input=False):
         super(DiskLoss, self).__init__()
         assert (reward <= 0 and penalty >= 0 and sampling_cost >= 0 and cell_d > 0 and match_theta > 0 and
                 warmup_batches > 0 and sampler['border'] >= 0 and sampler['max_neg_b'] >= 0), \
@@ -26,20 +26,23 @@ class DiskLoss(BaseLoss):
         self.match_theta = match_theta
         self.reward = reward
         self.penalty = penalty
-        self.sampling_cost = sampling_cost
+        self.sampling_cost = torch.nn.Parameter(torch.Tensor([sampling_cost]), requires_grad=False)
+        self.sampling_cost_coef = sampling_cost_coef
 
         self.batch_count = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
         self._match_theta = None
         self._reward = None
         self._penalty = None
         self._sampling_cost = None
-        self.batch_end_update(None)
 
     @property
     def border(self):
         return self.sampler.border
 
     def batch_end_update(self, accs):
+        if accs is not None and len(accs) > 0 and accs[0]:
+            self.sampling_cost *= (self.sampling_cost_coef if accs[0] > 9.5 else 1/self.sampling_cost_coef)
+
         e = 3.55 * self.batch_count.item() / self.warmup_batches
         if 0:
             # original schedule
@@ -61,13 +64,18 @@ class DiskLoss(BaseLoss):
         self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., theta_ramp * e)
         self._reward = 1.0 * self.reward
         self._penalty = ramp * self.penalty
-        self._sampling_cost = ramp * self.sampling_cost
+        self._sampling_cost = ramp * self.sampling_cost.item()
 
         for loss_fn in (self.sampler, ):
             if hasattr(loss_fn, 'batch_end_update'):
                 loss_fn.batch_end_update(accs)
 
         self.batch_count += 1
+
+    def train(self, *args, **kwargs):
+        super(DiskLoss, self).train(*args, **kwargs)
+        if self._sampling_cost is None:
+            self.batch_end_update(None)
 
     def params_to_optimize(self, split=False):
 #        params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'wqt')]

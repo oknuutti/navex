@@ -54,8 +54,13 @@ class TrialWrapperBase(pl.LightningModule):
         checkpoint['state_dict'].pop('trial.model.backbone.total_ops', None)
         checkpoint['state_dict'].pop('trial.model.backbone.total_params', None)
 
+        if "trial.loss_fn.ap_loss.sampling_cost" not in checkpoint['state_dict']:
+            checkpoint['state_dict']["trial.loss_fn.ap_loss.sampling_cost"] = \
+                torch.nn.Parameter(torch.Tensor([self.trial.loss_fn.wpk]), requires_grad=False).to('cuda:0')
+
         if self.trial is None and 'trial' in checkpoint:
-            self.trial = checkpoint['trial']
+            print("NOTE: pickled trial used from checkpoint, thought that this would not be needed")
+            self.trial = checkpoint['trial']    # this should actually not be needed, probably never called
         if 'global_step' in checkpoint:
             self._restored_global_step = int(checkpoint['global_step']) + 1
         if 'hp_metric_max' in checkpoint:

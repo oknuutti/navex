@@ -58,9 +58,10 @@ class Extractor:
 
         if border is None:
             try:
-                self.border = model.trial.loss_fn.border
+                border = model.trial.loss_fn.border
             except:
-                self.border = 16
+                border = 16
+        self.border = border
 
         self.top_k = top_k
         self.feat_d = feat_d
@@ -146,7 +147,8 @@ class Extractor:
 
 
 def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=1.0, min_size=256, max_size=1024,
-                       top_k=None, feat_d=0.001, det_lim=None, qlt_lim=None, border=16, verbose=False, plot=False):
+                       top_k=None, feat_d=0.001, det_lim=None, qlt_lim=None, border=16,
+                       det_mode='nms', det_krn_size=3, verbose=False, plot=False):
     old_bm = torch.backends.cudnn.benchmark
     torch.backends.cudnn.benchmark = False  # speedup
 
@@ -184,7 +186,8 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             _, _, H1, W1 = det.shape
             yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, feat_d=feat_d,
                                                       det_lim=det_lim * (0.5 if skipped_qlt else 1),
-                                                      qlt_lim=qlt_lim, border=border)
+                                                      qlt_lim=qlt_lim, border=border,
+                                                      kernel_size=det_krn_size, mode=det_mode)
 
             # accumulate multiple scales
             XY.append((yx[0].t().flip(dims=(1,)).float() / sc).cpu().numpy())
