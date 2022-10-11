@@ -150,7 +150,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
         )}.get(train_conf['trial'], None)
         assert TrialClass is not None, 'invalid trial: %s' % train_conf['trial']
         trial = TrialClass(full_conf['model'], full_conf['loss'], full_conf['optimizer'], full_conf['data'],
-                           gpu_batch_size, acc_grad_batches, hparams)
+                           gpu_batch_size, acc_grad_batches, hparams, train_conf['accuracy'])
         model = TrialWrapperBase(trial)
 
     model.hp_metric, model.hp_metric_mode = hp_metric, {'max': 1, 'min': -1}[hp_metric_mode]

@@ -51,7 +51,7 @@ def main():
 
     trial = TrialClass(to_dict(config.model), to_dict(config.loss),
                        to_dict(config.optimizer), to_dict(config.data),
-                       gpu_batch_size, acc_grad_batches, to_dict(config.hparams))
+                       gpu_batch_size, acc_grad_batches, to_dict(config.hparams), to_dict(config.training.accuracy))
 
     model = TrialWrapperBase(trial, use_gpu=bool(args.gpu), hp_metric=config.search.metric,
                              hp_metric_mode=config.search.mode)

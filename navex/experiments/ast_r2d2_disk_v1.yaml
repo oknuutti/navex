@@ -36,6 +36,9 @@ training:
   reduced_precision: !h_int 0
   auto_lr_find: 0
   deterministic: 1
+  accuracy:
+    det_mode: !h_str 'grid'
+    det_kernel_size: !h_int 16
 
 model:
   arch: !h_str 'disk-def'
@@ -68,8 +71,8 @@ model:
 
 loss:
   loss_type: !h_str 'disk-p'
-  wpk: !h_float  1e-3  # recycled param: sampling_cost for disk
-  wdt: !h_float  0.25  # recycled param: penalty for disk
+  wpk: !h_float  0.003  # recycled param: sampling_cost for disk
+  wdt: !h_float  0.15  # recycled param: penalty for disk
   wap: 1.0             # N/A
   wqt: 1.0             # recycled param: reward for disk
   det_n: !h_int  8     # detector neighbourhood size
@@ -78,27 +81,27 @@ loss:
   sampler:
     subq: -8             # N/A
     subd: !h_float 1.0   # recycled param: sampling_cost_coef for disk
-    pos_d: !h_float 1.5  # disk max repr err to still consider successful match
+    pos_d: !h_float 3.5  # disk max repr err to still consider successful match
     neg_d: 10            # N/A
     ngh: 2               # N/A
     border: 16           #
     subd_neg: -8         # N/A
-    max_neg_b: !h_int 4    # matches across these many (n-1) other mini-batch pairs   (alias: --max-neg-imgs)
+    max_neg_b: !h_int -1    # matches across these many (n-1) other mini-batch pairs   (alias: --max-neg-imgs)
     maxpool_pos: !h_int 0  # recycled param: sample_matches, i.e. use ground truth to select features from img2
 
 optimizer:
   method: 'adam'
   learning_rate: !h_float 1e-3
-  weight_decay: !h_float 1e-6
+  weight_decay: !h_float 5e-7
   split_params: 0
   eps: !h_float 1e-8
 
 data:
   max_sc:  !h_float 1.091    # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
-  max_rot: !h_float 10.0     # in degrees, synth pair warp related
+  max_rot: !h_float 20.0     # in degrees, synth pair warp related
   max_shear: !h_float 0.0    # synth pair warp related
-  max_proj: !h_float 0.75    # synth pair warp related
-  noise_max: !h_float 0.03
+  max_proj: !h_float 0.50    # synth pair warp related
+  noise_max: !h_float 0.0
   rnd_gain: !h_float 1.2
   image_size: !h_int 224
   path: 'data'

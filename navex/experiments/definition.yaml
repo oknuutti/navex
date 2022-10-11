@@ -149,6 +149,21 @@ training:
     type: int
     help: "Deterministic training, good for hyperparameters search, significantly slower"
 
+  accuracy:
+    __group__: 1
+    # TODO: add also top_k, feat_d, border, mutual, ratio, success_px_limit, det_lim, and qlt_lim
+
+    det_mode:
+      alt: ['--det-mode']
+      choices: ['grid', 'nms']
+      help: "Sparse feature detection mode, either 1) gridded, where one feature per grid cell is selected \
+             or 2) non-mean-suppression (NMS), where peaks are selected"
+
+    det_kernel_size:
+      alt: ['--det-size']
+      type: int
+      help: "Grid-size if using gridded detection mode, otherwise it is the NMS max-filter kernel-size"
+
 
 model:
   __group__: 1

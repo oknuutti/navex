@@ -36,6 +36,9 @@ training:
   reduced_precision: 0
   auto_lr_find: 0
   deterministic: 1
+  accuracy:
+    det_mode: !h_str 'nms'
+    det_kernel_size: !h_int 3
 
 model:
   arch: 'disk-def'  # !h_tune2_choice  '["disk-def"], ["disk-def", "r2d2-own_vgg"]'
