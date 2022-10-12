@@ -198,14 +198,19 @@ class RayTuneHeadNode:
         out, err = self.ssh.exec(cmd)
         node_list = []
         for line in out.split('\n')[1:]:
-            node, feats, timelim = line.split(' ')
-            feats = feats.split(',')
-            feat = types.intersection(feats)
-            d, time = timelim.split('-') if '-' in timelim else ('0', timelim)
-            h, m, s = time.split(':')
-            timelim = int(d)*24 + int(h) + int(m)/60 + int(s)/3600
-            if len(feat) > 0 and timelim >= 12:  # in hours, should correspond to worker-*.sbatch time
-                node_list.append((list(feat)[0], node))
+            try:
+                node, feats, timelim = line.split(' ')
+                feats = feats.split(',')
+                feat = types.intersection(feats)
+                d, time = timelim.split('-') if '-' in timelim else ('0', timelim)
+                hms = time.split(':')
+                if len(hms) > 2:
+                    h, m, s = hms
+                    timelim = int(d)*24 + int(h) + int(m)/60 + int(s)/3600
+                    if len(feat) > 0 and timelim >= 12:  # in hours, should correspond to worker-*.sbatch time
+                        node_list.append((list(feat)[0], node))
+            except ValueError as e:
+                raise Exception('Failed to parse line "%s"' % (line,)) from e
 
         all_nodes = set()
         grouped_nodes = {type: set() for type in self.node_cpus.keys()}
