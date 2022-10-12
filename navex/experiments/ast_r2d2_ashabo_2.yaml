@@ -71,8 +71,8 @@ model:
 
 loss:
   loss_type: thresholded
-  wpk: !h_tune2_loguniform  '(-0.22, -0.18), (-0.5, -0.05)'  # weight of peakiness vs cosim loss
-  wdt: !h_tune2_loguniform  '(0.23, 0.27), (0.1, 1.0)'       # weight for peakiness and cosim losses
+  wpk: !h_tune2_uniform  '(-0.22, -0.18), (-0.5, -0.05)'  # weight of peakiness vs cosim loss
+  wdt: !h_tune2_uniform  '(0.23, 0.27), (0.1, 1.0)'       # weight for peakiness and cosim losses
   wap:  1.0       # weight for expected ap loss
   wqt: -1.0       # only for loss type "discounted"
   det_n: !h_tune2_randint  '(23, 25), (16, 32)'     # detector neighbourhood size
