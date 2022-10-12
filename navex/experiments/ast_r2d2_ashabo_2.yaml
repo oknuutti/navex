@@ -18,8 +18,8 @@ search:
   port: 0
 
 training:
-  trial: 'ast_hafe_lr2d2'
-  name: 'v1'
+  trial: 'ast'
+  name: 'ast_hafe_lr2d2'
   cache: 'cache'
   output: 'output'
   batch_size: 8
@@ -100,7 +100,7 @@ data:
   max_sc:    1.091  # 2**(1/8), half of scale steps used during extraction, i.e. 2**(1/4)
   max_rot:   !h_tune2_uniform '(8.0, 12.0), (0.0, 20.0)'    # in degrees, synth pair warp related
   max_shear: 0.0    # synth pair warp related
-  max_proj:  !h_tune2_uniform '(0.45, 0.55), (0.20, 1.00)'    # synth pair warp related
+  max_proj:  !h_tune2_uniform '(0.45, 0.55), (0.20, 0.90)'    # synth pair warp related
   noise_max: !h_tune2_uniform '(0.08, 0.12), (0.00, 0.30)'
   rnd_gain:  1.2        # tried to optimize, doesn't seem to affect much
   image_size: 224
