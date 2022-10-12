@@ -26,6 +26,8 @@ rm -fR "$WORKER_LOG_PATH-old"
 mkdir -p $WORKER_LOG_PATH
 ln -s $WORKER_LOG_PATH /tmp/ray
 
+df -h
+
 set +x
 
 DATADIR=${DATADIR//;/$'\n'}
