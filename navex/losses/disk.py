@@ -31,7 +31,7 @@ class DiskLoss(BaseLoss):
         self.sampling_cost_coef = sampling_cost_coef
 
         self.batch_count = torch.nn.Parameter(torch.Tensor([0]), requires_grad=False)
-        self._match_theta = None
+        self._theta_ramp = None
         self._reward = None
         self._penalty = None
         self._sampling_cost = None
@@ -61,8 +61,7 @@ class DiskLoss(BaseLoss):
             else:
                 ramp = min(1, 0.2 + 0.32 * (e - 1.05))  # 1.0 at e=3.55
 
-        theta_ramp = 1/3.55  # NOTE: with original ramp of 0.05 reach max at e=20 (!), consider setting value to 1/3.55
-        self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., theta_ramp * e)
+        self._theta_ramp = 1/3.55 * e  # NOTE: with original ramp of 0.05 reach max at e=20 (!), consider setting value to 1/3.55
         self._reward = 1.0 * self.reward
         self._penalty = ramp * self.penalty
         self._sampling_cost = ramp * self.sampling_cost.item()
@@ -135,13 +134,14 @@ class DiskLoss(BaseLoss):
             cost_mx[torch.logical_and(px_dist_mx < self.max_px_err, same_b)] = self._reward
             cost_mx[mask.view((n, 1)).expand((n, m))] = 0
 
+            match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., self._theta_ramp)
             if 0:
-                des_logp12 = Categorical(logits=-self._match_theta * des_dist_mx).logits
-                des_logp21 = Categorical(logits=-self._match_theta * des_dist_mx.t()).logits.t()
+                des_logp12 = Categorical(logits=-match_theta * des_dist_mx).logits
+                des_logp21 = Categorical(logits=-match_theta * des_dist_mx.t()).logits.t()
             else:
                 # same as above
-                des_logp12 = F.log_softmax(-self._match_theta * des_dist_mx, dim=1)
-                des_logp21 = F.log_softmax(-self._match_theta * des_dist_mx, dim=0)
+                des_logp12 = F.log_softmax(-match_theta * des_dist_mx, dim=1)
+                des_logp21 = F.log_softmax(-match_theta * des_dist_mx, dim=0)
 
             des_logp_mx = des_logp12 + des_logp21
             with torch.no_grad():
