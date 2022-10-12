@@ -58,7 +58,14 @@ class R2D2Loss(BaseLoss):
 
     @property
     def base(self):
-        return self.ap_loss.base
+        return self.ap_loss.match_theta if isinstance(self.ap_loss, DiskLoss) else self.ap_loss.base
+
+    @base.setter
+    def base(self, base):
+        if isinstance(self.ap_loss, DiskLoss):
+            self.ap_loss.match_theta = base
+        else:
+            self.ap_loss.base = base
 
     @property
     def border(self):
@@ -152,7 +159,7 @@ class R2D2Loss(BaseLoss):
         return loss if component_loss else loss.sum(dim=1)
 
     def params_to_optimize(self, split=False):
-        params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'wqt')]
+        params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'wqt', 'ap_loss.match_theta')]
         if split:
             # new_biases, new_weights, biases, weights, others
             return [[], [], [], [], params]

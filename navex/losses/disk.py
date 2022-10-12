@@ -13,9 +13,9 @@ class DiskLoss(BaseLoss):
     def __init__(self, reward=-1.0, penalty=0.25, sampling_cost=0.001, sampling_cost_coef=1.01, cell_d=8,
                  match_theta=50, sampler=None, warmup_batches=1500, prob_input=False):
         super(DiskLoss, self).__init__()
-        assert (reward <= 0 and penalty >= 0 and sampling_cost >= 0 and cell_d > 0 and match_theta > 0 and
+        assert (reward <= 0 and penalty >= 0 and sampling_cost >= 0 and cell_d > 0 and
                 warmup_batches > 0 and sampler['border'] >= 0 and sampler['max_neg_b'] >= 0), \
-            'invalid param value in %s' % (list(map(str, (reward, penalty, sampling_cost, cell_d, match_theta,
+            'invalid param value in %s' % (list(map(str, (reward, penalty, sampling_cost, cell_d,
                                                           warmup_batches, sampler['border'], sampler['max_neg_b']))),)
 
         self.sampler = DetectionSampler(cell_d=cell_d, border=sampler['border'], random=1.0, max_b=sampler['max_neg_b'],
@@ -23,7 +23,8 @@ class DiskLoss(BaseLoss):
         self.max_px_err = sampler['pos_d']
         self.warmup_batches = warmup_batches
         self.prob_input = prob_input
-        self.match_theta = match_theta
+        self.match_theta = torch.nn.Parameter(torch.Tensor([abs(match_theta)*(15/50)]), requires_grad=True) \
+                           if match_theta < 0 else match_theta
         self.reward = reward
         self.penalty = penalty
         self.sampling_cost = torch.nn.Parameter(torch.Tensor([sampling_cost]), requires_grad=False)
@@ -61,7 +62,10 @@ class DiskLoss(BaseLoss):
                 ramp = min(1, 0.2 + 0.32 * (e - 1.05))  # 1.0 at e=3.55
 
         theta_ramp = 1/3.55  # NOTE: with original ramp of 0.05 reach max at e=20 (!), consider setting value to 1/3.55
-        self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., theta_ramp * e)
+        if not isinstance(self.match_theta, torch.Tensor):
+            self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., theta_ramp * e)
+        else:
+            self._match_theta = self.match_theta
         self._reward = 1.0 * self.reward
         self._penalty = ramp * self.penalty
         self._sampling_cost = ramp * self.sampling_cost.item()
@@ -78,8 +82,8 @@ class DiskLoss(BaseLoss):
             self.batch_end_update(None)
 
     def params_to_optimize(self, split=False):
-#        params = [v for n, v in self.named_parameters() if n in ('wdt', 'wap', 'wqt')]
-        params = []
+        params = [v for n, v in self.named_parameters() if n in ('match_theta',)]
+#        params = []
         if split:
             # new_biases, new_weights, biases, weights, others
             return [[], [], [], [], params]
@@ -87,6 +91,8 @@ class DiskLoss(BaseLoss):
             return params
 
     def update_conf(self, new_conf):
+        # for changing settings in the middle of training, related to population based training (PBT) mutations
+        # TODO: update below to correspond to DISK-style loss params
         ok = True
         for k, v in new_conf.items():
             if k in ('wdt', 'wap', 'wqt'):
