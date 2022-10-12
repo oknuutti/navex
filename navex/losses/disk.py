@@ -23,7 +23,7 @@ class DiskLoss(BaseLoss):
         self.max_px_err = sampler['pos_d']
         self.warmup_batches = warmup_batches
         self.prob_input = prob_input
-        self.match_theta = torch.nn.Parameter(torch.Tensor([abs(match_theta)*(15/50)]), requires_grad=True) \
+        self.match_theta = torch.nn.Parameter(torch.Tensor([abs(match_theta)]), requires_grad=True) \
                            if match_theta < 0 else match_theta
         self.reward = reward
         self.penalty = penalty
@@ -62,10 +62,7 @@ class DiskLoss(BaseLoss):
                 ramp = min(1, 0.2 + 0.32 * (e - 1.05))  # 1.0 at e=3.55
 
         theta_ramp = 1/3.55  # NOTE: with original ramp of 0.05 reach max at e=20 (!), consider setting value to 1/3.55
-        if not isinstance(self.match_theta, torch.Tensor):
-            self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., theta_ramp * e)
-        else:
-            self._match_theta = self.match_theta
+        self._match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., theta_ramp * e)
         self._reward = 1.0 * self.reward
         self._penalty = ramp * self.penalty
         self._sampling_cost = ramp * self.sampling_cost.item()
