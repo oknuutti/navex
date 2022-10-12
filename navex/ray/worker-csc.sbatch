@@ -4,7 +4,7 @@
 #SBATCH --mem-per-cpu=4G
 #SBATCH --ntasks=1
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:v100:1,nvme:10  # nvme in GB, adjust based on actual need
+#SBATCH --gres=gpu:v100:1,nvme:50  # nvme in GB, adjust based on actual need
 #SBATCH --signal=SIGUSR1@120       # wall time auto-resubmit
 
 ## copy image data to local drive
