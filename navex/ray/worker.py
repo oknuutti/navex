@@ -96,7 +96,7 @@ def main():
         node_info = [n for n in ray.nodes() if n['NodeID'] == addr.address_info['node_id']][0]
 
         # ports on which the worker is listening on
-        local_ports = [int(addr.address_info['redis_address'].split(':')[-1]),
+        local_ports = [head_port,
                        node_info['NodeManagerPort'],
                        node_info['ObjectManagerPort']]
 
