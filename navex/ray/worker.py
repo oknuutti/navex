@@ -93,10 +93,10 @@ def main():
 
         addr = ray.init(address=head_address, logging_level=logging.DEBUG,
                         _redis_password=args.redis_password)
-        node_info = [n for n in ray.nodes() if n['NodeID'] == addr['node_id']][0]
+        node_info = [n for n in ray.nodes() if n['NodeID'] == addr.address_info['node_id']][0]
 
         # ports on which the worker is listening on
-        local_ports = [int(addr['redis_address'].split(':')[-1]),
+        local_ports = [int(addr.address_info['redis_address'].split(':')[-1]),
                        node_info['NodeManagerPort'],
                        node_info['ObjectManagerPort']]
 
