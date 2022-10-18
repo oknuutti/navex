@@ -39,7 +39,7 @@ class R2D2Loss(BaseLoss):
             self.ap_loss = LogThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type in ('disk', 'disk-p'):
             self.wdt = None
-            self.ap_loss = DiskLoss(reward=-abs(wqt), penalty=abs(wdt), sampling_cost=abs(wpk),
+            self.ap_loss = DiskLoss(reward=abs(wqt), penalty=abs(wdt), sampling_cost=abs(wpk),
                                     sampling_cost_coef=sampler['subd'], cell_d=int(det_n), match_theta=base,
                                     warmup_batches=nq, sampler=sampler, prob_input=loss_type == 'disk-p')
         else:

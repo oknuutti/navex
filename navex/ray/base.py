@@ -232,7 +232,7 @@ def tune_asha(search_conf, hparams, full_conf):
         # trial_dirname_creator=,
         num_samples=search_conf['samples'],
         scheduler=scheduler,
-        queue_trials=True,
+#        queue_trials=True,     # default is true, param deprecated
         reuse_actors=False,     # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
         max_failures=20,
 #        resume=search_conf['resume'].upper() or False, # ray tune still has too many bugs with resume, at least v1.1.0 doesnt work
@@ -280,7 +280,7 @@ def tune_pbs(search_conf, hparams, full_conf):
         config=hparams,
         num_samples=search_conf['samples'],
         scheduler=scheduler,
-        queue_trials=True,
+#        queue_trials=True,  # default is true, param deprecated
         reuse_actors=False,
         max_failures=20,
         keep_checkpoints_num=1,

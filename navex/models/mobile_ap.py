@@ -223,7 +223,7 @@ class MobileAP(BasePoint):
         layers = [ConvBNActivation(in_channels, in_ch, kernel_size=3, stride=2, norm_layer=self.norm_layer,
                                    activation_layer=nn.Hardswish)]
 
-        if a0 == 'mn3' and a1 == 'l':
+        if a0 == 'mn3' and a1 in ('o', 'l'):
             # mobilenetv3 large
 
             # in_ch, kernel, exp_ch, out_ch, use_se, activation, stride, dilation
@@ -232,14 +232,14 @@ class MobileAP(BasePoint):
             in_ch = self.add_layer(layers, in_ch, 3, 3, 24, False, "RE", 1, 1)
             in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 2, 1)    # C2
             in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)
-            in_ch = self.add_layer(layers, in_ch, 5, 3, 40, True, "RE", 1, 1)            # hf-net mod: 40=>64, or 72?
+            in_ch = self.add_layer(layers, in_ch, 5, 3, dict(o=40, l=72)[a1], True, "RE", 1, 1)  # hf-net mod: 40=>64, or 72?
             # in_ch = add_layer(layers, in_ch, 3, 6, 80, False, "HS", 2, 1)  # C3
             # in_ch = add_layer(layers, in_ch, 3, 2.5, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 2.3, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 2.3, 80, False, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 6, 112, True, "HS", 1, 1)
             # in_ch = add_layer(layers, in_ch, 3, 6, 112, True, "HS", 1, 1)
-        elif a0 == 'en' and a1 == '0':
+        elif a0 == 'en' and a1 in ('0', 'l'):
             # EfficientNet-B0 from https://arxiv.org/pdf/1905.11946v5.pdf
 
             # in_ch, kernel, exp_ch, out_ch, use_se, activation, stride, dilation
@@ -247,9 +247,9 @@ class MobileAP(BasePoint):
             in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 2, 1)  # C1
             in_ch = self.add_layer(layers, in_ch, 3, 6, 24, True, "HS", 1, 1)
             in_ch = self.add_layer(layers, in_ch, 5, 6, 40, True, "HS", 2, 1)  # C2
-            in_ch = self.add_layer(layers, in_ch, 5, 6, 72, True, "HS", 1, 1)        # hf-net mod: 40=>64, or 72?
+            in_ch = self.add_layer(layers, in_ch, 5, 6, {'0': 40, 'l': 72}[a1], True, "HS", 1, 1)  # hf-net mod: 40=>64, or 72?
 
-        elif a0 == 'mn2' and a1 in ('m', 'l'):
+        elif a0 == 'mn2' and a1 in ('o', 'm', 'l'):
             # mobilenet v2
             # however, use arch from the code of hf-net instead, article version is yet a bit different:
             # https://arxiv.org/abs/1812.03506
@@ -258,9 +258,9 @@ class MobileAP(BasePoint):
             in_ch = self.add_layer(layers, in_ch, 3, 1, 16, False, "RE", 1, 1)
             in_ch = self.add_layer(layers, in_ch, 3, 6, 24, False, "RE", 2, 1)   # C1
             in_ch = self.add_layer(layers, in_ch, 3, 6, 24, False, "RE", 1, 1)
-            in_ch = self.add_layer(layers, in_ch, 3, 6, 32 if a1 == 'l' else 24, False, "RE", 2, 1)   # C2
-            in_ch = self.add_layer(layers, in_ch, 3, 6, 64 if a1 == 'l' else 48, False, "RE", 1, 1)   # hf-net mod: 32=>64
-            in_ch = self.add_layer(layers, in_ch, 3, 6, 128 if a1 == 'l' else 96, False, "RE", 1, 1)  # hf-net mod: 32=>128
+            in_ch = self.add_layer(layers, in_ch, 3, 6, 32, False, "RE", 2, 1)   # C2
+            in_ch = self.add_layer(layers, in_ch, 3, 6, dict(o=32, m=32, l=64)[a1], False, "RE", 1, 1)   # hf-net mod: 32=>64
+            in_ch = self.add_layer(layers, in_ch, 3, 6, dict(o=32, m=64, l=128)[a1], False, "RE", 1, 1)  # hf-net mod: 32=>128
 
         else:
             assert a0 == 'mn3' and a1 == 's', 'invalid arch %s' % (arch,)

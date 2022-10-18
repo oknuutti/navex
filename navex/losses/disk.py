@@ -10,10 +10,10 @@ from .sampler import DetectionSampler
 
 
 class DiskLoss(BaseLoss):
-    def __init__(self, reward=-1.0, penalty=0.25, sampling_cost=0.001, sampling_cost_coef=1.01, cell_d=8,
+    def __init__(self, reward=1.0, penalty=0.25, sampling_cost=0.001, sampling_cost_coef=1.0, cell_d=8,
                  match_theta=50, sampler=None, warmup_batches=1500, prob_input=False):
         super(DiskLoss, self).__init__()
-        assert (reward <= 0 and penalty >= 0 and sampling_cost >= 0 and cell_d > 0 and
+        assert (reward >= 0 and penalty >= 0 and sampling_cost >= 0 and cell_d > 0 and
                 warmup_batches > 0 and sampler['border'] >= 0 and sampler['max_neg_b'] >= 0), \
             'invalid param value in %s' % (list(map(str, (reward, penalty, sampling_cost, cell_d,
                                                           warmup_batches, sampler['border'], sampler['max_neg_b']))),)
@@ -129,10 +129,10 @@ class DiskLoss(BaseLoss):
             mask = torch.logical_not(mask)
             n, m = des_dist_mx.shape
 
-            cost_mx = des_dist_mx.new_ones(des_dist_mx.shape, dtype=des_dist_mx.dtype) * self._penalty
+            reward_mx = des_dist_mx.new_ones(des_dist_mx.shape, dtype=des_dist_mx.dtype) * (-self._penalty)
             same_b = b1.view(n, 1).expand(n, m) == b2.view(1, m).expand(n, m)
-            cost_mx[torch.logical_and(px_dist_mx < self.max_px_err, same_b)] = self._reward
-            cost_mx[mask.view((n, 1)).expand((n, m))] = 0
+            reward_mx[torch.logical_and(px_dist_mx < self.max_px_err, same_b)] = self._reward
+            reward_mx[mask.view((n, 1)).expand((n, m))] = 0
 
             match_theta = self.match_theta*(15/50) + self.match_theta*(35/50) * min(1., self._theta_ramp)
             if 0:
@@ -147,9 +147,11 @@ class DiskLoss(BaseLoss):
             with torch.no_grad():
                 des_p_mx = torch.exp(des_logp_mx)     # would adding an eps make sense? tried earlier, no great impact
 
-            # notice that des_p_mx needs to be detached
+            # NOTE: des_p_mx needs to be detached as it functions only as weighting, due to this feature of REINFORCE
+            #       (see ref from DISK article), the loss actually increases during training. Expected reward
+            #       (des_logp_mx + det_logp_mx).exp()*reward_mx increases as expected.
             sample_plogp = des_p_mx * (des_logp_mx + det_logp_mx)
-            a_loss = a_loss + (cost_mx * sample_plogp).sum()
+            a_loss = a_loss - (reward_mx * sample_plogp).sum()      # turns reward into loss
 
         dummy = torch.Tensor([0.0]).to(a_loss.device)
         p_loss, c_loss, a_loss, q_loss = map(torch.atleast_1d, (dummy, dummy, a_loss, q_loss))
