@@ -74,7 +74,7 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
                           filename='checkpoint-{global_step}-{hp_metric:.3f}'),
 
         # on_validation_end, run #2
-        TuneReportCheckpointCallback(metrics={
+        MyTuneReportCheckpointCallback(metrics={
             # "rloss": "val_rloss_epoch",
             "loss": "val_loss_epoch",
             "tot_ratio": "val_tot_epoch",
@@ -376,27 +376,29 @@ class MySkOptSearch(SkOptSearch):
         logging.info('trial %s result: %s' % (trial_id, result))
         super(MySkOptSearch, self)._process_result(trial_id, result)
 
-        # class _MyTuneCheckpointCallback(_TuneCheckpointCallback):
-#     def _handle(self, trainer: Trainer, pl_module: LightningModule):
-#         if trainer.running_sanity_check:
-#             return
-#         with tune.checkpoint_dir(step=trainer.global_step) as checkpoint_dir:
-#             node_id = ray.get_runtime_context().node_id
-#             terminate = ray.get(ray.get_actor('term_' + node_id).is_set.remote())
-#             if terminate:
-#                 logging.warning('should save as node %s will terminate soon!' % node_id)
-#                 # TODO: what should do here?
-#
-#             trainer.save_checkpoint(
-#                 os.path.join(checkpoint_dir, self._filename))
-#
-# class MyTuneReportCheckpointCallback(TuneReportCheckpointCallback):
-#     def __init__(self,
-#                  metrics: Union[None, str, List[str], Dict[str, str]] = None,
-#                  filename: str = "checkpoint",
-#                  on: Union[str, List[str]] = "validation_end"):
-#         super(MyTuneReportCheckpointCallback, self).__init__(metrics, filename, on)
-#         self._checkpoint = _MyTuneCheckpointCallback(filename, on)
+
+class MyTuneCheckpointCallback(TuneCallback):
+    def __init__(self, filename="checkpoint", on="validation_end"):
+        super(MyTuneCheckpointCallback, self).__init__(on)
+        self._filename = filename
+
+    def _handle(self, trainer: Trainer, pl_module: LightningModule):
+        if trainer.running_sanity_check:
+            return
+        step = f"epoch={trainer.current_epoch}-step={trainer.global_step}"
+        with tune.checkpoint_dir(step=step) as checkpoint_dir:
+            # node_id = ray.get_runtime_context().node_id
+            # terminate = ray.get(ray.get_actor('term_' + node_id).is_set.remote())
+            # if terminate:
+            #    logging.warning('should save as node %s will terminate soon!' % node_id)
+            #    # TODO: what should do here?
+            trainer.save_checkpoint(os.path.join(checkpoint_dir, self._filename))
+
+
+class MyTuneReportCheckpointCallback(TuneReportCheckpointCallback):
+    def __init__(self, metrics=None, filename="checkpoint", on="validation_end"):
+        super(MyTuneReportCheckpointCallback, self).__init__(metrics, filename, on)
+        self._checkpoint = MyTuneCheckpointCallback(filename, on)
 
 
 class CheckOnSLURM(TuneCallback):
