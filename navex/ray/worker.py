@@ -1,5 +1,7 @@
 import logging
 import argparse
+import socket
+import random
 import sys
 import time
 import os
@@ -40,6 +42,8 @@ def main():
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
 
+    time.sleep(random.uniform(0, 120))  # random sleep so that won't init at the same time as other workers
+
     head_host, head_port = args.address.split(':')
     head_port = int(head_port)
 
@@ -79,7 +83,7 @@ def main():
         if args.maxmem is not None:
             w_m = 3 * 1024**3
             os_m, r_m = int((args.maxmem - w_m)*2/3), int((args.maxmem - w_m)/3)
-        node = overrides.start(address=head_address,
+        node = overrides.start(address=head_address, node_ip_address='127.0.0.1', node_name=socket.gethostname(),
                         ray_client_server_port=None, redis_password=args.redis_password,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
