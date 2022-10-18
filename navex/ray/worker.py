@@ -79,12 +79,13 @@ def main():
         if args.maxmem is not None:
             w_m = 3 * 1024**3
             os_m, r_m = int((args.maxmem - w_m)*2/3), int((args.maxmem - w_m)/3)
-        node = overrides.start(address=head_address, redis_password=args.redis_password,
+        node = overrides.start(address=head_address,
+                        ray_client_server_port=None, redis_password=args.redis_password,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
                         metrics_export_port=args.metrics_export_port,
                         memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
-                        num_cpus=args.num_cpus, num_gpus=args.num_gpus, verbose=True)
+                        num_cpus=args.num_cpus, num_gpus=args.num_gpus)
 
         logging.info('ray worker node started with details: %s' % ((
                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
