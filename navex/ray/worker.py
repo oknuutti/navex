@@ -88,6 +88,7 @@ def main():
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
                         metrics_export_port=args.metrics_export_port,
+                        include_dashboard=False, no_monitor=True, disable_usage_stats=True,
                         memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus)
 

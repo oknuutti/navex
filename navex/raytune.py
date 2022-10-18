@@ -80,7 +80,8 @@ class RayTuneHeadNode:
                                memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
                                raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
                                plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[6] if not self.local_linux else None,
-                               include_dashboard=False, temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
+                               temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
+                               include_dashboard=False, no_monitor=True, disable_usage_stats=True,
                                max_worker_port=self.max_wport)
 
         logging.info('starting head node with details: %s' % ((
