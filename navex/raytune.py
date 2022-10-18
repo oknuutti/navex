@@ -44,7 +44,7 @@ class RayTuneHeadNode:
         self.hostname = socket.gethostname()
         self.local_linux = self.hostname and self.search_conf['host'] in self.hostname
         self.redis_pwd = '5241590000000000'
-        self.min_wport, self.max_wport = 10000, 10004
+        self.min_wport, self.max_wport = 10002, 10006
         self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543)
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
 
@@ -73,8 +73,8 @@ class RayTuneHeadNode:
             os_m, r_m = int((self.maxmem - w_m)*2/3), int((self.maxmem - w_m)/3)
 
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
-                               port=self.local_ports[0], redis_shard_ports='%d' % self.local_ports[1],
-                               redis_password=self.redis_pwd,
+                               port=self.local_ports[0], ray_client_server_port=None,
+                               redis_shard_ports='%d' % self.local_ports[1], redis_password=self.redis_pwd,
                                node_manager_port=self.local_ports[2], object_manager_port=self.local_ports[3],
                                gcs_server_port=self.local_ports[4],
                                memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
