@@ -42,8 +42,6 @@ def main():
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
 
-    time.sleep(random.uniform(0, 120))  # random sleep so that won't init at the same time as other workers
-
     head_host, head_port = args.address.split(':')
     head_port = int(head_port)
 
