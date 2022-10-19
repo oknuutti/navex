@@ -33,6 +33,7 @@ def main():
     parser.add_argument('--ssh-keyfile', default='', help="head redis host:port")
     parser.add_argument('--object-manager-port', type=int, help="object manager port")
     parser.add_argument('--node-manager-port', type=int, help="node manager port")
+    parser.add_argument('--ray-client-port', type=int, help="ray client port")
     parser.add_argument('--metrics-export-port', type=int, help="metrics export port")
     parser.add_argument('--metrics-agent-port', type=int, help="metrics agent port, aka dashboard_agent_grpc_port")
     parser.add_argument('--min-worker-port', type=int, help="min worker port")
@@ -83,7 +84,7 @@ def main():
             w_m = 3 * 1024**3
             os_m, r_m = int((args.maxmem - w_m)*2/3), int((args.maxmem - w_m)/3)
         node = overrides.start(address=head_address, node_ip_address='127.0.0.1', node_name=socket.gethostname(),
-                        ray_client_server_port=None, redis_password=args.redis_password,
+                        ray_client_server_port=args.ray_client_port, redis_password=args.redis_password,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
                         dashboard_agent_grpc_port=args.metrics_agent_port, dashboard_agent_listen_port=0,

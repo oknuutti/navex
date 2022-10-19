@@ -12,6 +12,7 @@ from threading import Thread
 import numpy as np
 
 import ray
+from ray import ray_constants
 
 from .ray import overrides      # overrides e.g. services.get_node_ip_address
 from .ray.ssh import Connection
@@ -45,7 +46,7 @@ class RayTuneHeadNode:
         self.local_linux = self.hostname and self.search_conf['host'] in self.hostname
         self.redis_pwd = '5241590000000000'
         self.min_wport, self.max_wport = 10002, 10006
-        self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543, 10001, 44482)
+        self.local_ports = [34735, 34935, 33115, 35124, 36692, 29321, 28543, 10001]
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
 
         def_node_cpus = {'kepler': 3, 'pascal': 4, 'volta': 5}
@@ -77,7 +78,7 @@ class RayTuneHeadNode:
                                ray_client_server_port=self.local_ports[7],
                                redis_shard_ports='%d' % self.local_ports[1], redis_password=self.redis_pwd,
                                node_manager_port=self.local_ports[2], object_manager_port=self.local_ports[3],
-                               gcs_server_port=self.local_ports[4], dashboard_agent_listen_port=self.local_ports[8],
+                               gcs_server_port=self.local_ports[4],
                                memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
                                raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
                                plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[6] if not self.local_linux else None,
@@ -101,7 +102,18 @@ class RayTuneHeadNode:
 #        local_ports = [int(node.redis_address.split(':')[-1]),
 #                       node_info['NodeManagerPort'], node_info['ObjectManagerPort']]
 
-        # do this some how better
+        dashboard_rpc_address = ray.experimental.internal_kv._internal_kv_get(
+            ray.dashboard.consts.DASHBOARD_RPC_ADDRESS,
+            namespace=ray_constants.KV_NAMESPACE_DASHBOARD,
+        )
+        if dashboard_rpc_address:
+            logging.info("dashboard_rpc_address=%s" % (dashboard_rpc_address,))
+        else:
+            logging.warning("couldn't retrieve dashboard_rpc_address")
+            dashboard_rpc_address = 44444
+        self.local_ports.append(dashboard_rpc_address)
+
+        # do this somehow better
         self.remote_ports = self.local_ports
 
         if self.local_linux:
