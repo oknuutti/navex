@@ -80,6 +80,7 @@ ssh -f -N -T -o StrictHostKeyChecking=no \
 #             -L $H_RLET_PORT:127.0.0.1:$H_RLET_PORT \
 #             -L $H_OBJ_S_PORT:127.0.0.1:$H_OBJ_S_PORT \
 
+export RAY_worker_register_timeout_seconds=600
 export TUNE_RESULT_DIR="$SCRATCH/output"
 srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0.0.1:$HEAD_PORT" \
                                 --redis-shard-ports="$H_SHARD_PORTS" --redis-password="$H_REDIS_PWD" \
