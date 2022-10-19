@@ -28,7 +28,7 @@ def ensure_nice(nice):
     if hasattr(os, 'nice'):
         curr_nice = os.nice(0)
         if nice > curr_nice:
-            os.nice(curr_nice - nice)
+            os.nice(nice - curr_nice)
 
 
 class TrialWrapperBase(pl.LightningModule):
