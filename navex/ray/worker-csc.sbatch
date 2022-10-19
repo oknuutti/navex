@@ -68,7 +68,6 @@ ssh -f -N -T -o StrictHostKeyChecking=no \
              -L "$H_SHARD_PORTS:127.0.0.1:$H_SHARD_PORTS" \
              -L "$H_OBJ_M_PORT:127.0.0.1:$H_OBJ_M_PORT" \
              -L "$H_NODE_M_PORT:127.0.0.1:$H_NODE_M_PORT" \
-             -L "$H_GCS_PORT:127.0.0.1:$H_GCS_PORT" \
              -L "$H_RCLI_PORT:127.0.0.1:$H_RCLI_PORT" \
              -L "$H_MAG_PORT:127.0.0.1:$H_MAG_PORT" \
              $H_WPORT_TUNNELS \
@@ -93,7 +92,7 @@ sleep `shuf -i 0-300 -n 1`s
 srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0.0.1:$HEAD_PORT" \
                                 --redis-shard-ports="$H_SHARD_PORTS" --redis-password="$H_REDIS_PWD" \
                                 --head-object-manager-port="$H_OBJ_M_PORT" --head-node-manager-port="$H_NODE_M_PORT" \
-                                --head-gcs-port="$H_GCS_PORT" --ray-client-port="$H_RCLI_PORT" \
+                                --ray-client-port="$H_RCLI_PORT" \
                                 --head-min-worker-port="$H_WPORT_S" --head-max-worker-port="$H_WPORT_E" \
                                 --object-manager-port="$OBJ_M_PORT" --node-manager-port="$NODE_M_PORT" \
                                 --metrics-export-port="$MEX_PORT" --metrics-agent-port="$MAG_PORT" \

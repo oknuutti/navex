@@ -13,6 +13,7 @@ import numpy as np
 
 import ray
 from ray import ray_constants
+from ray.dashboard import consts as dashboard_constants
 
 from .ray import overrides      # overrides e.g. services.get_node_ip_address
 from .ray.ssh import Connection
@@ -75,13 +76,12 @@ class RayTuneHeadNode:
 
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
                                node_name=socket.gethostname(), port=self.local_ports[0],
-                               ray_client_server_port=self.local_ports[7],
+                               ray_client_server_port=self.local_ports[6],
                                redis_shard_ports='%d' % self.local_ports[1], redis_password=self.redis_pwd,
                                node_manager_port=self.local_ports[2], object_manager_port=self.local_ports[3],
-                               gcs_server_port=self.local_ports[4],
                                memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
-                               raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
-                               plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[6] if not self.local_linux else None,
+                               raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[4] if not self.local_linux else None,
+                               plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
                                temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
                                include_dashboard=True, no_monitor=True, disable_usage_stats=True,
                                max_worker_port=self.max_wport)
@@ -103,7 +103,7 @@ class RayTuneHeadNode:
 #                       node_info['NodeManagerPort'], node_info['ObjectManagerPort']]
 
         dashboard_rpc_address = ray.experimental.internal_kv._internal_kv_get(
-            ray.dashboard.consts.DASHBOARD_RPC_ADDRESS,
+            dashboard_constants.DASHBOARD_RPC_ADDRESS,
             namespace=ray_constants.KV_NAMESPACE_DASHBOARD,
         )
         if dashboard_rpc_address:
@@ -368,7 +368,7 @@ class ScheduledWorkerNode:
         # schedule work on a slurm node
         cmd = ("sbatch %s -c %d %s "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
-             "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_RCLI_PORT=%d,H_MAG_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,"
+             "H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_RCLI_PORT=%d,H_MAG_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,"
              "H_REDIS_PWD=%s,NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,MAG_PORT=%d,WPORT_S=%d,WPORT_E=%d,"
              "DATADIR=\"%s\",WRKDIR=\"$HOME/scratch\" "
              "$HOME/navex/navex/ray/worker-%s.sbatch") % (
