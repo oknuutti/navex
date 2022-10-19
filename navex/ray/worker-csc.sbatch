@@ -84,6 +84,7 @@ ssh -f -N -T -o StrictHostKeyChecking=no \
 export RAY_raylet_client_num_connect_attempts=10
 export RAY_raylet_client_connect_timeout_milliseconds=`shuf -i 1000-3000 -n 1`
 export RAY_worker_register_timeout_seconds=120
+export RAY_BACKEND_LOG_LEVEL=debug
 export TUNE_RESULT_DIR="$SCRATCH/output"
 date
 sleep `shuf -i 0-300 -n 1`s
