@@ -21,17 +21,17 @@ services.resolve_ip_for_localhost = lambda x: x
 
 # injecting a sleep as might help with dying / hanging trials, see https://github.com/ray-project/ray/issues/11239
 from ray.tune.trial_runner import TrialRunner
-_parent_get_next_trial = TrialRunner._get_next_trial
-def _my_get_next_trial(self):
-    val = _parent_get_next_trial(self)
+_parent_update_trial_queue = TrialRunner._update_trial_queue
+def _my_update_trial_queue(self, blocking: bool = False, timeout: int = 600):
+    val = _parent_update_trial_queue(self, blocking, timeout)
     time.sleep(2)
     return val
-TrialRunner._get_next_trial = _my_get_next_trial
+TrialRunner._update_trial_queue = _my_update_trial_queue
 
 _parent_process_trial_failure = TrialRunner._process_trial_failure
-def _my_process_trial_failure(self, trial, error_msg):
+def _my_process_trial_failure(self, trial, exc=None):
     time.sleep(120)
-    _parent_process_trial_failure(self, trial, error_msg)
+    _parent_process_trial_failure(self, trial, exc)
 TrialRunner._process_trial_failure = _my_process_trial_failure
 
 
