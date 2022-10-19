@@ -82,10 +82,12 @@ ssh -f -N -T -o StrictHostKeyChecking=no \
 
 # check here for available params: https://github.com/ray-project/ray/blob/ray-1.13.0/src/ray/common/ray_config_def.h
 export RAY_raylet_client_num_connect_attempts=10
-export RAY_raylet_client_connect_timeout_milliseconds=`shuf -i 1000-60000 -n 1`
+export RAY_raylet_client_connect_timeout_milliseconds=`shuf -i 1000-3000 -n 1`
 export RAY_worker_register_timeout_seconds=120
 export TUNE_RESULT_DIR="$SCRATCH/output"
-sleep `shuf -i 0-120 -n 1`s
+date
+sleep `shuf -i 0-300 -n 1`s
+date
 srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0.0.1:$HEAD_PORT" \
                                 --redis-shard-ports="$H_SHARD_PORTS" --redis-password="$H_REDIS_PWD" \
                                 --head-object-manager-port="$H_OBJ_M_PORT" --head-node-manager-port="$H_NODE_M_PORT" \

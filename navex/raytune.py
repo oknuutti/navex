@@ -73,7 +73,7 @@ class RayTuneHeadNode:
             os_m, r_m = int((self.maxmem - w_m)*2/3), int((self.maxmem - w_m)/3)
 
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
-                               node_name=socket.gethostname(), port=self.local_ports[0], ray_client_server_port=None,
+                               node_name=socket.gethostname(), port=self.local_ports[0], ray_client_server_port=10001,
                                redis_shard_ports='%d' % self.local_ports[1], redis_password=self.redis_pwd,
                                node_manager_port=self.local_ports[2], object_manager_port=self.local_ports[3],
                                gcs_server_port=self.local_ports[4],
@@ -81,7 +81,7 @@ class RayTuneHeadNode:
                                raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
                                plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[6] if not self.local_linux else None,
                                temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
-                               include_dashboard=False, no_monitor=True, disable_usage_stats=True,
+                               include_dashboard=True, no_monitor=False, disable_usage_stats=False,
                                max_worker_port=self.max_wport)
 
         logging.info('starting head node with details: %s' % ((
