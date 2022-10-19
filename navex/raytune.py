@@ -73,7 +73,7 @@ class RayTuneHeadNode:
             os_m, r_m = int((self.maxmem - w_m)*2/3), int((self.maxmem - w_m)/3)
 
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
-                               port=self.local_ports[0], ray_client_server_port=None,
+                               node_name=socket.gethostname(), port=self.local_ports[0], ray_client_server_port=None,
                                redis_shard_ports='%d' % self.local_ports[1], redis_password=self.redis_pwd,
                                node_manager_port=self.local_ports[2], object_manager_port=self.local_ports[3],
                                gcs_server_port=self.local_ports[4],

@@ -20,19 +20,19 @@ services.get_node_ip_address = lambda x=None: '127.0.0.1'
 services.resolve_ip_for_localhost = lambda x: x
 
 # injecting a sleep as might help with dying / hanging trials, see https://github.com/ray-project/ray/issues/11239
-# from ray.tune.trial_runner import TrialRunner
-# _parent_get_next_trial = TrialRunner._get_next_trial
-# def _my_get_next_trial(self):
-#     val = _parent_get_next_trial(self)
-#     time.sleep(2)
-#     return val
-# TrialRunner._get_next_trial = _my_get_next_trial
-#
-# _parent_process_trial_failure = TrialRunner._process_trial_failure
-# def _my_process_trial_failure(self, trial, error_msg):
-#     time.sleep(120)
-#     _parent_process_trial_failure(self, trial, error_msg)
-# TrialRunner._process_trial_failure = _my_process_trial_failure
+from ray.tune.trial_runner import TrialRunner
+_parent_get_next_trial = TrialRunner._get_next_trial
+def _my_get_next_trial(self):
+    val = _parent_get_next_trial(self)
+    time.sleep(2)
+    return val
+TrialRunner._get_next_trial = _my_get_next_trial
+
+_parent_process_trial_failure = TrialRunner._process_trial_failure
+def _my_process_trial_failure(self, trial, error_msg):
+    time.sleep(120)
+    _parent_process_trial_failure(self, trial, error_msg)
+TrialRunner._process_trial_failure = _my_process_trial_failure
 
 
 # from ..\site-packages\ray\scripts\scripts.py

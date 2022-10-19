@@ -11,7 +11,6 @@ from typing import Dict
 
 import torch
 
-import pytorch_lightning as pl
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.callbacks import EarlyStopping
@@ -21,7 +20,7 @@ from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.sample import Domain, Quantized, Float, Integer, Categorical, Normal, LogUniform
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
-from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback, TuneCallback, TuneReportCallback
+from ray.tune.integration.pytorch_lightning import TuneCallback, TuneReportCallback
 from ray.tune.suggest import BasicVariantGenerator, ConcurrencyLimiter
 from ray.tune.suggest.skopt import SkOptSearch, logger as sk_logger
 from ray.tune.suggest.variant_generator import parse_spec_vars
@@ -29,7 +28,7 @@ from ray.tune.utils import flatten_dict
 from skopt import space as sko_sp
 
 from ..experiments.parser import nested_update, split_double_samplers
-from ..lightning.base import TrialWrapperBase, MySLURMConnector, MyModelCheckpoint, MyTrainer, MyLogger
+from ..lightning.base import TrialWrapperBase, MySLURMConnector, MyModelCheckpoint, MyTrainer, MyLogger, ensure_nice
 from ..models.tools import ordered_nested_dict, reorder_cols
 from ..trials.aerial import AerialTrial
 from ..trials.asteroidal import AsteroidalTrial
@@ -185,7 +184,7 @@ def tune_asha(search_conf, hparams, full_conf):
 
         initial = flatten_dict(initial, prevent_delimiter=True)
         key_order = list(flatten_dict(hparams, prevent_delimiter=True).keys())
-        if search_conf['resume']:
+        if search_conf['resume'] and search_conf['resume'].lower() != 'true':
             search_alg = MySkOptSearch()
             search_alg.restore(search_conf['resume'])
             start_config = reorder_cols(search_alg._skopt_opt.Xi, search_alg._parameters, key_order)
@@ -232,10 +231,9 @@ def tune_asha(search_conf, hparams, full_conf):
         # trial_dirname_creator=,
         num_samples=search_conf['samples'],
         scheduler=scheduler,
-#        queue_trials=True,     # default is true, param deprecated
         reuse_actors=False,     # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
         max_failures=20,
-#        resume=search_conf['resume'].upper() or False, # ray tune still has too many bugs with resume, at least v1.1.0 doesnt work
+        resume=search_conf['resume'].lower() == 'true',
 #        local_dir=search_conf['results_path'] or None, # defaults to ~/ray_results
         # checkpoint_freq=200,      # if use functional api, this wont have any effect
         # checkpoint_at_end=True,   # if use functional api, this wont have any effect
@@ -374,6 +372,7 @@ class MySkOptSearch(SkOptSearch):
 
     def _process_result(self, trial_id: str, result: Dict):
         logging.info('trial %s result: %s' % (trial_id, result))
+        ensure_nice(5)
         super(MySkOptSearch, self)._process_result(trial_id, result)
 
 

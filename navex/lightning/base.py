@@ -1,3 +1,4 @@
+import os
 import math
 import threading
 from typing import Union, Dict, Any, Optional
@@ -21,6 +22,13 @@ from ..visualize import view_detections
 
 def _fn_none(x):
     return None
+
+
+def ensure_nice(nice):
+    if hasattr(os, 'nice'):
+        curr_nice = os.nice(0)
+        if nice > curr_nice:
+            os.nice(curr_nice - nice)
 
 
 class TrialWrapperBase(pl.LightningModule):
@@ -68,6 +76,7 @@ class TrialWrapperBase(pl.LightningModule):
             self.hp_metric_max = float(checkpoint['hp_metric_max'])
 
     def on_train_start(self):
+        ensure_nice(5)
         if self._restored_global_step is not None:
             self.trainer.global_step = self._restored_global_step
             self._restored_global_step = None
