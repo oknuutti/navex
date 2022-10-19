@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--object-manager-port', type=int, help="object manager port")
     parser.add_argument('--node-manager-port', type=int, help="node manager port")
     parser.add_argument('--metrics-export-port', type=int, help="metrics export port")
+    parser.add_argument('--metrics-agent-port', type=int, help="metrics agent port, aka dashboard_agent_grpc_port")
     parser.add_argument('--min-worker-port', type=int, help="min worker port")
     parser.add_argument('--max-worker-port', type=int, help="max worker port")
     parser.add_argument('--maxmem', type=int, default=8*1000**3, help="max worker port")
@@ -85,6 +86,7 @@ def main():
                         ray_client_server_port=None, redis_password=args.redis_password,
                         object_manager_port=args.object_manager_port, node_manager_port=args.node_manager_port,
                         min_worker_port=args.min_worker_port, max_worker_port=args.max_worker_port,
+                        dashboard_agent_grpc_port=args.metrics_agent_port, dashboard_agent_listen_port=0,
                         metrics_export_port=args.metrics_export_port, no_monitor=True, disable_usage_stats=True,
                         memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
                         num_cpus=args.num_cpus, num_gpus=args.num_gpus)

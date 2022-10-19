@@ -45,7 +45,7 @@ class RayTuneHeadNode:
         self.local_linux = self.hostname and self.search_conf['host'] in self.hostname
         self.redis_pwd = '5241590000000000'
         self.min_wport, self.max_wport = 10002, 10006
-        self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543)
+        self.local_ports = (34735, 34935, 33115, 35124, 36692, 29321, 28543, 10001, 44482)
         self.w_ports = tuple(range(self.min_wport, self.max_wport+1))
 
         def_node_cpus = {'kepler': 3, 'pascal': 4, 'volta': 5}
@@ -73,15 +73,16 @@ class RayTuneHeadNode:
             os_m, r_m = int((self.maxmem - w_m)*2/3), int((self.maxmem - w_m)/3)
 
         node = overrides.start(head=True, num_cpus=0, num_gpus=0, node_ip_address='127.0.0.1',
-                               node_name=socket.gethostname(), port=self.local_ports[0], ray_client_server_port=10001,
+                               node_name=socket.gethostname(), port=self.local_ports[0],
+                               ray_client_server_port=self.local_ports[7],
                                redis_shard_ports='%d' % self.local_ports[1], redis_password=self.redis_pwd,
                                node_manager_port=self.local_ports[2], object_manager_port=self.local_ports[3],
-                               gcs_server_port=self.local_ports[4],
+                               gcs_server_port=self.local_ports[4], dashboard_agent_listen_port=self.local_ports[8],
                                memory=w_m, object_store_memory=os_m, redis_max_memory=r_m,
                                raylet_socket_name='tcp://127.0.0.1:%d' % self.local_ports[5] if not self.local_linux else None,
                                plasma_store_socket_name='tcp://127.0.0.1:%d' % self.local_ports[6] if not self.local_linux else None,
                                temp_dir='/tmp/ray/', min_worker_port=self.min_wport,
-                               include_dashboard=True, no_monitor=False, disable_usage_stats=False,
+                               include_dashboard=True, no_monitor=True, disable_usage_stats=True,
                                max_worker_port=self.max_wport)
 
         logging.info('starting head node with details: %s' % ((
@@ -306,7 +307,7 @@ class ScheduledWorkerNode:
         self.slurm_job_id = None
 
         if self.local_linux:
-            self.listen_ports = [ScheduledWorkerNode.reserve_port() for _ in range(3)]  # was worker_ports
+            self.listen_ports = [ScheduledWorkerNode.reserve_port() for _ in range(4)]  # was worker_ports
             self.worker_ports_start = ScheduledWorkerNode.reserve_port()                # was worker_wp0
         else:
             self.listen_ports = None
@@ -334,8 +335,8 @@ class ScheduledWorkerNode:
             logging.error('failed to allocate ports for worker node workers')
             raise e
 
-        ps = [None] * 3
-        for j in range(3):
+        ps = [None] * 4
+        for j in range(4):
             for k in range(10):
                 try:
                     p = ScheduledWorkerNode.reserve_port()
@@ -355,8 +356,9 @@ class ScheduledWorkerNode:
         # schedule work on a slurm node
         cmd = ("sbatch %s -c %d %s "
              "--export=ALL,CPUS=%d,HEAD_HOST=%s,HEAD_PORT=%d,H_SHARD_PORTS=%s,H_NODE_M_PORT=%d,H_OBJ_M_PORT=%d,"
-             "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,H_REDIS_PWD=%s,"
-             "NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,WPORT_S=%d,WPORT_E=%d,DATADIR=\"%s\",WRKDIR=\"$HOME/scratch\" "
+             "H_GCS_PORT=%d,H_RLET_PORT=%d,H_OBJ_S_PORT=%d,H_RCLI_PORT=%d,H_MAG_PORT=%d,H_WPORT_S=%d,H_WPORT_E=%d,"
+             "H_REDIS_PWD=%s,NODE_M_PORT=%d,OBJ_M_PORT=%d,MEX_PORT=%d,MAG_PORT=%d,WPORT_S=%d,WPORT_E=%d,"
+             "DATADIR=\"%s\",WRKDIR=\"$HOME/scratch\" "
              "$HOME/navex/navex/ray/worker-%s.sbatch") % (
                 '' if type is None else ('-C %s' % type),
                 cpus or head.config['data']['workers'],

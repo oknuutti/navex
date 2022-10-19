@@ -62,10 +62,13 @@ ssh -f -N -T -o StrictHostKeyChecking=no \
              -L "$H_OBJ_M_PORT:127.0.0.1:$H_OBJ_M_PORT" \
              -L "$H_NODE_M_PORT:127.0.0.1:$H_NODE_M_PORT" \
              -L "$H_GCS_PORT:127.0.0.1:$H_GCS_PORT" \
+             -L "$H_RCLI_PORT:127.0.0.1:$H_RCLI_PORT" \
+             -L "$H_MAG_PORT:127.0.0.1:$H_MAG_PORT" \
              $H_WPORT_TUNNELS \
              -R "$NODE_M_PORT:127.0.0.1:$NODE_M_PORT" \
              -R "$OBJ_M_PORT:127.0.0.1:$OBJ_M_PORT" \
              -R "$MEX_PORT:127.0.0.1:$MEX_PORT" \
+             -R "$MAG_PORT:127.0.0.1:$MAG_PORT" \
              $WPORT_TUNNELS \
              "$HEAD_HOST"
 
@@ -85,7 +88,7 @@ srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0
                                 --head-gcs-port="$H_GCS_PORT" \
                                 --head-min-worker-port="$H_WPORT_S" --head-max-worker-port="$H_WPORT_E" \
                                 --object-manager-port="$OBJ_M_PORT" --node-manager-port="$NODE_M_PORT" \
-                                --metrics-export-port="$MEX_PORT" \
+                                --metrics-export-port="$MEX_PORT" --metrics-agent-port="$MAG_PORT" \
                                 --min-worker-port="$WPORT_S" --max-worker-port="$WPORT_E" \
                                 --maxmem=8000000000
 #                                --head-raylet-port=$H_RLET_PORT --head-object-store-port=$H_OBJ_S_PORT \
