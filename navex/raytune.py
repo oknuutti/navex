@@ -107,11 +107,12 @@ class RayTuneHeadNode:
             namespace=ray_constants.KV_NAMESPACE_DASHBOARD,
         )
         if dashboard_rpc_address:
-            logging.info("dashboard_rpc_address=%s" % (dashboard_rpc_address,))
+            dashboard_rpc_port = int(dashboard_rpc_address.decode().split(':')[1])
+            logging.info("dashboard_rpc_address=%s, port=%d" % (dashboard_rpc_address, dashboard_rpc_port))
         else:
+            dashboard_rpc_port = 44444
             logging.warning("couldn't retrieve dashboard_rpc_address")
-            dashboard_rpc_address = 44444
-        self.local_ports.append(dashboard_rpc_address)
+        self.local_ports.append(dashboard_rpc_port)
 
         # do this somehow better
         self.remote_ports = self.local_ports
