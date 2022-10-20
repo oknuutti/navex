@@ -96,6 +96,8 @@ def main():
                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
         logging.info('waiting 30s before interfacing with python...')
         time.sleep(30)
+        logging.info('testing if node manager port works...')
+        os.system("nc -z -v 127.0.0.1 %d" % args.node_manager_port)
 
         addr = ray.init(address=head_address, logging_level=logging.DEBUG,
                         _redis_password=args.redis_password)

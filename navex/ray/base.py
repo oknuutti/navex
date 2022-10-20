@@ -305,7 +305,7 @@ class MySkOptSearch(SkOptSearch):
         super(MySkOptSearch, self).setup_skopt()
 
     def save(self, checkpoint_path: str):
-        trials_object = (self._parameters, self._initial_points, self._skopt_opt)
+        save_object = self.__dict__
         with open(checkpoint_path, "wb") as outputFile:
             p = pickle.Pickler(outputFile)
 
@@ -314,17 +314,21 @@ class MySkOptSearch(SkOptSearch):
             p.dispatch_table[{}.keys().__class__] = lambda x: (list, (list(x),))
             p.dispatch_table[{}.values().__class__] = lambda x: (list, (list(x),))
 
-            p.dump(trials_object)
+            p.dump(save_object)
 
     def restore(self, checkpoint_path: str):
         with open(checkpoint_path, "rb") as inputFile:
-            trials_object = pickle.load(inputFile)
-        i = 0
-        if len(trials_object) == 3:
-            self._parameters = trials_object[0]
-            i = 1
-        self._initial_points = trials_object[0 + i]
-        self._skopt_opt = trials_object[1 + i]
+            save_object = pickle.load(inputFile)
+            if not isinstance(save_object, dict):
+                # backwards compatibility
+                i = 0
+                if len(save_object) == 3:
+                    self._parameters = save_object[0]
+                    i = 1
+                self._initial_points = save_object[0 + i]
+                self._skopt_opt = save_object[1 + i]
+            else:
+                self.__dict__.update(save_object)
 
     @staticmethod
     def convert_search_space(spec: Dict, join: bool = False) -> Dict:
