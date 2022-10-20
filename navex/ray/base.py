@@ -234,7 +234,8 @@ def tune_asha(search_conf, hparams, full_conf):
         reuse_actors=False,     # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
         max_failures=20,
         resume=search_conf['resume'].lower() == 'true',
-#        local_dir=search_conf['results_path'] or None, # defaults to ~/ray_results
+        local_dir="~/ray_results",                  # defaults to ~/ray_results
+        sync_config=tune.SyncConfig(syncer=None),   # disable local_dir syncing as it's done by the filesystem
         # checkpoint_freq=200,      # if use functional api, this wont have any effect
         # checkpoint_at_end=True,   # if use functional api, this wont have any effect
         keep_checkpoints_num=1,
