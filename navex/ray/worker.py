@@ -94,7 +94,8 @@ def main():
 
         logging.info('ray worker node started with details: %s' % ((
                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
-        logging.info('interfacing with python...')
+        logging.info('waiting 30s before interfacing with python...')
+        time.sleep(30)
 
         addr = ray.init(address=head_address, logging_level=logging.DEBUG,
                         _redis_password=args.redis_password)

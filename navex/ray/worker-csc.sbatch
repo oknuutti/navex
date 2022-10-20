@@ -88,7 +88,7 @@ export RAY_raylet_client_connect_timeout_milliseconds=`shuf -i 1000-3000 -n 1`
 export RAY_worker_register_timeout_seconds=120
 export RAY_BACKEND_LOG_LEVEL=debug
 export TUNE_RESULT_DIR="$SCRATCH/output"
-sleep `shuf -i 0-300 -n 1`s
+sleep `shuf -i 0-60 -n 1`s
 srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0.0.1:$HEAD_PORT" \
                                 --redis-shard-ports="$H_SHARD_PORTS" --redis-password="$H_REDIS_PWD" \
                                 --head-object-manager-port="$H_OBJ_M_PORT" --head-node-manager-port="$H_NODE_M_PORT" \
