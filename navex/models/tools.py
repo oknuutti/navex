@@ -8,6 +8,8 @@ import torch
 from torch import nn
 from torch.functional import F
 
+from ..losses.ap import DifferentiableAP
+
 
 def calc_padding(tensor, div):
     hpad = (-tensor.shape[-1]) % div
@@ -208,8 +210,7 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
                                          ).float(), 2), dim=0)
         labels = gt_dist_b < success_px_limit ** 2
 
-        from r2d2.nets.ap_loss import APLoss
-        ap_loss = APLoss()  # TODO: calculate actual AP
+        ap_loss = DifferentiableAP()  # TODO: calculate actual AP
         ap_loss.to(x.device)
         t = ap_loss(x, labels)  # AP for each feature from img0
         num_ap = torch.logical_not(torch.isnan(t)).sum()

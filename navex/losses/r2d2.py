@@ -35,6 +35,7 @@ class R2D2Loss(BaseLoss):
             self.ap_loss = WeightedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type == 'thresholded':
             self.ap_loss = ThresholdedAPLoss(base=base, nq=nq, warmup_batches=1500, sampler_conf=sampler)
+            self.log_peakiness = wqt < 0
         elif loss_type == 'logthresholded':
             self.ap_loss = LogThresholdedAPLoss(base=base, nq=nq, sampler_conf=sampler)
         elif loss_type in ('disk', 'disk-p'):
@@ -134,8 +135,12 @@ class R2D2Loss(BaseLoss):
 
             eps = 1e-5
             lib = math if isinstance(self.wdt, float) else torch
-            p_loss = -torch.log(self.peakiness_loss.max_loss - p_loss + eps) * self.wpk * 2
-            c_loss = -torch.log(1 - c_loss + eps) * (1 - self.wpk) * 2
+            if self.log_peakiness:
+                p_loss = -torch.log(self.peakiness_loss.max_loss - p_loss + eps) * self.wpk * 2
+                c_loss = -torch.log(1 - c_loss + eps) * (1 - self.wpk) * 2
+            else:
+                p_loss = p_loss * self.wpk * 2
+                c_loss = c_loss * (1 - self.wpk) * 2
             p_loss = lib.exp(-self.wdt) * p_loss + 0.5 * self.wdt
             c_loss = lib.exp(-self.wdt) * c_loss + 0.5 * self.wdt
         else:

@@ -16,8 +16,10 @@ from ray.autoscaler._private.cli_logger import cli_logger, cf
 logger = logging.getLogger(__name__)
 
 # monkey patching node ip address so that can use tunneling
+# NOTE: might not work, consider editing source directly <env-path>/lib/python3.8/site-packages/ray/_private/services.py
 services.get_node_ip_address = lambda x=None: '127.0.0.1'
-services.resolve_ip_for_localhost = lambda x: x
+services.resolve_ip_for_localhost = lambda x: '127.0.0.1'
+services.node_ip_address_from_perspective = lambda x: '127.0.0.1'
 
 # injecting a sleep as might help with dying / hanging trials, see https://github.com/ray-project/ray/issues/11239
 from ray.tune.trial_runner import TrialRunner
