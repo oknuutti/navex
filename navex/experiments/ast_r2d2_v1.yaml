@@ -36,6 +36,9 @@ training:
   reduced_precision: !h_int 0
   auto_lr_find: 0
   deterministic: 1
+  accuracy:
+    det_mode: 'nms'
+    det_kernel_size: 3
 
 model:
   arch: !h_str 'disk-def'
@@ -68,18 +71,18 @@ model:
 
 loss:
   loss_type: !h_str thresholded
-  wpk: !h_float -0.2      # peakiness vs cosim
-  wdt: !h_float  0.5      # weight for peakiness and cosim losses
-  wap: !h_float  2.0      # weight for expected ap loss
-  wqt: !h_float -1.0      # weight for expected ap loss
-  det_n: !h_int  24       # detector neighbourhood size
+  wpk: !h_float -0.33      # peakiness vs cosim
+  wdt: !h_float  0.25      # weight for peakiness and cosim losses
+  wap: !h_float  1.0      # weight for expected ap loss
+  wqt: !h_float -1.0      # if type=thresholded < 0 use log peakiness & cosim; if type=discounted, other use
+  det_n: !h_int  32       # detector neighbourhood size
   base: !h_float 0.6      # quality loss target mAP
   nq: 20              # quantizer bins for ap calc
   sampler:            # was for a descriptor head that is same resolution than input image of size [192, 192]
     subq: -8          # was -8      # grid step size for positive samples
     subd: 1           # was 1       # neigbourhood sampling interval
     pos_d: 1          # was 3       # positive samples generated up to this far from ideal location
-    neg_d: !h_int 10  # was 5       # negative samples generated starting from distance from ideal location
+    neg_d: !h_int 20  # was 5       # negative samples generated starting from distance from ideal location
     ngh: 2            # was 7       # neighbourhood size in descriptor cells
     border: 16        # was 16
     subd_neg: -8      # was -8      # grid step size for generating additional negative samples
@@ -89,7 +92,7 @@ loss:
 optimizer:
   method: 'adam'
   learning_rate: !h_float 1e-3
-  weight_decay: !h_float 1e-6
+  weight_decay: !h_float 3e-7
   split_params: 0
   eps: !h_float 1e-8
 
@@ -98,7 +101,7 @@ data:
   max_rot: !h_float 10.0     # in degrees, synth pair warp related
   max_shear: !h_float 0.0    # synth pair warp related
   max_proj: !h_float 0.75    # synth pair warp related
-  noise_max: !h_float 0.03
+  noise_max: !h_float 0.10
   rnd_gain: !h_float 1.2
   image_size: !h_int 224
   path: 'data'
