@@ -98,10 +98,10 @@ class GuidedSampler(torch.nn.Module):
         distr = des2[bd, :, yd, xd]
         dscores = torch.matmul(s_des1, distr.t())
 
-        # remove scores that corresponds to positives (in same image)
+        # remove scores that are too close to the positives (in same image)
         dis2 = (xd - xy2[0][:, None]) ** 2 + (yd - xy2[1][:, None]) ** 2
-        dis2 += (bd != b[:, None]).long() * self.pos_r ** 2
-        dscores[dis2 < self.pos_r ** 2] = 0
+        dis2 += (bd != b[:, None]).long() * self.neg_min_r ** 2
+        dscores[dis2 < self.neg_min_r ** 2] = 0
 
         scores = torch.cat((pscores, dscores) if self.neg_offsets is None else (pscores, nscores, dscores), dim=1)
         labels = scores.new_zeros(scores.shape, dtype=torch.bool)
