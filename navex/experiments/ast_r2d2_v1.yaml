@@ -74,7 +74,7 @@ loss:
   wpk: !h_float -0.33      # peakiness vs cosim
   wdt: !h_float  0.25      # weight for peakiness and cosim losses
   wap: !h_float  1.0      # weight for expected ap loss
-  wqt: !h_float -1.0      # if type=thresholded < 0 use log peakiness & cosim; if type=discounted, other use
+  wqt: !h_float  1.0      # if type=thresholded < 0 use log peakiness & cosim; if type=discounted, other use
   det_n: !h_int  32       # detector neighbourhood size
   base: !h_float 0.6      # quality loss target mAP
   nq: 20              # quantizer bins for ap calc

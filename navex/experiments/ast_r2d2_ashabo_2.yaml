@@ -74,7 +74,7 @@ loss:
   wpk: !h_tune2_uniform  '(-0.22, -0.18), (-0.5, -0.05)'  # weight of peakiness vs cosim loss
   wdt: !h_tune2_uniform  '(0.23, 0.27), (0.1, 1.0)'       # weight for peakiness and cosim losses
   wap:  1.0       # weight for expected ap loss
-  wqt: -1.0       # if type=thresholded < 0 use log peakiness & cosim; if type=discounted, other use
+  wqt:  1.0       # if type=thresholded < 0 use log peakiness & cosim; if type=discounted, other use
   det_n: !h_tune2_randint  '(23, 25), (16, 32)'     # detector neighbourhood size
   base: !h_tune2_uniform  '(0.58, 0.62), (0.5, 0.99)'       # quality loss target mAP
   nq: 20          # quantizer bins for ap calc
