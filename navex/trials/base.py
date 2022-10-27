@@ -137,6 +137,9 @@ class TrialBase(abc.ABC, torch.nn.Module):
         # img1 = img1 * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
         # plt.imshow(np.concatenate((img0, img1), axis=1))
         # plt.show()
+        if 0:
+            # enable to debug nans in gradient
+            torch.autograd.set_detect_anomaly(True)
 
         self.model.train()
         output1 = self.model(data[0])
