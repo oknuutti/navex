@@ -4,7 +4,7 @@ from torch.functional import F
 
 
 class CosSimilarityLoss(Module):
-    def __init__(self, n=16, use_max=False, exclude_nans=True):
+    def __init__(self, n=16, use_max=False, exclude_nans=False):
         super(CosSimilarityLoss, self).__init__()
         self.patches = Unfold(n, padding=0, stride=n // 2)
         self.use_max = use_max

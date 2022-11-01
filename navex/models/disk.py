@@ -6,10 +6,56 @@ from torch.nn import functional as F
 #            `pip install git+https://github.com/jatentaki/torch-localize` and
 #            `pip install git+https://github.com/jatentaki/torch-dimcheck`
 import unets
+from unets.utils import cut_to_match
+from torch_localize import localized
+from torch_dimcheck import dimchecked
 
 from . import tools
 from .r2d2 import R2D2
 from navex.datasets.tools import unit_aflow
+from .mobile_ap import SqueezeExcitation
+
+
+class ThinUnetDownSEBlock(nn.Module):
+    def __init__(self, in_, out_, size=5, name=None, is_first=False, setup=None, squeeze_factor=4):
+        super(ThinUnetDownSEBlock, self).__init__()
+
+        self.name = name
+        self.in_ = in_
+        self.out_ = out_
+
+        if is_first:
+            self.downsample = unets.ops.NoOp()
+            self.conv = unets.blocks.Conv(in_, out_, size, setup={**setup, 'gate': unets.ops.NoOp, 'norm': unets.ops.NoOp})
+        else:
+            self.downsample = setup['downsample'](in_, size, setup=setup)
+            self.conv = unets.blocks.Conv(in_, out_, size, setup=setup)
+
+        self.se = SqueezeExcitation(in_, squeeze_factor)
+
+    def forward(self, x):
+        x = self.downsample(x)
+        x = self.se(x)
+        x = self.conv(x)
+        return x
+
+
+class ThinUnetUpSEBlock(unets.blocks.ThinUnetUpBlock):
+    def __init__(self, *args, squeeze_factor=4, **kwargs):
+        super(ThinUnetUpSEBlock, self).__init__(*args, **kwargs)
+        self.se = SqueezeExcitation(self.cat_, squeeze_factor)
+
+    @localized
+    @dimchecked
+    def forward(self, bot: ['b', 'fb', 'hb', 'wb'],
+                      hor: ['b', 'fh', 'hh', 'wh']
+               )        -> ['b', 'fo', 'ho', 'wo']:
+
+        bot_big = self.upsample(bot)
+        hor = unets.utils.cut_to_match(bot_big, hor, n_pref=2)
+        combined = torch.cat([bot_big, hor], dim=1)
+        weighted = self.se(combined)
+        return self.conv(weighted)
 
 
 class DISK(R2D2):
@@ -35,6 +81,10 @@ class DISK(R2D2):
         down_channels = [16, 32, 64, 64, 64][:-self.depth_reduction or None]
         up_channels = [64, 64, 64, bb_ch_out][self.depth_reduction:]
         setup = {**(unets.fat_setup if arch == 'fat' else unets.thin_setup), 'bias': True, 'padding': True}
+
+        if 1 and arch != 'fat':
+            setup['down_block'] = ThinUnetDownSEBlock
+            setup['up_block'] = ThinUnetUpSEBlock
 
         unet = unets.Unet(in_features=in_channels, size=kernel_size, down=down_channels, up=up_channels, setup=setup)
 
