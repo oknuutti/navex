@@ -55,11 +55,13 @@ class ConvBNActivation(nn.Sequential):
 
 class SqueezeExcitation(nn.Module):
 
-    def __init__(self, input_channels: int, squeeze_factor: int = 4):
+    def __init__(self, input_channels: int, squeeze_factor: int = 4, lightweight: bool = True, residual: bool = False):
         super().__init__()
+        self.lightweight = lightweight
+        self.residual = residual
         squeeze_channels = _make_divisible(input_channels // squeeze_factor, 8)
         self.fc1 = nn.Conv2d(input_channels, squeeze_channels, 1)
-        self.relu = nn.ReLU6(inplace=True)                                  # NOTE: change from ReLU to ReLU6 !!!
+        self.relu = (nn.ReLU6 if lightweight else nn.ReLU)(inplace=True)     # NOTE: change from ReLU to ReLU6 !!!
         self.fc2 = nn.Conv2d(squeeze_channels, input_channels, 1)
 
     def _scale(self, input: Tensor, inplace: bool) -> Tensor:
@@ -67,11 +69,12 @@ class SqueezeExcitation(nn.Module):
         scale = self.fc1(scale)
         scale = self.relu(scale)
         scale = self.fc2(scale)
-        return F.hardsigmoid(scale, inplace=inplace)
+        scale = F.hardsigmoid(scale, inplace=inplace) if self.lightweight else F.sigmoid(scale)
+        return scale
 
     def forward(self, input: Tensor) -> Tensor:
         scale = self._scale(input, True)
-        return scale * input
+        return scale * input + (input if self.residual else 0)
 
 
 class InvertedResidualConfig:

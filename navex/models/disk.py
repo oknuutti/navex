@@ -31,19 +31,19 @@ class ThinUnetDownSEBlock(nn.Module):
             self.downsample = setup['downsample'](in_, size, setup=setup)
             self.conv = unets.blocks.Conv(in_, out_, size, setup=setup)
 
-        self.se = SqueezeExcitation(in_, squeeze_factor)
+        self.se = SqueezeExcitation(out_, squeeze_factor, lightweight=False, residual=False)
 
     def forward(self, x):
         x = self.downsample(x)
-        x = self.se(x)
         x = self.conv(x)
+        x = self.se(x)
         return x
 
 
 class ThinUnetUpSEBlock(unets.blocks.ThinUnetUpBlock):
     def __init__(self, *args, squeeze_factor=4, **kwargs):
         super(ThinUnetUpSEBlock, self).__init__(*args, **kwargs)
-        self.se = SqueezeExcitation(self.cat_, squeeze_factor)
+        self.se = SqueezeExcitation(self.out_, squeeze_factor, lightweight=False, residual=False)
 
     @localized
     @dimchecked
@@ -53,9 +53,10 @@ class ThinUnetUpSEBlock(unets.blocks.ThinUnetUpBlock):
 
         bot_big = self.upsample(bot)
         hor = unets.utils.cut_to_match(bot_big, hor, n_pref=2)
-        combined = torch.cat([bot_big, hor], dim=1)
-        weighted = self.se(combined)
-        return self.conv(weighted)
+        x = torch.cat([bot_big, hor], dim=1)
+        x = self.conv(x)
+        x = self.se(x)
+        return x
 
 
 class DISK(R2D2):
@@ -82,12 +83,15 @@ class DISK(R2D2):
         up_channels = [64, 64, 64, bb_ch_out][self.depth_reduction:]
         setup = {**(unets.fat_setup if arch == 'fat' else unets.thin_setup), 'bias': True, 'padding': True}
 
-        if 1 and arch != 'fat':
+        if arch == 'se':
             setup['down_block'] = ThinUnetDownSEBlock
+            setup['up_block'] = ThinUnetUpSEBlock
+        elif arch == 'dse':
+            setup['down_block'] = ThinUnetDownSEBlock
+        elif arch == 'use':
             setup['up_block'] = ThinUnetUpSEBlock
 
         unet = unets.Unet(in_features=in_channels, size=kernel_size, down=down_channels, up=up_channels, setup=setup)
-
         return unet, up_channels[-1]
 
     def _maybe_pad(self, input):
