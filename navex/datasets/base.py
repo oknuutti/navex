@@ -5,6 +5,7 @@ import re
 import random
 
 import numpy as np
+import quaternion
 import PIL
 import cv2
 
@@ -20,7 +21,7 @@ from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, C
     RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
     PairRandomHorizontalFlip, Clamp, UniformNoise, MatchChannels
 
-from .tools import ImageDB, find_files, find_files_recurse, load_aflow
+from .tools import ImageDB, find_files, find_files_recurse, load_aflow, if_none_q, q_times_v, normalize_v, eul_to_q
 
 from .. import RND_SEED
 
@@ -46,7 +47,7 @@ class ImagePairDataset(VisionDataset):
         self.samples = self._load_samples()
 
     def __getitem__(self, idx):
-        (img1_pth, img2_pth), aflow_pth = self.samples[idx]
+        (img1_pth, img2_pth), aflow_pth, *meta = self.samples[idx]
 
         try:
             img1 = self.image_loader(img1_pth)
@@ -62,7 +63,7 @@ class ImagePairDataset(VisionDataset):
             raise DataLoadingException("Problem with dataset %s, index %s: %s" %
                                        (self.__class__, idx, self.samples[idx],)) from e
 
-        return (img1, img2), aflow
+        return (img1, img2), aflow, *meta
 
     def __len__(self):
         return len(self.samples)
@@ -93,15 +94,35 @@ class DatabaseImagePairDataset(ImagePairDataset):
         dbfile = os.path.join(self.root, 'dataset_all.sqlite')
         self.index = ImageDB(dbfile) if os.path.exists(dbfile) else None
 
-        index = dict(self.index.get_all(('id', 'file')))
+        index = {}
+        for id, file, sc_sun_x, sc_sun_y, sc_sun_z, sc_qw, sc_qx, sc_qy, sc_qz, img_angle, \
+                      sc_trg_x, sc_trg_y, sc_trg_z, trg_qw, trg_qx, trg_qy, trg_qz in self.index.get_all((
+                          'id', 'file', 'sc_sun_x', 'sc_sun_y', 'sc_sun_z', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
+                          'img_angle', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz')):
+            index[id] = dict(file=file, sc_sun_v=np.array([sc_sun_x, sc_sun_y, sc_sun_z]),
+                                        sc_q=if_none_q(sc_qw, sc_qx, sc_qy, sc_qz, fallback=quaternion.one)
+                                             * eul_to_q((img_angle or 0,), 'x').conj(),
+                                        sc_trg_v=np.array([sc_trg_x, sc_trg_y, sc_trg_z]),
+                                        trg_q=if_none_q(trg_qw, trg_qx, trg_qy, trg_qz, fallback=np.quaternion(*[np.nan]*4)))
+
         aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png')
 
         get_id = lambda f, i: int(f.split(os.path.sep)[-1].split('.')[0].split('_')[i])
         aflow = [f for f in aflow if get_id(f, 0) in index and get_id(f, 1) in index]
         self.indices = [(get_id(f, 0), get_id(f, 1)) for f in aflow]
-        imgs = [(os.path.join(self.root, index[i]), os.path.join(self.root, index[j])) for i, j in self.indices]
+        imgs = [(os.path.join(self.root, index[i]['file']),
+                 os.path.join(self.root, index[j]['file'])) for i, j in self.indices]
+        rel_q = [((index[i]['sc_q'].conj() * index[i]['trg_q']).conj()
+                 * (index[j]['sc_q'].conj() * index[j]['trg_q'])).components for i, j in self.indices]
+        rel_dist = [np.linalg.norm(index[j]['sc_trg_v'])
+                    / np.linalg.norm(index[i]['sc_trg_v']) for i, j in self.indices]
+        light1 = [np.ones((3,))*np.nan if index[i]['sc_q'] == quaternion.one else
+                  q_times_v(index[i]['sc_q'].conj(), -normalize_v(index[i]['sc_sun_v'].astype(float))) for i, j in self.indices]
+        light2 = [np.ones((3,))*np.nan if index[j]['sc_q'] == quaternion.one else
+                  q_times_v(index[j]['sc_q'].conj(), -normalize_v(index[j]['sc_sun_v'].astype(float))) for i, j in self.indices]
 
-        samples = list(zip(imgs, aflow))
+        meta = (rel_q, rel_dist, light1, light2)
+        samples = list(zip(imgs, aflow, *meta))
         return samples
 
 
@@ -256,6 +277,7 @@ class AugmentedPairDatasetMixin:
         if fill_value is None:
             self.fill_value = AugmentedPairDatasetMixin.TR_NORM_RGB.mean if self.rgb else AugmentedPairDatasetMixin.TR_NORM_MONO.mean
         self._init_transf()
+        self._upd_tranf()
 
     def _init_transf(self):
         self._train_transf = ComposedTransforms([
@@ -284,11 +306,19 @@ class AugmentedPairDatasetMixin:
             PhotometricTransform(Clamp(0, 1)),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
         ])
-        self.transforms = self._eval_transf if self.eval else self._train_transf
+        self._test_transf = ComposedTransforms([
+            PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
+            GeneralTransform(tr.ToTensor()),
+            PhotometricTransform(Clamp(0, 1)),
+            PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
+        ])
+
+    def _upd_tranf(self):
+        self.transforms = {False: self._train_transf, True: self._eval_transf, 'test': self._test_transf}[self.eval]
 
     def set_eval(self, eval):
         self.eval = eval
-        self.transforms = self._eval_transf if self.eval else self._train_transf
+        self._upd_tranf()
 
 
 class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
@@ -320,7 +350,7 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
                 tr.RandomCrop(self.image_size),
                 tr.ToTensor(),
                 tr.RandomHorizontalFlip(),
-                UniformNoise(0.1),
+                UniformNoise(self.noise_max),
                 # RandomDarkNoise(0, self.noise_max, 0.008, 3),
                 # TODO: config access to all color jitter params
                 tr.ColorJitter(tuple(np.array(self.rnd_gain) - 1)[-1], 0.2, 0.2, 0.1)
@@ -351,7 +381,16 @@ class AugmentedDatasetMixin(AugmentedPairDatasetMixin):
             ]),
         ]
 
-        self.transforms = self._eval_transf if self.eval else self._train_transf
+        self._test_transf =tr.Compose([
+            tr.Compose([
+                IdentityTransform() if self.rgb else tr.Grayscale(num_output_channels=1),
+                tr.ToTensor()]),
+            IdentityTransform(),
+            tr.Compose([
+                Clamp(0, 1),
+                self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB,
+            ]),
+        ])
 
 
 class BasicDataset(VisionDataset, AugmentedDatasetMixin):

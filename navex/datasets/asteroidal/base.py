@@ -14,8 +14,12 @@ from ..tools import ImageDB, spherical2cartesian, q_times_v, vector_rejection, a
     unit_aflow, show_pair, save_aflow, valid_asteriod_area, rotate_expand_border
 
 
+def not_aflow_file(path):
+    return not path.endswith('.aflow.png')
+
+
 class AsteroidImagePairDataset(DatabaseImagePairDataset):
-    def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, model_north=(0, 0, 1),
+    def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, model_north=(0, 0, 1), cam=None,
                  cam_axis=(0, 0, 1), cam_up=(0, -1, 0), aflow_rot_norm=True, preproc_path=None,
                  extra_crop=None, **kwargs):
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
@@ -26,7 +30,7 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
         self.extra_crop = [0, 0, 0, 0] if extra_crop is None else extra_crop   # left, right, top, bottom
         self.preproc_path = preproc_path
 
-        self.cam_axis, self.cam_up = np.array(cam_axis), np.array(cam_up)
+        self.cam, self.cam_axis, self.cam_up = cam, np.array(cam_axis), np.array(cam_up)
         self.model_north = np.array(model_north)
         self.trg_north_ra, self.trg_north_dec = trg_north_ra, trg_north_dec
         if self.trg_north_ra is None or self.trg_north_dec is None:
@@ -140,6 +144,9 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
         aflow_pth = os.path.join(self.preproc_path, folder, r_aflow_pth[len(self.root):].strip(os.sep))
         os.makedirs(os.path.dirname(aflow_pth), exist_ok=True)
         save_aflow(aflow_pth, n_aflow)
+
+        # save image rotation angles
+        self.index.set(('id', 'img_angle'), list(zip(self.indices[idx], (-proc_imgs[0][2], -proc_imgs[1][2]))))
 
         return (img1, img2), n_aflow
 

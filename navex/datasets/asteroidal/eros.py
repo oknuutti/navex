@@ -1,8 +1,9 @@
 import math
 import os
 
-from .base import AsteroidImagePairDataset
-from ..base import AugmentedPairDatasetMixin
+from .base import AsteroidImagePairDataset, not_aflow_file
+from ..base import AugmentedPairDatasetMixin, BasicDataset
+from ..preproc.eros_msi import CAM
 
 
 class ErosPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
@@ -18,5 +19,10 @@ class ErosPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           aflow_rot_norm=aflow_rot_norm, extra_crop=[0, 0, 10, 6],
                                           trg_north_ra=math.radians(11.38), trg_north_dec=math.radians(17.18),
-                                          model_north=[1, 0, 0])
+                                          model_north=[1, 0, 0], cam=CAM)
         # axis ra & dec from https://science.sciencemag.org/content/289/5487/2097/tab-figures-data
+
+
+class ErosDataset(BasicDataset):
+    def __init__(self, root='data', folder='eros', **kwargs):
+        super(ErosDataset, self).__init__(root, folder, ext='.png', folder_depth=2, test=not_aflow_file, **kwargs)

@@ -10,7 +10,6 @@ import time
 import gzip
 import logging
 import requests
-from bs4 import BeautifulSoup
 
 from tqdm import tqdm
 import numpy as np
@@ -29,6 +28,8 @@ from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_
 CAM = Camera(resolution=(537-29, 412), center=((537 - 28) / 2 - 0.5 - 1, 412/2 - 0.5),
              pixel_size=16e-6, focal_length=0.16735, f_num=[0.9, 3.85])
 REF_NORTH_V = spherical2cartesian(math.radians(11.38), math.radians(17.18), 1)
+
+# can browse data at https://sbnarchive.psi.edu/pds3/near/NEAR_A_MSI_3_EDR_EROS_ORBIT_V1_0/
 
 
 def main():
@@ -84,6 +85,8 @@ def main():
 
     # find all archives from src, dont include if in archives_done
     page = requests.get(args.src)  # , verify=False)
+
+    from bs4 import BeautifulSoup
     soup = BeautifulSoup(page.content, 'html.parser')
     archives = [a['href']
                 for a in soup.find_all(name="a")

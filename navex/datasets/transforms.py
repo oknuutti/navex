@@ -20,24 +20,24 @@ class GeneralTransform:
     def __init__(self, transform):
         self.transform = transform
 
-    def __call__(self, images, aflow):
-        return tuple(map(self.transform, images)), self.transform(aflow)
+    def __call__(self, images, aflow, *meta):
+        return tuple(map(self.transform, images)), self.transform(aflow), *meta
 
 
 class IdentityTransform:
     def __init__(self):
         pass
 
-    def __call__(self, data):
-        return data
+    def __call__(self, data, *meta):
+        return data, *meta
 
 
 class PairedIdentityTransform:
     def __init__(self):
         pass
 
-    def __call__(self, images, aflow):
-        return images, aflow
+    def __call__(self, images, aflow, *meta):
+        return images, aflow, *meta
 
 
 class PhotometricTransform:
@@ -46,23 +46,25 @@ class PhotometricTransform:
         self.single = single
         self.skip_1st = skip_1st
 
-    def __call__(self, images, aflow=None):
-        if aflow is None:
-            images, aflow = images
+    def __call__(self, images, *aflow_meta):
+        if len(aflow_meta) == 0:
+            (images, aflow), meta = images, tuple()
+        else:
+            aflow, meta = aflow_meta[0], aflow_meta[1:]
         return (self.transform(images) if self.single else (
                    (images[0], *map(self.transform, images[1:])) if self.skip_1st else
                    tuple(map(self.transform, images))
-               )), aflow
+               )), aflow, *meta
 
 
 class ComposedTransforms:
     def __init__(self, transforms):
         self.transforms = transforms
 
-    def __call__(self, images, aflow):
+    def __call__(self, images, aflow, *meta):
         for transform in self.transforms:
             images, aflow = transform(images, aflow)
-        return images, aflow
+        return images, aflow, *meta
 
 
 class MatchChannels:
@@ -113,7 +115,7 @@ class PairRandomScale(RandomScale):
         super(PairRandomScale, self).__init__(*args, **kwargs)
         self.resize_img2 = resize_img2
 
-    def __call__(self, imgs, aflow):
+    def __call__(self, imgs, aflow, *meta):
         img1, img2 = imgs
         w, h = img1.size
         img1 = super(PairRandomScale, self).__call__(img1)
@@ -130,7 +132,7 @@ class PairRandomScale(RandomScale):
             if w != nw or h != nh:
                 aflow *= nw / w
 
-        return (img1, img2), aflow
+        return (img1, img2), aflow, *meta
 
 
 class ScaleToRange(RandomScale):
@@ -147,7 +149,7 @@ class PairRandomHorizontalFlip:
     def __init__(self, p=0.5):
         self.p = p
 
-    def __call__(self, imgs, aflow):
+    def __call__(self, imgs, aflow, *meta):
         img1, img2 = imgs
         w2, h2 = img2.size
 
@@ -157,7 +159,7 @@ class PairRandomHorizontalFlip:
             aflow = np.fliplr(aflow).copy()
             aflow[:, :, 0] = w2 - aflow[:, :, 0]
 
-        return (img1, img2), aflow
+        return (img1, img2), aflow, *meta
 
 
 class PairRandomCrop:
@@ -195,7 +197,7 @@ class PairRandomCrop:
         bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc
         return bst_idxs, rnd_idxs
 
-    def __call__(self, imgs, aflow, debug=False):
+    def __call__(self, imgs, aflow, *meta, debug=False):
         img1, img2 = imgs
         n, m = self.shape
 
@@ -320,7 +322,7 @@ class PairRandomCrop:
         assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
         assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
 
-        return (c_img1, c_img2), c_aflow
+        return (c_img1, c_img2), c_aflow, *meta
 
     def _pad(self, min_size, img, aflow, first):
         w, h = img.size
@@ -345,8 +347,8 @@ class PairCenterCrop(PairRandomCrop):
         super(PairCenterCrop, self).__init__(shape, random=0, margin=margin, max_sc_diff=max_sc_diff,
                                              random_sc_diff=False, blind_crop=blind_crop, fill_value=fill_value)
 
-    def __call__(self, imgs, aflow):
-        return super(PairCenterCrop, self).__call__(imgs, aflow)
+    def __call__(self, imgs, aflow, *meta):
+        return super(PairCenterCrop, self).__call__(imgs, aflow, *meta)
 
 
 class RandomHomography:
@@ -471,10 +473,10 @@ class RandomHomography:
 
 
 class RandomHomography2(RandomHomography):
-    def __call__(self, imgs, aflow):
+    def __call__(self, imgs, aflow, *meta):
         img1, img2 = imgs
         img2, aflow = super(RandomHomography2, self).__call__(img2, aflow=aflow)
-        return (img1, img2), aflow
+        return (img1, img2), aflow, *meta
 
 
 class RandomTiltWrapper(RandomTilt):
@@ -497,7 +499,7 @@ class RandomTiltWrapper(RandomTilt):
 
 
 class RandomTiltWrapper2(RandomTiltWrapper):
-    def __call__(self, imgs, aflow):
+    def __call__(self, imgs, aflow, *meta):
         img1, img2 = imgs
         scaled_and_distorted_image = \
             super(RandomTiltWrapper, self).__call__(dict(img=img2, persp=(1, 0, 0, 0, 1, 0, 0, 0)))
@@ -512,7 +514,7 @@ class RandomTiltWrapper2(RandomTiltWrapper):
         aflow[np.logical_or(aflow[:, 0] > w2 - 1, aflow[:, 1] > h2 - 1), :] = np.nan
         aflow = aflow.reshape((h1, w1, 2))
 
-        return (img1, img2), aflow
+        return (img1, img2), aflow, *meta
 
 
 class RandomExposure:

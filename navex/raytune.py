@@ -13,9 +13,15 @@ import numpy as np
 
 import ray
 from ray import ray_constants
-from ray.dashboard import consts as dashboard_constants
 
-from .ray import overrides      # overrides e.g. services.get_node_ip_address
+try:
+    from ray.dashboard import consts as dashboard_constants
+    from .ray import overrides      # overrides e.g. services.get_node_ip_address
+except:
+    print('Error importing ray.overrides, probably incompatible version of ray installed, should be 1.13.0, trying 1.2.0')
+    dashboard_constants = None
+    from .ray import overrides_120 as overrides
+
 from .ray.ssh import Connection
 from .ray.base import tune_asha, tune_pbs
 from .experiments.parser import ExperimentConfigParser, to_dict
@@ -105,7 +111,7 @@ class RayTuneHeadNode:
         dashboard_rpc_address = ray.experimental.internal_kv._internal_kv_get(
             dashboard_constants.DASHBOARD_RPC_ADDRESS,
             namespace=ray_constants.KV_NAMESPACE_DASHBOARD,
-        )
+        ) if dashboard_constants else None
         if dashboard_rpc_address:
             dashboard_rpc_port = int(dashboard_rpc_address.decode().split(':')[1])
             logging.info("dashboard_rpc_address=%s, port=%d" % (dashboard_rpc_address, dashboard_rpc_port))

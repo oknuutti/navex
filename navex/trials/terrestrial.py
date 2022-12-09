@@ -36,7 +36,7 @@ class TerrestrialTrial(TrialBase):
             for k in ('partial_residual',):     # unused, TODO: remove from definition.yaml
                 model_conf.pop(k)
 
-            if loss_conf['loss_type'] in ('disk', 'disk-p'):
+            if isinstance(loss_conf, dict) and loss_conf['loss_type'] in ('disk', 'disk-p'):
                 model_conf['qlt_head']['skip'] = True
                 model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
                 if loss_conf['sampler']['max_neg_b'] < 0:

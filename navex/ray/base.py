@@ -9,6 +9,7 @@ import sys
 from functools import partial
 from typing import Dict
 
+import numpy as np
 import torch
 
 from pytorch_lightning import LightningModule, Trainer
@@ -235,7 +236,7 @@ def tune_asha(search_conf, hparams, full_conf):
         max_failures=20,
         resume=search_conf['resume'].lower() == 'true',
         local_dir="~/ray_results",                  # defaults to ~/ray_results
-        sync_config=tune.SyncConfig(syncer=None),   # disable local_dir syncing as it's done by the filesystem
+        sync_config=tune.SyncConfig(),#syncer=None),   # disable local_dir syncing as it's done by the filesystem
         # checkpoint_freq=200,      # if use functional api, this wont have any effect
         # checkpoint_at_end=True,   # if use functional api, this wont have any effect
         keep_checkpoints_num=1,
@@ -358,7 +359,9 @@ class MySkOptSearch(SkOptSearch):
             if isinstance(domain, Integer):
                 return sko_sp.Integer(domain.lower, domain.upper, prior=prior, name=name)
             if isinstance(domain, Categorical):
-                return sko_sp.Categorical(domain.categories, name=name)
+                if isinstance(domain.categories[0], (float, int)):
+                    return MyCategorical(domain.categories, name=name, transform='identity')
+                return MyCategorical(domain.categories, name=name, transform='label')
 
             raise ValueError("SkOpt does not support parameters of type "
                              "`{}`".format(type(domain).__name__))
@@ -379,6 +382,45 @@ class MySkOptSearch(SkOptSearch):
         logging.info('trial %s result: %s' % (trial_id, result))
         ensure_nice(5)
         super(MySkOptSearch, self)._process_result(trial_id, result)
+
+
+class MyCategorical(sko_sp.Categorical):
+    def set_transformer(self, transform="onehot"):
+        if transform not in ("label", "identity"):
+            super(MyCategorical, self).set_transformer(transform)
+        else:
+            dtype = np.float64 if isinstance(self.categories[0], float) else np.int64
+            labels = np.arange(len(self.categories)) if transform == 'label' else np.array(self.categories, dtype=dtype)
+            self.transformer = CustomLabelEncoder(self.categories, labels)
+
+
+class CustomLabelEncoder(sko_sp.transformers.Transformer):
+    def __init__(self, X=None, labels=None):
+        self.labels = np.array(labels)
+        if X is not None:
+            self.fit(X)
+
+    def fit(self, X):
+        if self.labels is None:
+            self.labels = np.arange(len(X))
+        assert len(X) == len(self.labels), 'the number of categories does not match the set of labels provided'
+        X = np.array(X)
+        self.mapping_ = {v: k for k, v in zip(self.labels, X)}
+        self.inverse_mapping_ = X
+        return self
+
+    def transform(self, X):
+        if not isinstance(X, (np.ndarray, list, tuple)):
+            X = [X]
+        X = np.array(X)
+        return [self.mapping_[x] for x in X]
+
+    def inverse_transform(self, Xt):
+        if not isinstance(Xt, (np.ndarray, list, tuple)):
+            Xt = [Xt]
+        Xt = np.array(Xt)
+        I = np.argmin(np.abs(self.labels[:, None] - Xt[None, :]), axis=0)
+        return [self.inverse_mapping_[i] for i in I]
 
 
 class MyTuneCheckpointCallback(TuneCallback):

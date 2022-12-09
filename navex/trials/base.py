@@ -195,8 +195,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
         assert self.loss_fn is not None, 'loss function not implemented'
         return self.loss_fn(output1, output2, labels, component_loss=component_loss)
 
-    def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor, top_k=None, feat_d=0.001, border=16,
-                 mutual=True, ratio=False, success_px_limit=5, det_lim=0.5, qlt_lim=0.5):
+    def accuracy(self, output1: Tensor, output2: Tensor, aflow: Tensor):
 
         des1, det1, qlt1 = output1
         des2, det2, qlt2 = output2
@@ -302,9 +301,9 @@ class StudentTrialMixin:
         _, _, H2, W2 = det2.shape
         p = self.accuracy_params.copy()
 
-        skipped_qlt = self.model.conf.get('qlt_head', {'skip': False}).get('skip', False)
-        if skipped_qlt:
-            p['det_lim'] *= 0.5
+        # skipped_qlt = self.model.conf.get('qlt_head', {'skip': False}).get('skip', False)
+        # if skipped_qlt:
+        #     p['det_lim'] *= 0.5
 
         yx1, conf1, descr1 = tools.detect_from_dense(des1, det1, qlt1, top_k=p['top_k'], feat_d=p['feat_d'],
                                                      det_lim=p['det_lim'], qlt_lim=p['qlt_lim'], border=p['border'],

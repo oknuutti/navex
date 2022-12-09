@@ -1,8 +1,8 @@
 import os
 import math
 
-from .base import AsteroidSynthesizedPairDataset
-from ..base import AugmentedPairDatasetMixin
+from .base import AsteroidSynthesizedPairDataset, not_aflow_file
+from ..base import AugmentedPairDatasetMixin, BasicDataset
 from ..tools import find_files_recurse
 
 
@@ -25,3 +25,8 @@ class BennuSynthPairDataset(AsteroidSynthesizedPairDataset, AugmentedPairDataset
 
     def _load_samples(self):
         return find_files_recurse(self.root, ext='.png')
+
+
+class BennuDataset(BasicDataset):
+    def __init__(self, root='data', folder='bennu/tagcams', **kwargs):
+        super(BennuDataset, self).__init__(root, folder, ext='.png', folder_depth=2, test=not_aflow_file, **kwargs)

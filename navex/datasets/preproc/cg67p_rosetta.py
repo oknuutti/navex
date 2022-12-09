@@ -24,6 +24,8 @@ INSTR = {
 }
 # https://naif.jpl.nasa.gov/pub/naif/pds/data/ro_rl-e_m_a_c-spice-6-v1.0/rossp_1000/DATA/IK/ROS_OSIRIS_V15.TI
 
+# can browse data at e.g. https://archives.esac.esa.int/psa/ftp/INTERNATIONAL-ROSETTA-MISSION/NAVCAM
+
 
 def main():
     parser = argparse.ArgumentParser('Download and process data from Rosetta about C-G/67P')

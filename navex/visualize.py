@@ -400,14 +400,16 @@ def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, colo
                 else:
                     img = img * np.array(GRAY_STD, dtype=np.float32) + np.array(GRAY_MEAN, dtype=np.float32)
             elif scale:
-                img = (img - img.min(axis=(0, 1))) / (img.max(axis=(0, 1)) - img.min(axis=(0, 1)))
+                val_range = img.max(axis=(0, 1)) - img.min(axis=(0, 1))
+                img = (img - img.min(axis=(0, 1))) / (1 if val_range == 0 else val_range)
 
             if image and img.shape[2] == 1:
                 img = np.repeat(img, 3, axis=2)
 
         if heatmap is not None:
             overlay = heatmap[i, :, :, :].permute((1, 2, 0)).cpu().numpy()
-            overlay = (overlay - overlay.min(axis=(0, 1))) / (overlay.max(axis=(0, 1)) - overlay.min(axis=(0, 1)))
+            val_range = overlay.max(axis=(0, 1)) - overlay.min(axis=(0, 1))
+            overlay = (overlay - overlay.min(axis=(0, 1))) / (1 if val_range == 0 else val_range)
 
             if color_map == 'hsv':
                 s, c = 0.33, 0.10

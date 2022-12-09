@@ -41,7 +41,7 @@ training:
     det_kernel_size: 3
 
 model:
-  arch:             !h_tune2_choice  '["mob-mn2_M"], ["mob-mn2_M", "mob-mn3_L", "mob-en_L"]'
+  arch:             "mob-mn2_M"   # "mob-mn2_M", "mob-mn3_L", "mob-en_L"
   in_channels:      1
   partial_residual: 0
   width_mult:       1.0
@@ -49,15 +49,15 @@ model:
   cache_dir: 'cache'    # not in use
   des_head:  # should add 3x3 vs 5x5 kernel in hidden layer? or do preliminary testing?
     dimensions:  128
-    hidden_ch:   !h_tune2_randint   '(128, 128), (96, 192)'
-    exp_coef:    !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
-    use_se:      !h_tune2_choice   '[0], [0, 1]'
+    hidden_ch:   128  # !h_tune2_randint   '(128, 128), (96, 192)'
+    exp_coef:    6.0  # !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
+    use_se:      0    # !h_tune2_choice   '[0], [0, 1]'
     dropout:     0.0
   det_head:  # should add 3x3 vs 5x5 kernel in hidden layer? or do preliminary testing?
     after_des:   0
-    hidden_ch:   !h_tune2_randint   '(65, 65), (0, 130)'
-    exp_coef:    !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
-    use_se:      !h_tune2_choice   '[0], [0, 1]'
+    hidden_ch:   65   # !h_tune2_randint   '(65, 65), (0, 130)'
+    exp_coef:    6.0  # !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
+    use_se:      0    # !h_tune2_choice   '[0], [0, 1]'
     dropout:     0.0
     act_fn_type: 'R2D2'
   qlt_head:
@@ -79,7 +79,7 @@ loss:
 optimizer:
   method: 'adam'
   learning_rate: 0.001
-  weight_decay:  !h_tune2_loguniform  '(0.9e-6, 1.1e-6), (1e-9, 1e-4)'
+  weight_decay:  0.000001   # !h_tune2_loguniform  '(0.9e-6, 1.1e-6), (1e-9, 1e-4)'
   split_params:  0
   eps:           0.00000001   # tried to optimize, doesn't seem to affect much
 
@@ -90,10 +90,10 @@ data:
   max_proj:  0.5    # synth pair warp related
   noise_max: 0.05
   rnd_gain:  1.2
-  student_rnd_gain: !h_tune2_uniform '(1.08, 1.12), (1.0, 1.3)'
-  student_noise_sd: !h_tune2_uniform '(0.02, 0.03), (0.00, 0.10)'
+  student_rnd_gain: 1.1    # !h_tune2_uniform '(1.08, 1.12), (1.0, 1.3)'
+  student_noise_sd: 0.025  # !h_tune2_uniform '(0.02, 0.03), (0.00, 0.10)'
   image_size: 512
-  path: 'data/rot-cg67p-osinac.tar;data/cg67p-navcam.tar;data/rot-eros-msi.tar;data/bennu-tagcams.tar;data/rot-synth-bennu-v3.tar;data/rot-itokawa-amica.tar'
+  path: 'data'
   npy: 'false'
   trn_ratio: 0.85
   val_ratio: 0.15

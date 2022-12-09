@@ -11,8 +11,10 @@ import quaternion
 
 from navex.datasets.preproc.tools import read_raw_img, write_data, safe_split, create_image_pairs, check_img, \
     relative_pose, calc_target_pose
-from navex.datasets.tools import ImageDB, find_files, Camera, q_times_v, angle_between_v, spherical2cartesian, eul_to_q, \
-    plot_vectors
+from navex.datasets.tools import ImageDB, find_files, Camera, q_times_v, angle_between_v, spherical2cartesian, \
+    eul_to_q, plot_vectors
+
+CAM = Camera(resolution=(1024, 1024), center=(511.5, 511.5), pixel_size=12e-6, focal_length=0.1208, f_num=8.0)
 
 
 def raw_itokawa():
@@ -53,7 +55,6 @@ def raw_itokawa():
     #   - https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/hayhost.cat
     #   - https://naif.jpl.nasa.gov/pub/naif/pds/data/hay-a-spice-6-v1.0/haysp_1000/data/ik/amica31.ti
 
-    cam = Camera(resolution=(1024, 1024), center=(511.5, 511.5), pixel_size=12e-6, focal_length=0.1208, f_num=8.0)
     north_ra, north_dec = math.radians(90.53), math.radians(-66.30)
     ref_north_v = spherical2cartesian(north_dec, north_ra, 1)
 #    meta2icrf_q = quaternion.one
@@ -87,7 +88,7 @@ def raw_itokawa():
             #     metadata['sc_ori'] = meta2icrf_q.conj() * metadata['sc_ori'] * meta2icrf_q
 
             metadata['sc_ori'], sc_trg_pos, trg_ori = \
-                    calc_target_pose(data[:, :, :3], cam, metadata['sc_ori'], ref_north_v)
+                    calc_target_pose(data[:, :, :3], CAM, metadata['sc_ori'], ref_north_v)
 
             ok = check_img(img, fg_q=150, sat_lo_q=0.995)
             rand = np.random.uniform(0, 1) if ok else -1

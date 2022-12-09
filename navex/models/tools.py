@@ -8,8 +8,6 @@ import torch
 from torch import nn
 from torch.functional import F
 
-from ..losses.ap import DifferentiableAP
-
 
 def calc_padding(tensor, div):
     hpad = (-tensor.shape[-1]) % div
@@ -102,7 +100,7 @@ def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt
     return yx, scores, descr
 
 
-def match(des1, des2, norm=2, mutual=True, ratio=False):
+def match(des1, des2, norm=2, mutual=True, ratio=0):
     B, D, K1 = des1.shape
     _, _, K2 = des2.shape
     dev = des1.device
@@ -194,29 +192,50 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
         # features detected per 100x100 px area
         acc[b, 0] = 1e4 * ((0 <= yx1[b, 0, :]).sum() + (0 <= yx2[b, 0, :]).sum()) / active_area / 2
 
-        # success ratio (nan if no ground truth)
+        # success ratio (nan if no ground truth), aka matching score or M-score
         acc[b, 1] = num_successes / num_true_matches[b]
 
-        # inlier ratio (nan if no valid matches)
+        # inlier ratio (nan if no valid matches), aka mean matching accuracy or MMA
         acc[b, 2] = num_successes / num_matches[b]
 
-        # average distance error of successful matches (nan if no inliers)
+        # average distance error of successful matches (nan if no inliers), aka Localization Error, LE
         acc[b, 3] = err_dist_b[success_b].mean()
 
-        # calculate average precision
-        x = 1 - 0.5 * dist[b, mask[b, :], :]
-        gt_dist_b = torch.sum(torch.pow((gt_yx2[b, :, mask[b, :]].view((2, num_matches[b], 1)).expand((2, num_matches[b], K2))
-                                         - yx2[b, :, :].view((2, 1, K2)).expand((2, num_matches[b], K2))
-                                         ).float(), 2), dim=0)
+        # calculate mean Average Precision (mAP)
+        gt_dist_b = torch.sum(
+            torch.pow((gt_yx2[b, :, mask[b, :]].view((2, num_matches[b], 1)).expand((2, num_matches[b], K2))
+                       - yx2[b, :, :].view((2, 1, K2)).expand((2, num_matches[b], K2))
+                       ).float(), 2), dim=0)
         labels = gt_dist_b < success_px_limit ** 2
+        acc[b, 4] = mAP(dist[b, mask[b, :], :], labels, descending=False)
 
-        ap_loss = DifferentiableAP()  # TODO: calculate actual AP
-        ap_loss.to(x.device)
-        t = ap_loss(x, labels)  # AP for each feature from img0
-        num_ap = torch.logical_not(torch.isnan(t)).sum()
-        acc[b, 4] = t.nansum() / num_ap  # mAP
+        if 0:
+            from ..losses.ap import DifferentiableAP
+            apfn = DifferentiableAP(bins=100, euclidean=False)
+            map0 = acc[b, 4]
+            map1 = apfn(1 - dist[b, mask[b, :], :], labels)
+            map2 = apfn(1 - 0.5 * dist[b, mask[b, :], :], labels)
+            print('mAP: %s vs %s vs %s' % (map0, *map(lambda t: t.nansum()/torch.logical_not(torch.isnan(t)).sum(), (map1, map2))))
 
     return acc
+
+
+def mAP(scores, labels, descending=True):
+    # dist.shape is (K1, K2)
+    assert scores.shape == labels.shape, 'shapes of scores and labels does not match: %s, %s' % (scores.shape, labels.shape)
+
+    index = torch.argsort(scores, dim=1, descending=descending)
+    sorted_labels = torch.gather(labels, 1, index)
+
+    # prepare for ap calculation
+    cum_correct = sorted_labels.cumsum(dim=1)
+    cum_precision = cum_correct / cum_correct[:, -1:]
+
+    # average precision, per query
+    ap = cum_precision.mean(dim=1)
+
+    num_ap = torch.logical_not(torch.isnan(ap)).sum()
+    return ap.nansum() / num_ap   # mAP
 
 
 def load_model(path, device, model_only=False):

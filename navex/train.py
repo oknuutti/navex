@@ -12,11 +12,12 @@ import torch
 
 from pytorch_lightning.callbacks import EarlyStopping
 
-from navex.trials.aerial import AerialTrial
-from navex.trials.asteroidal import AsteroidalTrial
-from navex.trials.terrastudent import TerraStudentTrial
-from .experiments.parser import ExperimentConfigParser, to_dict
+from .trials.aerial import AerialTrial
+from .trials.asteroidal import AsteroidalTrial
+from .trials.asterostudent import AsteroStudentTrial
 from .trials.terrestrial import TerrestrialTrial
+from .trials.terrastudent import TerraStudentTrial
+from .experiments.parser import ExperimentConfigParser, to_dict
 from .lightning.base import TrialWrapperBase, MyLogger, MyModelCheckpoint, MyTrainer
 
 PROFILING_ONLY = 0
@@ -45,7 +46,7 @@ def main():
     gpu_batch_size = args.batch_size // acc_grad_batches
 
     TrialClass = {cls.NAME: cls for cls in (
-        TerrestrialTrial, TerraStudentTrial, AsteroidalTrial, AerialTrial,  # AstraStudentTrial, AeroStudentTrial
+        TerrestrialTrial, TerraStudentTrial, AsteroidalTrial, AerialTrial, AsteroStudentTrial   #, AeroStudentTrial
     )}.get(args.trial, None)
     assert TrialClass is not None, 'invalid trial: %s' % args.trial
 
@@ -165,7 +166,7 @@ def preprocess_data(model, config):
 
             ds.preproc_path = config.preproc_path
             for i in tqdm.trange(len(ds)):
-                imgs, aflow = ds[i]
+                imgs, aflow, *_ = ds[i]
 
             with open(os.path.join(outpath, "preprocessed.flag"), 'w') as fh:
                 fh.write('')

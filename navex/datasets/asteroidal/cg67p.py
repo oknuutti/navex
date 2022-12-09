@@ -1,8 +1,9 @@
 import os
 import math
 
-from .base import AsteroidSynthesizedPairDataset, AsteroidImagePairDataset
-from ..base import AugmentedPairDatasetMixin
+from .base import AsteroidSynthesizedPairDataset, AsteroidImagePairDataset, not_aflow_file
+from ..base import AugmentedPairDatasetMixin, BasicDataset
+from ..preproc.cg67p_rosetta import INSTR
 from ..tools import find_files_recurse, ImageDB
 
 
@@ -39,5 +40,15 @@ class CG67pOsinacPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           aflow_rot_norm=aflow_rot_norm, extra_crop=[3, 10, 0, 0],
                                           trg_north_ra=math.radians(69.3), trg_north_dec=math.radians(64.1),
-                                          model_north=[0, 1, 0])
+                                          model_north=[0, 1, 0], cam=INSTR['osinac']['cam'])
         # axis ra & dec from http://www.esa.int/ESA_Multimedia/Images/2015/01/Comet_vital_statistics
+
+
+class CG67pNavcamDataset(BasicDataset):
+    def __init__(self, root='data', folder='cg67p/navcam', **kwargs):
+        super(CG67pNavcamDataset, self).__init__(root, folder, ext='.png', folder_depth=2, test=not_aflow_file, **kwargs)
+
+
+class CG67pOsinacDataset(BasicDataset):
+    def __init__(self, root='data', folder='cg67p/osinac', **kwargs):
+        super(CG67pOsinacDataset, self).__init__(root, folder, ext='.png', folder_depth=2, test=not_aflow_file, **kwargs)

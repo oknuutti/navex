@@ -1,4 +1,4 @@
-
+import os
 import argparse
 
 import numpy as np
@@ -33,23 +33,84 @@ def main():
     parser.add_argument("--max-scale", type=float, default=1)
     parser.add_argument("--det-lim", type=float, default=0.7)
     parser.add_argument("--qlt-lim", type=float, default=0.7)
+    parser.add_argument("--kernel-size", type=int, default=3)
+    parser.add_argument("--det-mode", default='nms')
     parser.add_argument("--border", type=int, default=16, help="dont detect features if this close to image border")
     parser.add_argument("--gpu", type=int, default=1)
     args = parser.parse_args()
 
-    extractor = Extractor(args.model, gpu=args.gpu, top_k=args.top_k, feat_d=args.feat_d, border=args.border,
-                          scale_f=args.scale_f, min_size=args.min_size, max_size=args.max_size,
-                          min_scale=args.min_scale, max_scale=args.max_scale, det_lim=args.det_lim,
-                          qlt_lim=args.qlt_lim)
+    ext = Extractor(args.model, gpu=args.gpu, top_k=args.top_k, feat_d=args.feat_d, border=args.border,
+                    scale_f=args.scale_f, min_size=args.min_size, max_size=args.max_size,
+                    min_scale=args.min_scale, max_scale=args.max_scale, det_lim=args.det_lim,
+                    qlt_lim=args.qlt_lim, mode=args.det_mode, kernel_size=args.kernel_size)
 
-    extractor.extract(args.images, recurse=args.recurse, save_ext=args.tag, verbose=True)
+    sie = SingleImageExtractor(ext, save_ext=args.tag, verbose=True)
+
+    sie.extract(args.images, args.recurse)
+
+
+class SingleImageExtractor:
+    def __init__(self, extractor: 'Extractor', save_ext=None, verbose=False):
+        self.extractor = extractor
+        self.save_ext = save_ext
+        self.verbose = verbose
+
+    def extract(self, images, recurse=True, debug_det=False):
+        if self.save_ext is None:
+            keypoint_arr = []
+            descriptor_arr = []
+            score_arr = []
+
+        if not isinstance(images, DataLoader):
+            dataset = ExtractionImageDataset(images, rgb=self.extractor.rgb, recurse=recurse)
+            data_loader = DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True)
+        else:
+            data_loader = images
+
+        pbar = tqdm(data_loader) if self.verbose else data_loader
+        for i, data in enumerate(pbar):
+            force_cpu = False
+            for _ in range(2):
+                try:
+                    xys, desc, scores = self.extractor.extract(data, force_cpu=force_cpu, debug_det=debug_det)
+                    break
+                except RuntimeError as e:
+                    # raise Exception('Problem with image #%d (%s)' % (i, dataset.samples[i])) from e
+                    print('Problem with image #%d (%s): %s' % (i, data_loader.dataset.samples[i], str(e)))
+                    if force_cpu or not self.extractor.gpu:
+                        raise e
+                    print('trying with CPU...')
+                    force_cpu = True
+
+            if self.save_ext is None:
+                keypoint_arr.append(xys)
+                descriptor_arr.append(desc)
+                score_arr.append(scores)
+            else:
+                outpath = data_loader.dataset.samples[i] + '.' + self.save_ext
+                with open(outpath, 'wb') as fh:
+                    np.savez(fh, imsize=data.shape[2:],
+                             keypoints=xys,
+                             descriptors=desc,
+                             scores=scores)
+            if self.verbose:
+                pbar.set_postfix({'scales': len(np.unique(xys[:, 2])), 'keypoints': len(xys)})
+
+        if self.save_ext is None:
+            if len(keypoint_arr) == 1:
+                keypoint_arr, descriptor_arr, score_arr = keypoint_arr[0], descriptor_arr[0], score_arr[0]
+            return keypoint_arr, descriptor_arr, score_arr
 
 
 class Extractor:
-    def __init__(self, model, gpu=True, top_k=None, border=None, feat_d=0.001, scale_f=2**(1/4), min_size=256,
-                 max_size=1024, min_scale=0.0, max_scale=1.0, det_lim=0.7, qlt_lim=0.7):
+    def __init__(self, model, gpu=True, top_k=None, border=None, feat_d=0.001, scale_f=2 ** (1 / 4), min_size=256,
+                 max_size=1024, min_scale=0.0, max_scale=1.0, det_lim=0.7, qlt_lim=0.7,
+                 mode='nms', kernel_size=3, verbose=False):
         if gpu is None:
             gpu = torch.has_cuda
+        if not gpu:
+            torch.set_num_threads(os.cpu_count() // 2 - 1)
+
         self.gpu = gpu
         self.device = "cuda:0" if gpu else "cpu"
         self.model = load_model(model, self.device)
@@ -72,78 +133,44 @@ class Extractor:
         self.max_scale = max_scale
         self.det_lim = det_lim
         self.qlt_lim = qlt_lim
+        self.mode = mode
+        self.kernel_size = kernel_size
+        self.verbose = verbose
 
-    def extract(self, images, recurse=True, save_ext=None, verbose=False, debug_det=False):
-        if save_ext is None:
-            keypoint_arr = []
-            descriptor_arr = []
-            score_arr = []
-
-        dataset = ExtractionImageDataset(images, rgb=self.rgb, recurse=recurse)
-        data_loader = DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True)
-        pbar = tqdm(data_loader) if verbose else data_loader
-
-        for i, data in enumerate(pbar):
-            # if not ('v_abstract' in dataset.samples[i] or 'v_gardens' in dataset.samples[i]):
-            #     continue
-            if isinstance(self.model, str):
-                xys, desc, scores = extract_traditional(self.model, data, top_k=self.top_k,
-                                                        feat_d=self.feat_d, border=self.border)
+    def extract(self, image, debug_det=False, force_cpu=False):
+        if isinstance(self.model, str):
+            xys, desc, scores = extract_traditional(self.model, image, top_k=self.top_k,
+                                                    feat_d=self.feat_d, border=self.border)
+        else:
+            if force_cpu:
+                image = image.cpu()
+                self.model.cpu()
             else:
-                data = data.to(self.device)
+                image = image.to(self.device)
+                self.model.to(self.device)
 
-                # extract keypoints/descriptors for a single image
-                cpu = not self.gpu
-                for _ in range(2):
-                    try:
-                        xys, desc, scores = extract_multiscale(self.model, data,
-                                                               scale_f=self.scale_f,
-                                                               min_scale=self.min_scale,
-                                                               max_scale=self.max_scale,
-                                                               min_size=self.min_size,
-                                                               max_size=self.max_size,
-                                                               top_k=self.top_k,
-                                                               feat_d=self.feat_d,
-                                                               det_lim=self.det_lim,
-                                                               qlt_lim=self.qlt_lim,
-                                                               border=self.border,
-                                                               verbose=verbose,
-                                                               plot=debug_det)
-                        break
-                    except RuntimeError as e:
-                        # raise Exception('Problem with image #%d (%s)' % (i, dataset.samples[i])) from e
-                        print('Problem with image #%d (%s): %s' % (i, dataset.samples[i], str(e)))
-                        if cpu:
-                            raise e
-                        print('trying with CPU...')
-                        cpu = True
-                        self.model.cpu()
-                        data = data.cpu()
-                if cpu and self.gpu:
-                    self.model.to(self.device)
+            # extract keypoints/descriptors for a single image
+            xys, desc, scores = extract_multiscale(self.model, image,
+                                                   scale_f=self.scale_f,
+                                                   min_scale=self.min_scale,
+                                                   max_scale=self.max_scale,
+                                                   min_size=self.min_size,
+                                                   max_size=self.max_size,
+                                                   top_k=self.top_k,
+                                                   feat_d=self.feat_d,
+                                                   det_lim=self.det_lim,
+                                                   qlt_lim=self.qlt_lim,
+                                                   det_mode=self.mode,
+                                                   det_krn_size=self.kernel_size,
+                                                   border=self.border,
+                                                   verbose=self.verbose,
+                                                   plot=debug_det)
 
-            idxs = (-scores).argsort()
-            if self.top_k is not None and self.top_k != 0:
-                idxs = idxs[:self.top_k]
+        idxs = (-scores).argsort()
+        if self.top_k is not None and self.top_k != 0:
+            idxs = idxs[:self.top_k]
 
-            if save_ext is None:
-                keypoint_arr.append(xys[idxs])
-                descriptor_arr.append(desc[idxs])
-                score_arr.append(scores[idxs])
-            else:
-                outpath = dataset.samples[i] + '.' + save_ext
-                with open(outpath, 'wb') as fh:
-                    np.savez(fh, imsize=data.shape[2:],
-                             keypoints=xys[idxs],
-                             descriptors=desc[idxs],
-                             scores=scores[idxs])
-            if verbose:
-                pbar.set_postfix({'scales': len(np.unique(xys[idxs, 2])), 'keypoints': len(idxs)})
-
-        if save_ext is None:
-            if len(keypoint_arr) == 1:
-                keypoint_arr, descriptor_arr, score_arr = keypoint_arr[0], descriptor_arr[0], score_arr[0]
-            return keypoint_arr, descriptor_arr, score_arr
+        return xys[idxs], desc[idxs], scores[idxs]
 
 
 def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=1.0, min_size=256, max_size=1024,
@@ -178,15 +205,9 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             with torch.no_grad():
                 des, det, qlt = model(img)
 
-            try:
-                skipped_qlt = model.trial.model.conf['qlt_head']['skip']
-            except:
-                skipped_qlt = False
-
             _, _, H1, W1 = det.shape
             yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, feat_d=feat_d,
-                                                      det_lim=det_lim * (0.5 if skipped_qlt else 1),
-                                                      qlt_lim=qlt_lim, border=border,
+                                                      det_lim=det_lim, qlt_lim=qlt_lim, border=border,
                                                       kernel_size=det_krn_size, mode=det_mode)
 
             # accumulate multiple scales

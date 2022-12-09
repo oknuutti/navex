@@ -1,7 +1,8 @@
 import os
 
-from .base import AsteroidImagePairDataset
-from ..base import AugmentedPairDatasetMixin
+from .base import AsteroidImagePairDataset, not_aflow_file
+from ..base import AugmentedPairDatasetMixin, BasicDataset
+from ..preproc.synth import CAM
 
 
 class SynthBennuPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
@@ -14,4 +15,9 @@ class SynthBennuPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin)
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                            max_sc=1.0, margin=margin, fill_value=0, eval=eval, rgb=False,
                                            blind_crop=False)
-        AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms)
+        AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms, cam=CAM)
+
+
+class SynthBennuDataset(BasicDataset):
+    def __init__(self, root='data', folder='synth', **kwargs):
+        super(SynthBennuDataset, self).__init__(root, folder, ext='.png', folder_depth=2, test=not_aflow_file, **kwargs)

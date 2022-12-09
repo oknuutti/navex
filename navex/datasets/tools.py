@@ -33,8 +33,8 @@ def _find_files_recurse(root, path, samples, npy, ext, test, depth, relative):
                     print('%s' % e)
             if ok:
                 samples.append(os.path.join(path, fname) if relative else fullpath)
-            else:
-                print('rejected: %s' % fullpath)
+            elif 0:
+                print('rejected: %s' % fullpath)    # use to debug
         elif depth > 0 and os.path.isdir(fullpath):
             _find_files_recurse(root, os.path.join(path, fname), samples, npy, ext, test, depth-1, relative)
 
@@ -117,6 +117,11 @@ def valid_asteriod_area(img, min_intensity=50, remove_limb=True):
     return mask
 
 
+def normalize_v(v):
+    l = np.linalg.norm(v)
+    return v if l == 0 else v/l
+
+
 def ypr_to_q(dec, ra, cna):
     if dec is None or ra is None or cna is None:
         return None
@@ -178,7 +183,7 @@ def cartesian2spherical(x, y, z):
     return np.array([lat, lon, r])
 
 
-def nadir_unit_v(sc_trg_q):
+def tf_view_unit_v(sc_trg_q):
     # following assumed, not certain if necessary though:
     #   - cam: +x bore, +z up
     #   - trg: +x zero lat & lon, +z north pole
@@ -269,6 +274,11 @@ def angle_between_q(q1, q2):
 
 def wrap_rads(a):
     return (a + np.pi) % (2 * np.pi) - np.pi
+
+
+def if_none_q(w, x, y, z, fallback=None):
+    c = [w, x, y, z]
+    return fallback if np.any([v is None for v in c]) else np.quaternion(*c)
 
 
 def preprocess_image(data, gamma):

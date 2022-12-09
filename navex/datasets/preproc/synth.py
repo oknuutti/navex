@@ -7,7 +7,17 @@ from tqdm import tqdm
 import numpy as np
 
 from navex.datasets.preproc.tools import load_xyzs, calc_aflow
-from navex.datasets.tools import ImageDB, angle_between_v, save_aflow, nadir_unit_v
+from navex.datasets.tools import ImageDB, angle_between_v, save_aflow, tf_view_unit_v, Camera
+
+# # camera params from osiris-rex tagcams
+# #   https://sbnarchive.psi.edu/pds4/orex/orex.tagcams/document/tagcams_inst_desc.pdf
+# # sensor datasheet
+# #   https://www.onsemi.com/pdf/datasheet/mt9p031-d.pdf
+# # lens reference
+# #   http://www.msss.com/brochures/xfov.pdf
+ow, oh, sc = 2592, 1944, 0.5
+CAM = Camera(resolution=(int(sc * ow), int(sc * oh)), center=((ow - 1) * sc / 2, (oh - 1) * sc / 2),
+             pixel_size=2.2e-6 / sc, focal_length=7.7e-3, f_num=3.5)
 
 
 def raw_synth():
@@ -35,18 +45,6 @@ def raw_synth():
     # parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
-
-    # # camera params from osiris-rex tagcams
-    # #   https://sbnarchive.psi.edu/pds4/orex/orex.tagcams/document/tagcams_inst_desc.pdf
-    # # sensor datasheet
-    # #   https://www.onsemi.com/pdf/datasheet/mt9p031-d.pdf
-    # # lens reference
-    # #   http://www.msss.com/brochures/xfov.pdf
-    #
-    # ow, oh, sc = 2592, 1944, 0.5
-    # cam = Camera(resolution=(int(sc * ow), int(sc * oh)), center=((ow - 1) * sc / 2, (oh - 1) * sc / 2),
-    #              pixel_size=2.2e-6 / sc, focal_length=7.7e-3, f_num=3.5)
-
     logging.basicConfig(level=logging.INFO)
 
     os.makedirs(args.dst, exist_ok=True)
@@ -83,8 +81,8 @@ def raw_synth():
             pairs[a].append((b, id, fname))
 
             dists[id] = np.linalg.norm([sc_trg_x, sc_trg_y, sc_trg_z])
-            coords[id] = nadir_unit_v((np.quaternion(sc_qw, sc_qx, sc_qy, sc_qz).conj() *
-                                       np.quaternion(trg_qw, trg_qx, trg_qy, trg_qz)))
+            coords[id] = tf_view_unit_v((np.quaternion(sc_qw, sc_qx, sc_qy, sc_qz).conj() *
+                                         np.quaternion(trg_qw, trg_qx, trg_qy, trg_qz)))
 
     index = ImageDB(index_path, truncate=True)
     index.add(('id', 'file', 'rand', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',

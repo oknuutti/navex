@@ -46,7 +46,8 @@ class TerraStudentTrial(StudentTrialMixin, TerrestrialTrial):
     def _get_datasets(self, rgb):
         if self._tr_data is None:
             dconf = {k: v for k, v in self.data_conf.items()
-                          if k in ('noise_max', 'rnd_gain', 'image_size', 'max_rot', 'max_shear', 'max_proj')}
+                          if k in ('noise_max', 'rnd_gain', 'image_size', 'max_rot', 'max_shear', 'max_proj',
+                                   'student_rnd_gain', 'student_noise_sd')}
             dconf.update(dict(eval=False, rgb=rgb, npy=json.loads(self.data_conf['npy']),
                               max_tr=0, max_rot=math.radians(dconf['max_rot'])))
 

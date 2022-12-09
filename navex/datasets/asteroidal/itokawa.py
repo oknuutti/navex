@@ -1,8 +1,9 @@
 import math
 import os
 
-from .base import AsteroidImagePairDataset
-from ..base import AugmentedPairDatasetMixin
+from .base import AsteroidImagePairDataset, not_aflow_file
+from ..base import AugmentedPairDatasetMixin, BasicDataset
+from ..preproc.itokawa_amica import CAM
 
 
 class ItokawaPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
@@ -18,4 +19,9 @@ class ItokawaPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           aflow_rot_norm=aflow_rot_norm,
                                           trg_north_ra=math.radians(90.53), trg_north_dec=math.radians(-66.30),
-                                          model_north=[0, 0, 1])
+                                          model_north=[0, 0, 1], cam=CAM)
+
+
+class ItokawaDataset(BasicDataset):
+    def __init__(self, root='data', folder='itokawa', **kwargs):
+        super(ItokawaDataset, self).__init__(root, folder, ext='.png', folder_depth=2, test=not_aflow_file, **kwargs)

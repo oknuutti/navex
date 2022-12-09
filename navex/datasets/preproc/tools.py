@@ -24,7 +24,7 @@ import numba as nb
 
 from navex.datasets import tools
 from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
-    q_times_v, angle_between_v, valid_asteriod_area, nadir_unit_v, preprocess_image, rotate_array, Camera
+    q_times_v, angle_between_v, valid_asteriod_area, tf_view_unit_v, preprocess_image, rotate_array, Camera
 from navex.experiments.parser import nested_filter
 
 
@@ -143,7 +143,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
 
         poses.append((stv, stq))
         dists.append(np.linalg.norm(stv))
-        coords.append(nadir_unit_v(stq))  # FIX(ed?): nadir_unit_v does not work for Nokia data, coord frame different there
+        coords.append(tf_view_unit_v(stq))  # FIX(ed?): nadir_unit_v does not work for Nokia data, coord frame different there
         centroid_vects.append([[float(a) for a in u] for u in ((cx1, cy1, cz1), (cx2, cy2, cz2),
                                                                (cx3, cy3, cz3), (cx4, cy4, cz4))])
 
@@ -190,8 +190,6 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
 
         # calculate angle between relative poses, ignore rotation around camera axis
         angle = math.degrees(angle_between_v(coords[i], coords[j]))
-        # was earlier angle between matched cluster vectors
-        # angle = math.degrees(2 * math.asin(np.linalg.norm(unit_vectors[i + a] - unit_vectors[j + b]) / 2))
 
         sc_diff = max(dists[i] / dists[j], dists[j] / dists[i])
         fi, fj = files[i], files[j]
@@ -222,7 +220,8 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
                 matches = np.sum(np.logical_not(np.isnan(aflow[:, :, 0])))
 
                 if matches >= min_matches:
-                    aflow = tools.rotate_aflow(aflow, xyzs1.shape[:2], angles[i], angles[j])
+                    if angles[i] and angles[j]:
+                        aflow = tools.rotate_aflow(aflow, xyzs1.shape[:2], angles[i], angles[j])
 
                     if 0:
                         debug_aflow(aflow, os.path.join(root, fi), os.path.join(root, fj), 0, 0,
@@ -681,8 +680,8 @@ def read_raw_img(path, bands, gdtype=None, ndtype=np.float32, gamma=1.0, disp_di
         allmeta, metadata, m_disp_dir = parse_metadata(path, q_wxyz)
 
     ele = {
-        'forward': 'img = np.clip(((raw_img - bg) / max_val) ** (1 / gamma) + 0.5, 0, 255).astype(np.uint8)',
-        'backward': 'raw_img = max_val * img ** gamma + bg',
+        'forward': 'img = np.clip(255*((raw_img - bg) / max_val) ** (1 / gamma) + 0.5, 0, 255).astype(np.uint8)',
+        'backward': 'raw_img = max_val * (img/255) ** gamma + bg',
         'bg': bot_v,
         'max_val': top_v - bot_v,
         'gamma': gamma,
@@ -849,7 +848,7 @@ def check_img(img, bg_q=0.04, fg_q=240, sat_lo_q=0.998, sat_hi_q=0.9999, fg_lim=
         # fg_q is instead the diameter of a half-circle in px
         fg_q = 1 - 0.5 * np.pi * (fg_q/2)**2 / np.prod(img.shape[:2])
 
-    bg, fg, sat_lo ,sat_hi = np.quantile(img, (bg_q, fg_q, sat_lo_q, sat_hi_q))
+    bg, fg, sat_lo, sat_hi = np.quantile(img, (bg_q, fg_q, sat_lo_q, sat_hi_q))
     return np.min(img.shape) >= min_side and fg - bg >= fg_lim and sat_hi - sat_lo > sat_lim
 
 

@@ -21,5 +21,5 @@ pip install -e ./r2d2
 or for Windows, [find the correct ray wheel](https://s3-us-west-2.amazonaws.com/ray-wheels/?prefix=latest/) and install like this:
 
 ```
-pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-1.9.2.dev0-cp38-cp38-win_amd64.whl
+pip install -U https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-1.10.0-cp38-cp38-win_amd64.whl
 ```
