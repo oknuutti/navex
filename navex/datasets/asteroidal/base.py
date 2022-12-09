@@ -44,7 +44,7 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
 
         if self.skip_preproc:
             if 0:
-                (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]
+                (r_img1_pth, r_img2_pth), r_aflow_pth, *meta = self.samples[idx]
                 show_pair(*imgs, aflow, pts=30, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
             return imgs, aflow
 
@@ -130,7 +130,7 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
         if self.preproc_path is None:
             return (img1, img2), n_aflow
 
-        (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]
+        (r_img1_pth, r_img2_pth), r_aflow_pth, *meta = self.samples[idx]
         if 0:
             show_pair(img1, img2, n_aflow, pts=20, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
         folder = getattr(self, 'folder', r_aflow_pth[len(self.root):].strip(os.sep).split(os.sep)[0])
