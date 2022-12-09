@@ -148,7 +148,8 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
         save_aflow(aflow_pth, n_aflow)
 
         # save image rotation angles
-        self.index.set(('id', 'img_angle'), list(zip(self.indices[idx], (-proc_imgs[0][2], -proc_imgs[1][2]))))
+        self.index.set(('id', 'file', 'img_angle'), list(zip(self.indices[idx], ('', ''),
+                                                             (-proc_imgs[0][2], -proc_imgs[1][2]))))
 
         return (img1, img2), n_aflow
 
