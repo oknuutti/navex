@@ -121,7 +121,7 @@ class DatabaseImagePairDataset(ImagePairDataset):
         light2 = [np.ones((3,))*np.nan if index[j]['sc_q'] == quaternion.one else
                   q_times_v(index[j]['sc_q'].conj(), -normalize_v(index[j]['sc_sun_v'].astype(float))) for i, j in self.indices]
 
-        meta = (rel_q, rel_dist, light1, light2)
+        meta = (rel_q, rel_dist, light1, light2)    # NOTE: needs to be mirrored in SynthesizedPairDataset
         samples = list(zip(imgs, aflow, *meta))
         return samples
 
@@ -245,7 +245,9 @@ class SynthesizedPairDataset(VisionDataset):
             raise DataLoadingException("Problem with dataset %s, index %s: %s" %
                                        (self.__class__, idx, self.samples[idx],)) from e
 
-        return (img1, img2), aflow
+        # NOTE: needs to be mirrored in DatabaseImagePairDataset
+        meta = (np.ones(4)*np.nan, np.nan, np.ones(3)*np.nan, np.ones(3)*np.nan)
+        return (img1, img2), aflow, *meta
 
     def valid_area(self, img):
         return np.ones(np.flip(img.size), dtype=bool)

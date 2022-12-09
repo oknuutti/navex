@@ -128,7 +128,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
         pass
 
     def train_batch(self, data: Tuple[Tensor, Tensor], labels: Tensor, epoch_idx: int, batch_idx: int,
-                    component_loss=False):
+                    component_loss=False, meta=None):
 
         # import matplotlib.pyplot as plt
         # import numpy as np
@@ -168,7 +168,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
                 qlt2 = self.model.activation(qlt2, fn_type=self.model.conf['qlt_head']['act_fn_type'])
                 output1_, output2_ = (des1, det1, qlt1), (des2, det2, qlt2)
 
-            acc = self.accuracy(output1, output2, labels)
+            acc = self.accuracy(output1, output2, labels)   # TODO: use "meta" datastruct for pose estim accuracy
 
         return loss, acc
 

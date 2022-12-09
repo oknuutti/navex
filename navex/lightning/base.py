@@ -117,8 +117,8 @@ class TrialWrapperBase(pl.LightningModule):
         if isinstance(self.trial, StudentTrialMixin):
             loss, acc = self.trial.train_batch(batch, epoch_id, batch_idx, component_loss=True)
         else:
-            data, labels = batch
-            loss, acc = self.trial.train_batch(data, labels, epoch_id, batch_idx, component_loss=True)
+            data, labels, *meta = batch
+            loss, acc = self.trial.train_batch(data, labels, epoch_id, batch_idx, component_loss=True, meta=meta)
 
         self._log('trn', loss, acc, self.trial.log_values())
         return {'loss': loss.sum(dim=1), 'acc': acc, 'losses': loss.detach()}
@@ -137,10 +137,10 @@ class TrialWrapperBase(pl.LightningModule):
 
     def _eval_step(self, batch, batch_idx, log_prefix):
         if isinstance(self.trial, StudentTrialMixin):
-            data = batch
+            data, *meta = batch
             loss, acc, output = self.trial.evaluate_batch(data, component_loss=True)
         else:
-            data, labels = batch
+            data, labels, *meta = batch
             loss, acc, output = self.trial.evaluate_batch(data, labels, component_loss=True)
 
         if batch_idx == 0:

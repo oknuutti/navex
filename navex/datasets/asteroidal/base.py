@@ -2,6 +2,7 @@ import os
 import math
 import sqlite3
 import logging
+import warnings
 
 import numpy as np
 import quaternion
@@ -20,7 +21,7 @@ def not_aflow_file(path):
 
 class AsteroidImagePairDataset(DatabaseImagePairDataset):
     def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, model_north=(0, 0, 1), cam=None,
-                 cam_axis=(0, 0, 1), cam_up=(0, -1, 0), aflow_rot_norm=True, preproc_path=None,
+                 cam_axis=(0, 0, 1), cam_up=(0, -1, 0), aflow_rot_norm=False, preproc_path=None,
                  extra_crop=None, **kwargs):
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
@@ -57,7 +58,9 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
         imgs = [img.crop((left, top, right[i], bottom[i])) for i, img in enumerate(imgs)]
 
         if self.aflow_rot_norm:
-            # calculate rotation angle directly from aflow
+            # calculate rotation angle directly from aflow,
+            if self.preproc_path is not None:
+                warnings.warn("NOTE: second images must be unique, i.e. cant use them in multiple pairs")
             angles = []
             for af, img in zip((unit_aflow(*imgs[0].size), aflow), imgs):
                 af = af.reshape((-1, 2))[np.logical_not(np.isnan(aflow[:, :, 0])).flatten(), :]
@@ -65,9 +68,9 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
                 angles.append(np.arctan2(v[:, 1], v[:, 0]))
             angle = np.median(((angles[1] - angles[0] + 3 * np.pi) % (2 * np.pi)) - np.pi)
             img2 = rotate_expand_border(imgs[1], angle, fullsize=True, lib='opencv', to_pil=True)
-            proc_imgs = [(np.eye(2, dtype=np.float32), imgs[0]),
+            proc_imgs = [(np.eye(2, dtype=np.float32), imgs[0], 0),
                          (np.array([[math.cos(-angle), -math.sin(-angle)],
-                                    [math.sin(-angle), math.cos(-angle)]], dtype=np.float32), img2)]
+                                    [math.sin(-angle), math.cos(-angle)]], dtype=np.float32), img2, -angle)]
         else:
             # Query self.index for relevant params, transform img0, img1 so that north is up.
             # First, calculate north vector
@@ -105,8 +108,7 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
                                             [math.sin(angle),  math.cos(angle)]], dtype=np.float32), img, angle))
 
         if 1:
-            n_aflow = tools.rotate_aflow(aflow, (imgs[1].size[1], imgs[1].size[0]), proc_imgs[0][2], proc_imgs[1][2],
-                                         legacy=True)   # TODO: switch to legacy=False
+            n_aflow = tools.rotate_aflow(aflow, (imgs[1].size[1], imgs[1].size[0]), proc_imgs[0][2], proc_imgs[1][2])
         else:
             # rotate aflow content so that points to new rotated img1
             (ow1, oh1), (ow2, oh2) = imgs[0].size, imgs[1].size

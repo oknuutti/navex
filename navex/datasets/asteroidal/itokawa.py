@@ -8,7 +8,7 @@ from ..preproc.itokawa_amica import CAM
 
 class ItokawaPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
     def __init__(self, root='data', folder='itokawa', noise_max=0.20, rnd_gain=(0.5, 2), image_size=512,
-                 aflow_rot_norm=True, margin=16, eval=False, rgb=False, npy=False):
+                 aflow_rot_norm=False, margin=16, eval=False, rgb=False, npy=False):
         assert not npy, '.npy format not supported'
         assert not rgb, 'rgb images not supported'
         self.folder = folder

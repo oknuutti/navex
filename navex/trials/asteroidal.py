@@ -18,7 +18,7 @@ class AsteroidalTrial(TerrestrialTrial):
         if self._tr_data is None:
             common = dict(margin=self.loss_fn.border, eval=False, rgb=False)
             common.update({k: v for k, v in self.data_conf.items() if k in ('noise_max', 'rnd_gain', 'image_size')})
-            pconf = dict(aflow_rot_norm=True)
+            pconf = dict(aflow_rot_norm=False)
             sconf = {k: v for k, v in self.data_conf.items() if k in ('max_sc', 'max_rot', 'max_shear', 'max_proj')}
             sconf.update({'max_tr': 0, 'max_rot': math.radians(sconf['max_rot'])})
 
