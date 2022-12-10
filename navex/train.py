@@ -161,12 +161,13 @@ def preprocess_data(model, config):
 
             outpath = os.path.join(config.preproc_path, ds.folder)
             os.makedirs(outpath, exist_ok=True)
-            copyfile(os.path.join(ds.root, "dataset_all.sqlite"),
-                     os.path.join(outpath, "dataset_all.sqlite"))
 
             ds.preproc_path = config.preproc_path
             for i in tqdm.trange(len(ds)):
                 imgs, aflow, *_ = ds[i]
+
+            copyfile(os.path.join(ds.root, "dataset_all.sqlite"),
+                     os.path.join(outpath, "dataset_all.sqlite"))
 
             with open(os.path.join(outpath, "preprocessed.flag"), 'w') as fh:
                 fh.write('')

@@ -583,12 +583,12 @@ class ImageDB:
         self._cursor.execute(f"DELETE FROM images WHERE id = {id}")
         self._conn.commit()
 
-    def set(self, fields: Tuple[str, ...], values: List[Tuple]) -> None:
+    def set(self, fields: Tuple[str, ...], values: List[Tuple], ignore: Tuple[str, ...] = None) -> None:
         if len(values) == 0:
             return
 
         assert 'id' in fields, '`id` field is required'
-        ignore_on_update = ('id',)
+        ignore_on_update = ('id',) + (tuple() if ignore is None else ignore)
         if 'rand' not in fields:
             fields = fields + ('rand',)
             values = [(row + (random.uniform(0, 1),)) for row in values]

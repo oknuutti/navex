@@ -149,7 +149,8 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
 
         # save image rotation angles
         self.index.set(('id', 'file', 'img_angle'), list(zip(self.indices[idx], ('', ''),
-                                                             (-proc_imgs[0][2], -proc_imgs[1][2]))))
+                                                             (-proc_imgs[0][2], -proc_imgs[1][2]))),
+                       ignore=('file',))  # complains about requiring file-field even if only updating old records
 
         return (img1, img2), n_aflow
 
