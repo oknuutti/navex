@@ -70,7 +70,10 @@ def main():
             write_row(args.output, key, dataset.samples[i][1], *dataset.samples[i][0], meta, metrics)
 
     # TODO:
-    #   - ground truth rel orientation is wrong around cam axis: what to do? should re-rotate all datasets?
+    #   - check that new eros and synth dataset gt orientations are ok
+    #       => aflow rotated in wrong direction, image rotations correct and same as before: check that now works
+    #   - eros, estimated rotations wildly off even though high MMA: plot matches?
+    #   - eros, same image (id 10584) used six times, thrice with over 60 deg rel ori!
     #   - compare r2d2 vs disk
     #   - decide if need to generate new synth dataset, maybe can just say there was some bug so that
     #     higher phase angles and 180 deg changes possible?
@@ -130,7 +133,7 @@ class ImagePairEvaluator:
         metrics = tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), self.success_px_limit,
                                       active_area=((H1 - brd2) * (W1 - brd2) + (H2 - brd2) * (W2 - brd2)) / 2)
 
-        # calc relative orientation error
+        # calc relative orientation error (in opencv frame: +z cam axis, -y up)
         est_q = self.ori_est.estimate(yx1, yx2, matches, mask, cam)
         if est_q is not None:
             ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
@@ -143,9 +146,9 @@ class ImagePairEvaluator:
 
 class OrientationEstimator:
     def __init__(self):
-        self.ransac_p = 0.999
-        self.ransac_err = 5
-        self.min_inliers = 15
+        self.ransac_p = 0.99999
+        self.ransac_err = 2     # decrease?
+        self.min_inliers = 30
 
     def estimate(self, yx1, yx2, matches, mask, cam: Camera):
         xy1, xy2 = map(lambda yx: torch.flipud(yx[0, :, :]).t().cpu().numpy(), (yx1, yx2))
@@ -171,6 +174,7 @@ class OrientationEstimator:
         if len(inliers) < self.min_inliers or R is None:
             return None
 
+        # in opencv: +z cam axis, -y up
         est_q = quaternion.from_rotation_matrix(R)
 
         # TODO: optimize with robust cost fun, use est_q as initial guess,

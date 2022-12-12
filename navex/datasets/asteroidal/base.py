@@ -108,7 +108,7 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
                                             [math.sin(angle),  math.cos(angle)]], dtype=np.float32), img, angle))
 
         if 1:
-            n_aflow = tools.rotate_aflow(aflow, (imgs[1].size[1], imgs[1].size[0]), proc_imgs[0][2], proc_imgs[1][2])
+            n_aflow = tools.rotate_aflow(aflow, (imgs[1].size[1], imgs[1].size[0]), -proc_imgs[0][2], -proc_imgs[1][2])
         else:
             # rotate aflow content so that points to new rotated img1
             (ow1, oh1), (ow2, oh2) = imgs[0].size, imgs[1].size

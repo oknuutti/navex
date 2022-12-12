@@ -101,7 +101,7 @@ class DatabaseImagePairDataset(ImagePairDataset):
                           'img_angle', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz')):
             index[id] = dict(file=file, sc_sun_v=np.array([sc_sun_x, sc_sun_y, sc_sun_z]),
                                         sc_q=if_none_q(sc_qw, sc_qx, sc_qy, sc_qz, fallback=quaternion.one)
-                                             * eul_to_q((img_angle or 0,), 'x').conj(),
+                                             * eul_to_q((img_angle or 0,), 'z'),  # in opencv frame: +z cam axis, -y up
                                         sc_trg_v=np.array([sc_trg_x, sc_trg_y, sc_trg_z]),
                                         trg_q=if_none_q(trg_qw, trg_qx, trg_qy, trg_qz, fallback=np.quaternion(*[np.nan]*4)))
 

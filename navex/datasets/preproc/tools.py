@@ -138,8 +138,8 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
             cams[set_id] = cam_obj(index.get_subset(set_id))
 
         stv = np.array([stx, sty, stz])
-        stq = ((np.quaternion(tqw, tqx, tqy, tqz) if tqw is not None else quaternion.one).conj() *
-               (np.quaternion(sqw, sqx, sqy, sqz) if sqw is not None else quaternion.one))
+        stq = ((np.quaternion(sqw, sqx, sqy, sqz) if sqw is not None else quaternion.one).conj() *
+               (np.quaternion(tqw, tqx, tqy, tqz) if tqw is not None else quaternion.one))  # TODO: verify
 
         poses.append((stv, stq))
         dists.append(np.linalg.norm(stv))
@@ -834,6 +834,7 @@ def calc_target_pose(xyz, cam, sc_ori, ref_north_v):
             # north.append(est_north_v)
             break
 
+    # in opencv cam frame: axis +z, up -y
     return sc_ori, sc_trg_pos, trg_ori
 
 
