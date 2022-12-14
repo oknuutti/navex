@@ -161,7 +161,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
                      np.repeat(np.atleast_2d(np.arange(0, 4)), len(ids), axis=0)), axis=2).reshape((-1, 2))[I, :]
 
     if max_dist is None:
-        if max_cluster_diff_angle > 0 and cluster_unit_vects:
+        if max_cluster_diff_angle and cluster_unit_vects:
             max_dist = 2 * math.sin(math.radians(max_cluster_diff_angle) / 2)
         else:
             max_dist = np.median(max_dists)
@@ -172,7 +172,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
     mean_pair_cands = len(pairs) / len(centroid_vects)
     logging.info('Each image (n=%d) has %.2f centroids and %.3f pair candidates on average' % (
         len(max_dists), centroids_per_img, mean_pair_cands))
-    
+
     added_pairs = set()
     image_count = Counter()
     if not os.path.exists(pairs_path):
