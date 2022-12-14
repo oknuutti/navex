@@ -383,6 +383,20 @@ def view_detections(imgs, dets, qlts, show=True, title=None):
     return fig, axs
 
 
+def tensor2img(img, i=0):
+    if len(img.shape) == 4:
+        img = img[i, :, :, :]
+    D, H, W = img.shape
+    img = img.permute((1, 2, 0)).cpu().numpy()
+
+    if D == 3:
+        img = img * np.array(RGB_STD, dtype=np.float32) + np.array(RGB_MEAN, dtype=np.float32)
+    else:
+        img = img * np.array(GRAY_STD, dtype=np.float32) + np.array(GRAY_MEAN, dtype=np.float32)
+
+    return (img * 255).astype(np.uint8)
+
+
 def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, color_map='hsv'):
     if data is not None and data.dim() == 3:
         data = data[None, :, :, :]

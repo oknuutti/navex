@@ -14,7 +14,7 @@ from .datasets.asteroidal.cg67p import CG67pOsinacPairDataset
 from .datasets.asteroidal.eros import ErosPairDataset
 from .datasets.asteroidal.itokawa import ItokawaPairDataset
 from .datasets.asteroidal.synth import SynthBennuPairDataset
-from .datasets.tools import Camera
+from .datasets.tools import Camera, q_to_ypr, from_opencv_q
 from .datasets import tools as ds_tools
 from .models import tools
 from .extract import Extractor
@@ -70,10 +70,10 @@ def main():
             write_row(args.output, key, dataset.samples[i][1], *dataset.samples[i][0], meta, metrics)
 
     # TODO:
-    #   - check that new eros and synth dataset gt orientations are ok
-    #       => aflow rotated in wrong direction, image rotations correct and same as before: check that now works
-    #   - eros, estimated rotations wildly off even though high MMA: plot matches?
-    #   - eros, same image (id 10584) used six times, thrice with over 60 deg rel ori!
+    #   - eros, itokawa & osinac pairs have been selected with wrong criteria
+    #   - fix databases for eros, itokawa, osinac
+    #   - regenerate eros, itokawa, osinac pairs
+    #   - regenerate synth dataset with no rotation except 180 deg lighting
     #   - compare r2d2 vs disk
     #   - decide if need to generate new synth dataset, maybe can just say there was some bug so that
     #     higher phase angles and 180 deg changes possible?
@@ -99,7 +99,9 @@ def write_row(file, ds, aflow, img1, img2, meta, metrics):
     root = os.path.commonpath([aflow, img1, img2])
     rlen = len(root) + 1
     rel_q = np.quaternion(*meta[0].flatten().tolist())
-    rel_angle = math.degrees(ds_tools.angle_between_q(quaternion.one, rel_q))
+
+    cam_axis = np.array([1, 0, 0])
+    rel_angle = math.degrees(ds_tools.angle_between_v(cam_axis, ds_tools.q_times_v(rel_q, cam_axis)))
 
     with open(file, 'a') as fh:
         fh.write('\t'.join(map(str, (ds, aflow[rlen:], img1[rlen:], img2[rlen:],
@@ -134,7 +136,7 @@ class ImagePairEvaluator:
                                       active_area=((H1 - brd2) * (W1 - brd2) + (H2 - brd2) * (W2 - brd2)) / 2)
 
         # calc relative orientation error (in opencv frame: +z cam axis, -y up)
-        est_q = self.ori_est.estimate(yx1, yx2, matches, mask, cam)
+        est_q = self.ori_est.estimate(yx1, yx2, matches, mask, cam)  #, debug=(img1, img2, aflow, rel_q))
         if est_q is not None:
             ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
             metrics = metrics.flatten().tolist() + [ori_err, *est_q.components]
@@ -147,12 +149,18 @@ class ImagePairEvaluator:
 class OrientationEstimator:
     def __init__(self):
         self.ransac_p = 0.99999
-        self.ransac_err = 2     # decrease?
+        self.ransac_err = 1     # decrease?
         self.min_inliers = 30
 
-    def estimate(self, yx1, yx2, matches, mask, cam: Camera):
+    def estimate(self, yx1, yx2, matches, mask, cam: Camera, debug=None):
         xy1, xy2 = map(lambda yx: torch.flipud(yx[0, :, :]).t().cpu().numpy(), (yx1, yx2))
         matches, mask = map(lambda m: m[0, :].cpu().numpy(), (matches, mask))
+
+        if debug is not None:
+            img1, img2, aflow, rel_q = debug
+            xy2 = aflow[0, :, (xy1[:, 1] + 0.5).astype(int), (xy1[:, 0] + 0.5).astype(int)].cpu().numpy().T
+            mask = np.logical_not(np.isnan(xy2[:, 0]))
+            matches = np.arange(len(mask))
 
         if np.sum(mask) < self.min_inliers:
             return None
@@ -177,11 +185,45 @@ class OrientationEstimator:
         # in opencv: +z cam axis, -y up
         est_q = quaternion.from_rotation_matrix(R)
 
+        # NOTE: currently est_q is very inaccurate even when giving a thousand ground truth correspondences
         # TODO: optimize with robust cost fun, use est_q as initial guess,
         #       include only inliers (?),
         #       discard outliers in a loop (?)
 
+        # convert so that +x cam axis, +z up
+        est_q = from_opencv_q(est_q)
+
+        if debug is not None:
+            img1, img2, aflow, rel_q = debug
+            mask = mask3.flatten().astype(bool)
+            gt_xy2 = aflow[0, :, (xy1[:, 0, 1] + 0.5).astype(int), (xy1[:, 0, 0] + 0.5).astype(int)] \
+                          .cpu().numpy().T[:, None, :]
+
+            ry, rp, rr = map(math.degrees, q_to_ypr(rel_q))
+            ey, ep, er = map(math.degrees, q_to_ypr(est_q))
+            print('\nrel ypr: %.1f, %.1f, %.1f' % (ry, rp, rr))
+            print('est ypr: %.1f, %.1f, %.1f' % (ey, ep, er))
+
+            img = self._draw_matches(img1, xy1, img2, xy2, mask)
+            img_gt = self._draw_matches(img1, xy1, img2, gt_xy2,
+                                        np.logical_and(mask, np.logical_not(np.isnan(gt_xy2[:, 0, 0]))))
+            import matplotlib.pyplot as plt
+            fig, axs = plt.subplots(2, 1, sharex=True, sharey=True)
+            axs[0].imshow(img)
+            axs[1].imshow(img_gt)
+            plt.tight_layout()
+            plt.show()
+
         return est_q
+
+    @staticmethod
+    def _draw_matches(img1, xy1, img2, xy2, mask):
+        from .visualize import tensor2img
+        img1, img2 = map(lambda img: cv2.cvtColor(tensor2img(img), cv2.COLOR_GRAY2RGB), (img1, img2))
+        kp1, kp2 = map(lambda xy: [cv2.KeyPoint(x, y, 1) for x, y in xy[mask, 0, :]], (xy1, xy2))
+        matches = [cv2.DMatch(i, i, np.random.uniform(1, 2)) for i in range(len(kp1))]
+        img = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, singlePointColor=(0, 0, 255))
+        return img
 
 
 if __name__ == '__main__':

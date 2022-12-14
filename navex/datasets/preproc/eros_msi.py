@@ -154,7 +154,7 @@ def process_file(src_path, dst_path, id, index, args):
 
         rand, ok = np.random.uniform(0, 1), True
         if ext_rand is None:
-            # in opencv cam frame: axis +z, up -y
+            # cam axis +x, up +z
             _, sc_trg_pos, trg_ori = calc_target_pose(data[:, :, :3], CAM, None, REF_NORTH_V)
 
             os.unlink(src_path + '.xml')

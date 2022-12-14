@@ -103,7 +103,8 @@ def main():
     create_image_pairs(args.dst, index, args.pairs, geom_pathfun, args.aflow, args.img_max, None,
                        0, args.max_angle, args.min_matches, read_meta=True, start=args.start,
                        end=args.end, exclude_shadowed=False, across_subsets=True, trust_georef=args.trust_georef,
-                       cluster_unit_vects=False, depth_src=depth_pathfun, aflow_match_coef=args.aflow_match_coef)
+                       ignore_img_angle=False, cluster_unit_vects=False, depth_src=depth_pathfun,
+                       aflow_match_coef=args.aflow_match_coef)
 
 
 def rotate_image(src, dst, ori):

@@ -72,6 +72,9 @@ def raw_synth():
             sc_trg_x, sc_trg_y, sc_trg_z, sc_qw, sc_qx, sc_qy, sc_qz, \
                     trg_qw, trg_qx, trg_qy, trg_qz, sc_sun_x, sc_sun_y, sc_sun_z = map(float, floats)
 
+            sc_qw, sc_qx, sc_qy, sc_qz = to_opencv(sc_qw, sc_qx, sc_qy, sc_qz)
+            trg_qw, trg_qx, trg_qy, trg_qz = to_opencv(trg_qw, trg_qx, trg_qy, trg_qz)
+
             rand = np.random.uniform(0, 1)
             rows.append((id, fname, rand, sc_trg_x, sc_trg_y, sc_trg_z, sc_qw, sc_qx, sc_qy, sc_qz,
                          trg_qw, trg_qx, trg_qy, trg_qz, sc_sun_x, sc_sun_y, sc_sun_z))

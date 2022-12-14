@@ -24,7 +24,8 @@ import numba as nb
 
 from navex.datasets import tools
 from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
-    q_times_v, angle_between_v, valid_asteriod_area, tf_view_unit_v, preprocess_image, rotate_array, Camera
+    q_times_v, angle_between_v, valid_asteriod_area, tf_view_unit_v, preprocess_image, rotate_array, Camera, \
+    from_opencv_v, from_opencv_q
 from navex.experiments.parser import nested_filter
 
 
@@ -56,7 +57,7 @@ def create_image_pairs_script():
 def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov, min_angle,
                        max_angle, min_matches, read_meta, max_sc_diff=1.5, max_dist=None, show_only=False, start=0.0, end=1.0,
                        exclude_shadowed=True, across_subsets=False, depth_src=None, cluster_unit_vects=True,
-                       aflow_match_coef=1.0, trust_georef=True):
+                       aflow_match_coef=1.0, trust_georef=True, ignore_img_angle=True):
     aflow_path = os.path.join(root, aflow)
     index_path = index if isinstance(index, ImageDB) else os.path.join(root, index)
     pairs_path = os.path.join(root, pairs)
@@ -131,7 +132,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
         set_ids.append(int(set_id or -1))
         files.append(fname)
         hz_fovs.append(hz_fov)
-        angles.append(angle)
+        angles.append(None if ignore_img_angle else angle)
         max_dists.append(float(vd))
 
         if set_id and set_id not in cams:
@@ -195,7 +196,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
         fi, fj = files[i], files[j]
 
         if min_angle <= angle <= max_angle and sc_diff < max_sc_diff and id_i != id_j \
-                and (id_i, id_j) not in added_pairs and (image_count[id_i] < img_max or image_count[id_j] < img_max) \
+                and (id_i, id_j) not in added_pairs and image_count[id_i] < img_max and image_count[id_j] < img_max \
                 and (set_ids[i] != set_ids[j] if across_subsets else True):
             xyzs0 = load_xyzs(geom_src_fun(fi), d_file=depth_src_fun(fi), hide_shadow=exclude_shadowed,
                               hz_fov=hz_fovs[i] or def_hz_fov, xyzd=not trust_georef)
@@ -631,8 +632,13 @@ def relative_pose(trg_xyz, cam):
     # opencv cam frame: axis +z, up -y
     ok, rvec, tvec = cv2.solvePnP(trg_xyz[I, :], grid[I, :], cam.matrix, cam.dist_coefs)
 
-    sc_trg_ori = quaternion.from_rotation_vector(rvec.flatten())
     sc_trg_pos = tvec.flatten()
+    sc_trg_ori = quaternion.from_rotation_vector(rvec.flatten())
+
+    # convert to axis +x, up +z
+    sc_trg_pos = from_opencv_v(sc_trg_pos)
+    sc_trg_ori = from_opencv_q(sc_trg_ori)
+
     return sc_trg_pos, sc_trg_ori
 
 
@@ -834,7 +840,7 @@ def calc_target_pose(xyz, cam, sc_ori, ref_north_v):
             # north.append(est_north_v)
             break
 
-    # in opencv cam frame: axis +z, up -y
+    # in cam frame where axis +x, up +z
     return sc_ori, sc_trg_pos, trg_ori
 
 
@@ -972,6 +978,31 @@ class NearestKernelNDInterpolator(NearestNDInterpolator):
 
 def keys_to_lower(d):
     return nested_filter(d, lambda x: True, lambda x: x, lambda x: x.lower())
+
+
+def fix_img_dbs(path):
+    from ..tools import if_none_q
+
+    dbfile = 'dataset_all.sqlite'
+    eros_path = os.path.join(path, 'eros', dbfile)
+    itokawa_path = os.path.join(path, 'itokawa', dbfile)
+    osinac_path = os.path.join(path, 'cg67p', 'osinac', dbfile)
+
+    for dbpath in (eros_path, itokawa_path, osinac_path):
+        index = ImageDB(dbpath)
+        values = []
+        for id, file, sc_qw, sc_qx, sc_qy, sc_qz, sc_trg_x, sc_trg_y, sc_trg_z, \
+                      trg_qw, trg_qx, trg_qy, trg_qz in index.get_all((
+                          'id', 'file', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z',
+                          'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz')):
+            sc_q = if_none_q(sc_qw, sc_qx, sc_qy, sc_qz, fallback=quaternion.one)
+            trg_q = if_none_q(trg_qw, trg_qx, trg_qy, trg_qz, fallback=np.quaternion(*[np.nan]*4))
+            trg_q = sc_q * from_opencv_q(sc_q.conj() * trg_q)
+            sc_trg_v = np.array([sc_trg_x, sc_trg_y, sc_trg_z])
+            if dbpath is not osinac_path:
+                sc_trg_v = q_times_v(sc_q, from_opencv_v(q_times_v(sc_q.conj(), sc_trg_v)))
+            values.append((id, file, *trg_q.components, *sc_trg_v))
+        index.set(('id', 'file', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z'), values)
 
 
 class DisableLogger:

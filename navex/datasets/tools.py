@@ -134,6 +134,31 @@ def ypr_to_q(dec, ra, cna):
     )
 
 
+def from_opencv_q(q):
+    """
+    Convert an orientation from opencv convention where: cam axis +z, up -y to convention where: cam axis +x, up +z
+    """
+    sc2cv_q = np.quaternion(0.5, -0.5, 0.5, -0.5)
+    return sc2cv_q * q * sc2cv_q.conj()
+
+
+def from_opencv_v(v):
+    """
+    Convert an orientation from opencv convention where: cam axis +z, up -y to convention where: cam axis +x, up +z
+    """
+    sc2cv_q = np.quaternion(0.5, -0.5, 0.5, -0.5)
+    return q_times_v(sc2cv_q, v)
+
+
+def q_to_ypr(q):
+    # from https://math.stackexchange.com/questions/687964/getting-euler-tait-bryan-angles-from-quaternion-representation
+    q0, q1, q2, q3 = quaternion.as_float_array(q)
+    roll = np.arctan2(q2 * q3 + q0 * q1, .5 - q1 ** 2 - q2 ** 2)
+    pitch = np.arcsin(np.clip(-2 * (q1 * q3 - q0 * q2), -1, 1))
+    yaw = np.arctan2(q1 * q2 + q0 * q3, .5 - q2 ** 2 - q3 ** 2)
+    return yaw, pitch, roll
+
+
 def eul_to_q(angles, order='xyz', reverse=False):
     assert len(angles) == len(order), 'len(angles) != len(order)'
     q = quaternion.one
@@ -500,22 +525,22 @@ class ImageDB:
                     rand REAL NOT NULL,
                     set_id INTEGER DEFAULT NULL,
                     file CHAR(128) NOT NULL,
-                    sc_qw REAL DEFAULT NULL,
+                    sc_qw REAL DEFAULT NULL,    -- cam axis +x, up +z
                     sc_qx REAL DEFAULT NULL,
                     sc_qy REAL DEFAULT NULL,
                     sc_qz REAL DEFAULT NULL,
-                    sc_sun_x REAL DEFAULT NULL,
+                    sc_sun_x REAL DEFAULT NULL, -- in icrf
                     sc_sun_y REAL DEFAULT NULL,
                     sc_sun_z REAL DEFAULT NULL,
-                    trg_qw REAL DEFAULT NULL,
+                    trg_qw REAL DEFAULT NULL,   -- cam axis +x, up +z
                     trg_qx REAL DEFAULT NULL,
                     trg_qy REAL DEFAULT NULL,
                     trg_qz REAL DEFAULT NULL,
-                    sc_trg_x REAL DEFAULT NULL,
+                    sc_trg_x REAL DEFAULT NULL, -- in icrf if sc_q given, else in cam frame
                     sc_trg_y REAL DEFAULT NULL,
                     sc_trg_z REAL DEFAULT NULL,
                     hz_fov REAL DEFAULT NULL,
-                    img_angle REAL DEFAULT 0.0,
+                    img_angle REAL DEFAULT 0.0, -- rotation in rad around +x
                     vd REAL DEFAULT NULL,
                     cx1 REAL DEFAULT NULL,
                     cy1 REAL DEFAULT NULL,
