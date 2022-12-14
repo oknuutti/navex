@@ -57,7 +57,7 @@ def create_image_pairs_script():
 def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov, min_angle,
                        max_angle, min_matches, read_meta, max_sc_diff=1.5, max_dist=None, show_only=False, start=0.0, end=1.0,
                        exclude_shadowed=True, across_subsets=False, depth_src=None, cluster_unit_vects=True,
-                       aflow_match_coef=1.0, trust_georef=True, ignore_img_angle=True):
+                       max_cluster_diff_angle=None, aflow_match_coef=1.0, trust_georef=True, ignore_img_angle=True):
     aflow_path = os.path.join(root, aflow)
     index_path = index if isinstance(index, ImageDB) else os.path.join(root, index)
     pairs_path = os.path.join(root, pairs)
@@ -90,7 +90,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
         files = [(i, file[:-8] + '.png') for i, file in enumerate(files)]
     else:
         files = [(id, file) for id, file in
-                 index.get_all(('id', 'file'), cond='cx1 is null', start=start, end=end)]
+                 index.get_all(('id', 'file'), cond='vd is null', start=start, end=end)]
 
     if is_new or read_meta:
         for i, fname in tqdm(files, desc='Clustering *.xyz.exr file contents'):
@@ -155,25 +155,32 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
     from scipy.spatial.ckdtree import cKDTree
     centroid_vects = np.array(centroid_vects).reshape((-1, 3))
     I = np.logical_not(np.any(np.isnan(centroid_vects), axis=1))
-    tree = cKDTree(centroid_vects[I, :])
+    centroid_vects = centroid_vects[I, :]
+    tree = cKDTree(centroid_vects)
     idxs = np.stack((np.repeat(np.atleast_2d(np.arange(0, len(ids))).T, 4, axis=1),
                      np.repeat(np.atleast_2d(np.arange(0, 4)), len(ids), axis=0)), axis=2).reshape((-1, 2))[I, :]
 
     if max_dist is None:
-        if max_angle > 0 and cluster_unit_vects:
-            max_dist = 2 * math.sin(math.radians(max_angle) / 2)
+        if max_cluster_diff_angle > 0 and cluster_unit_vects:
+            max_dist = 2 * math.sin(math.radians(max_cluster_diff_angle) / 2)
         else:
             max_dist = np.median(max_dists)
 
     pairs = tree.query_pairs(max_dist, eps=0.05)
 
-    logging.info('building the pair file...')
+    centroids_per_img = len(centroid_vects) / len(max_dists)
+    mean_pair_cands = len(pairs) / len(centroid_vects)
+    logging.info('Each image (n=%d) has %.2f centroids and %.3f pair candidates on average' % (
+        len(max_dists), centroids_per_img, mean_pair_cands))
+    
     added_pairs = set()
     image_count = Counter()
     if not os.path.exists(pairs_path):
+        logging.info('Building the pair file...')
         with open(pairs_path, 'w') as fh:
             fh.write('image_id_0 image_id_1 sc_diff angle_diff match_ratio matches\n')
     else:
+        logging.info('Reading the existing pair file...')
         with open(pairs_path, 'r') as fh:
             for k, line in enumerate(fh):
                 if k == 0:
@@ -196,7 +203,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
         fi, fj = files[i], files[j]
 
         if min_angle <= angle <= max_angle and sc_diff < max_sc_diff and id_i != id_j \
-                and (id_i, id_j) not in added_pairs and image_count[id_i] < img_max and image_count[id_j] < img_max \
+                and (id_i, id_j) not in added_pairs and (image_count[id_i] < img_max or image_count[id_j] < img_max) \
                 and (set_ids[i] != set_ids[j] if across_subsets else True):
             xyzs0 = load_xyzs(geom_src_fun(fi), d_file=depth_src_fun(fi), hide_shadow=exclude_shadowed,
                               hz_fov=hz_fovs[i] or def_hz_fov, xyzd=not trust_georef)
