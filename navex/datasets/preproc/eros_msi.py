@@ -61,6 +61,8 @@ def main():
     parser.add_argument('--min-matches', type=int, default=10000,
                         help="min pixel matches in order to approve generated pair")
     parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--pairs-only', action='store_true',
+                        help="assume that images and associated georef processed already")
 
     args = parser.parse_args()
 
@@ -68,64 +70,65 @@ def main():
 
     logging.basicConfig(level=logging.INFO)
 
-    os.makedirs(args.dst, exist_ok=True)
     index_path = os.path.join(args.dst, args.index)
-    progress_path = os.path.join(args.dst, 'progress.txt')
-
-    if os.path.exists(progress_path):
-        with open(progress_path) as fh:
-            archives_done = {line.strip() for line in fh}
-    else:
-        archives_done = set()
-
     index = ImageDB(index_path, truncate=not os.path.exists(index_path))
-    files = [(id, file) for id, file in index.get_all(('id', 'file',))]
 
-    next_id = (0 if len(files) == 0 else np.max([id for id, _ in files])) + 1
+    if not args.pairs_only:
+        os.makedirs(args.dst, exist_ok=True)
+        progress_path = os.path.join(args.dst, 'progress.txt')
+        if os.path.exists(progress_path):
+            with open(progress_path) as fh:
+                archives_done = {line.strip() for line in fh}
+        else:
+            archives_done = set()
 
-    # find all archives from src, dont include if in archives_done
-    page = requests.get(args.src)  # , verify=False)
+        files = [(id, file) for id, file in index.get_all(('id', 'file',))]
 
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(page.content, 'html.parser')
-    archives = [a['href']
-                for a in soup.find_all(name="a")
-                if re.match(r'^nearmsi\..*?\.tar\.gz$', a['href'])
-                and a['href'] not in archives_done]
+        next_id = (0 if len(files) == 0 else np.max([id for id, _ in files])) + 1
 
-    # process archives in order
-    pbar = tqdm(archives, desc='archives')
-    tot, n_add, n_ok = 0, 0, 0
-    for archive in pbar:
-        archive_url = args.src + '/' + archive
-        archive_path = os.path.join(args.dst, archive)
-        if not os.path.exists(archive_path) or not args.debug:
-            get_file(archive_url, archive_path)
+        # find all archives from src, dont include if in archives_done
+        page = requests.get(args.src)  # , verify=False)
 
-        # extract archive
-        extract_path = os.path.join(args.dst, 'tmp')
-        tar = tarfile.open(archive_path, "r:gz")
-        tar.extractall(extract_path)
-        tar.close()
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(page.content, 'html.parser')
+        archives = [a['href']
+                    for a in soup.find_all(name="a")
+                    if re.match(r'^nearmsi\..*?\.tar\.gz$', a['href'])
+                    and a['href'] not in archives_done]
 
-        # process files one by one
-        arch_files = find_files_recurse(extract_path, ext='.xml')
-        for fullpath in tqdm(arch_files, desc='files', mininterval=3):
-            added, ok = process_file(fullpath, args.dst, next_id, index, args)
-            next_id += 1
-            tot += 1
-            n_add += 1 if added else 0
-            n_ok += 1 if ok else 0
+        # process archives in order
+        pbar = tqdm(archives, desc='archives')
+        tot, n_add, n_ok = 0, 0, 0
+        for archive in pbar:
+            archive_url = args.src + '/' + archive
+            archive_path = os.path.join(args.dst, archive)
+            if not os.path.exists(archive_path) or not args.debug:
+                get_file(archive_url, archive_path)
 
-        # remove extracted dir and downloaded archive
-        shutil.rmtree(extract_path)
-        if not args.debug:
-            os.unlink(archive_path)  # remove .tar.gz
+            # extract archive
+            extract_path = os.path.join(args.dst, 'tmp')
+            tar = tarfile.open(archive_path, "r:gz")
+            tar.extractall(extract_path)
+            tar.close()
 
-        with open(progress_path, 'a') as fh:
-            fh.write(archive + '\n')
+            # process files one by one
+            arch_files = find_files_recurse(extract_path, ext='.xml')
+            for fullpath in tqdm(arch_files, desc='files', mininterval=3):
+                added, ok = process_file(fullpath, args.dst, next_id, index, args)
+                next_id += 1
+                tot += 1
+                n_add += 1 if added else 0
+                n_ok += 1 if ok else 0
 
-        pbar.set_postfix({'added': '%.1f%%' % (100 * n_add/tot), 'images ok': '%.1f%%' % (100 * n_ok/tot)}, refresh=False)
+            # remove extracted dir and downloaded archive
+            shutil.rmtree(extract_path)
+            if not args.debug:
+                os.unlink(archive_path)  # remove .tar.gz
+
+            with open(progress_path, 'a') as fh:
+                fh.write(archive + '\n')
+
+            pbar.set_postfix({'added': '%.1f%%' % (100 * n_add/tot), 'images ok': '%.1f%%' % (100 * n_ok/tot)}, refresh=False)
 
     create_image_pairs(args.dst, index, args.pairs, args.dst, args.aflow, args.img_max, fov,
                        args.min_angle, args.max_angle, args.min_matches, read_meta=True, start=args.start,
@@ -137,23 +140,32 @@ def process_file(src_path, dst_path, id, index, args):
     parts = os.path.normpath(src_path).split(os.sep)[-2:]
     dst_file = os.path.join(*parts) + '.png'
     dst_path = os.path.join(dst_path, dst_file)
-    ext_rand = index.query(("rand",), "file='%s'" % dst_file)
-    ext_rand = ext_rand and float(ext_rand[0])
+
+    res = index.query(("id", "rand",), "file='%s'" % dst_file)
+    ext_id = res and int(res[0])
+    ext_rand = res and float(res[1])
+
     if not os.path.exists(dst_path) and (ext_rand is None or args.start <= ext_rand < args.end):
-        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+        ok, added = True, False
+        id = id or ext_id
+        rand = ext_rand or np.random.uniform(0, 1)
+        if not ext_rand and not (args.start <= rand < args.end):
+            index.add(('id', 'file', 'rand'), [(id, dst_file, rand)])
+        else:
+            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
 
-        # extract *.fit.gz
-        extracted = False
-        if not os.path.exists(src_path + '.fit'):
-            extracted = True
-            with gzip.open(src_path + '.fit.gz', 'rb') as fh_in:
-                with open(src_path + '.fit', 'wb') as fh_out:
-                    shutil.copyfileobj(fh_in, fh_out)
+            # extract *.fit.gz
+            extracted = False
+            if not os.path.exists(src_path + '.fit'):
+                extracted = True
+                with gzip.open(src_path + '.fit.gz', 'rb') as fh_in:
+                    with open(src_path + '.fit', 'wb') as fh_out:
+                        shutil.copyfileobj(fh_in, fh_out)
 
-        img, data, metadata, metastr = read_eros_img(src_path + '.fit')
+            img, data, metadata, metastr = read_eros_img(src_path + '.fit')
+            ok = ok and metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.01
+            ok = ok and check_img(img, fg_q=200)
 
-        rand, ok = np.random.uniform(0, 1), True
-        if ext_rand is None:
             # cam axis +x, up +z
             _, sc_trg_pos, trg_ori = calc_target_pose(data[:, :, :3], CAM, None, REF_NORTH_V)
 
@@ -162,19 +174,16 @@ def process_file(src_path, dst_path, id, index, args):
             if extracted:
                 os.unlink(src_path + '.fit')
 
-            ok = ok and metadata['image_processing']['possibly_corrupted_lines'] < len(img) * 0.01
-            ok = ok and check_img(img, fg_q=200)
             rand = rand if ok else -1
-            index.add(('id', 'file', 'rand', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
+            index.set(('id', 'file', 'rand', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
                       [(id, dst_file, rand) + safe_split(sc_trg_pos, False) + safe_split(trg_ori, True)])
 
-        added = False
-        rand = ext_rand or rand
-        if args.start <= rand < args.end or args.debug:
-            write_data(dst_path[:-4] + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=False)
-            added = True
+            if args.start <= rand < args.end or args.debug:
+                write_data(dst_path[:-4] + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=False)
+                added = True
 
         return added, ok
+
     return True, True
 
 
