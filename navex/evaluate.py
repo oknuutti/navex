@@ -1,6 +1,6 @@
 import math
 import argparse
-import os.path
+import os
 
 from tqdm import tqdm
 import numpy as np
@@ -23,11 +23,16 @@ from .extract import Extractor
 # TODO:
 #   - support training data metrics (map, mma, m-score, loc-err) for each sub-dataset (using cropping etc)
 
+HEADER = ['Dataset', 'aflow', 'img1', 'img2', 'light1_x', 'light1_y', 'light1_z', 'light2_x', 'light2_y', 'light2_z',
+          'rel_qw', 'rel_qx', 'rel_qy', 'rel_qz', 'rel_angle', 'rel_dist',  'FD', 'M-Score', 'MMA', 'LE', 'mAP',
+          'ori-err', 'est_qw', 'est_qx', 'est_qy', 'est_qz']
+
 
 def main():
     parser = argparse.ArgumentParser("evaluate a feature extractor")
     parser.add_argument("--model", type=str, required=True, help='model path')
     parser.add_argument("--output", type=str, required=True, help='csv file for evaluation output')
+    parser.add_argument("--root", type=str, default='data', help='root folder of all datasets')
     parser.add_argument("--dataset", "-d", choices=('eros', 'ito', '67p', 'synth'), action='append',
                         help='selected dataset, can give multiple, default: all')
     parser.add_argument("--top-k", type=int, default=None, help='limit on total number of keypoints')
@@ -62,7 +67,7 @@ def main():
     write_header(args)
 
     for key, DatasetClass in datasets.items():
-        dataset = DatasetClass(eval='test')
+        dataset = DatasetClass(root=args.root, eval='test')
         pbar = tqdm(DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True), desc="Evaluating %s..." % key)
         for i, ((img1, img2), aflow, *meta) in enumerate(pbar):
             assert len(meta) >= 2 and dataset.cam, 'dataset "%s" does not have cam model or rel_q, rel_s metadata' % (key,)
@@ -70,29 +75,31 @@ def main():
             write_row(args.output, key, dataset.samples[i][1], *dataset.samples[i][0], meta, metrics)
 
     # TODO:
-    #   - eros, itokawa & osinac pairs have been selected with wrong criteria
-    #   - fix databases for eros, itokawa, osinac
-    #   - regenerate eros, itokawa, osinac pairs
-    #   - regenerate synth dataset with no rotation except 180 deg lighting
+    #   - fix datasets osinac, synth
     #   - compare r2d2 vs disk
-    #   - decide if need to generate new synth dataset, maybe can just say there was some bug so that
-    #     higher phase angles and 180 deg changes possible?
+    #   - test r2d2 using reliability for detection only
+    #   - see that eval supports akaze, sift and root-sift
+    #   - map/m-score/mma/loc-err(/rel-pose-errs?) of HAFE, LAFE, akaze, (root-)sift, superpoint/r2d2/disk on training+validation sets, test sets
+    #       - key metrics (m-score, loc-err, rel-pose-errs?) of HAFE, LAFE on different datasets
+    #       - key metrics plotted against phase angle, light direction changes on synth set
+    #       - key metrics plotted against rel ori angle on other sets
+    #   -
+    #   - rerun r2d2 and disk tune
+    #   - fix article related to datasets
+    #   - write result section
     #   - implement plots
-    #   - run lafe optimization
+    #   - compare r2d2 vs disk
+    #   - run lafe tune
 
 
 def write_header(args):
     anames = [arg for arg in dir(args) if not arg.startswith('_') and arg not in ('output',)]
     avals = [getattr(args, name) for name in anames]
-    header = ['Dataset', 'aflow', 'img1', 'img2',
-              'light1_x', 'light1_y', 'light1_z', 'light2_x', 'light2_y', 'light2_z',
-              'rel_qw', 'rel_qx', 'rel_qy', 'rel_qz', 'rel_angle', 'rel_dist',
-              'FD', 'M-Score', 'MMA', 'LE', 'mAP', 'ori-err', 'est_qw', 'est_qx', 'est_qy', 'est_qz']
 
     with open(args.output, 'w') as fh:
         fh.write('\t'.join(anames) + '\n')
         fh.write('\t'.join(map(str, avals)) + '\n\n')
-        fh.write('\t'.join(header) + '\n')
+        fh.write('\t'.join(HEADER) + '\n')
 
 
 def write_row(file, ds, aflow, img1, img2, meta, metrics):
@@ -218,7 +225,7 @@ class OrientationEstimator:
 
     @staticmethod
     def _draw_matches(img1, xy1, img2, xy2, mask):
-        from .visualize import tensor2img
+        from .visualizations.misc import tensor2img
         img1, img2 = map(lambda img: cv2.cvtColor(tensor2img(img), cv2.COLOR_GRAY2RGB), (img1, img2))
         kp1, kp2 = map(lambda xy: [cv2.KeyPoint(x, y, 1) for x, y in xy[mask, 0, :]], (xy1, xy2))
         matches = [cv2.DMatch(i, i, np.random.uniform(1, 2)) for i in range(len(kp1))]

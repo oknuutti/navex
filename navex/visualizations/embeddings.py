@@ -13,9 +13,9 @@ from torch.optim import SGD, Adam
 from torch.autograd import Variable
 from torchvision.transforms import functional as F
 
-from navex.datasets.base import RGB_STD, RGB_MEAN, GRAY_STD, GRAY_MEAN
-from navex.models.tools import is_rgb_model, load_model
-from navex.visualize import plot_tensor
+from ..datasets.base import RGB_STD, RGB_MEAN, GRAY_STD, GRAY_MEAN
+from ..models.tools import is_rgb_model, load_model
+from .misc import plot_tensor
 
 # TODO:
 #   - show loss of each image as plot title

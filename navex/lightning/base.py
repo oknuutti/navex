@@ -17,7 +17,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pl_bolts.datamodules import AsynchronousLoader
 
 from ..trials.base import TrialBase, StudentTrialMixin
-from ..visualize import view_detections
+from ..visualizations.misc import view_detections
 
 
 def _fn_none(x):

@@ -126,7 +126,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
                               'cx1', 'cy1', 'cz1', 'cx2', 'cy2', 'cz2',
                               'cx3', 'cy3', 'cz3', 'cx4', 'cy4', 'cz4'), start=start, end=end):
         assert cx1 is not None, 'centroids not set for id=%d, file=%s' % (id, fname)
-        if np.isnan(float(cx1)) or (tqw is None and sqw is None):
+        if np.isnan(float(cx1)) or tqw is None:
             continue
         ids.append(int(id))
         set_ids.append(int(set_id or -1))

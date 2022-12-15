@@ -217,7 +217,7 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             D.append(descr[0].t().cpu().numpy())
 
             if plot:
-                from .visualize import view_detections
+                from .visualizations.misc import view_detections
                 view_detections(img, det, qlt, title='Resolution: %dx%d, Scale: %.3f' % (w, h, sc))
 
         sc /= scale_f
