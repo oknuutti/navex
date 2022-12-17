@@ -113,16 +113,20 @@ class DatabaseImagePairDataset(ImagePairDataset):
         self.indices = [(get_id(f, 0), get_id(f, 1)) for f in aflow]
         imgs = [(os.path.join(self.root, index[i]['file']),
                  os.path.join(self.root, index[j]['file'])) for i, j in self.indices]
-        rel_q = [((index[i]['sc_q'].conj() * index[i]['trg_q']).conj()
-                 * (index[j]['sc_q'].conj() * index[j]['trg_q'])).components for i, j in self.indices]
+
         rel_dist = [np.linalg.norm(index[j]['sc_trg_v'])
                     / np.linalg.norm(index[i]['sc_trg_v']) for i, j in self.indices]
+
+        # target orientation in cam frame
+        sf_trg_q1 = [(index[i]['sc_q'].conj() * index[i]['trg_q']).components for i, _ in self.indices]
+        sf_trg_q2 = [(index[j]['sc_q'].conj() * index[j]['trg_q']).components for _, j in self.indices]
+
         light1 = [np.ones((3,))*np.nan if index[i]['sc_q'] == quaternion.one else
                   q_times_v(index[i]['sc_q'].conj(), -normalize_v(index[i]['sc_sun_v'].astype(float))) for i, j in self.indices]
         light2 = [np.ones((3,))*np.nan if index[j]['sc_q'] == quaternion.one else
                   q_times_v(index[j]['sc_q'].conj(), -normalize_v(index[j]['sc_sun_v'].astype(float))) for i, j in self.indices]
 
-        meta = (rel_q, rel_dist, light1, light2)    # NOTE: needs to be mirrored in SynthesizedPairDataset
+        meta = (rel_dist, sf_trg_q1, sf_trg_q2, light1, light2)    # NOTE: needs to be mirrored in SynthesizedPairDataset
         samples = list(zip(imgs, aflow, *meta))
         return samples
 

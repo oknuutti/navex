@@ -209,9 +209,7 @@ def cartesian2spherical(x, y, z):
 
 
 def tf_view_unit_v(sc_trg_q):
-    # following assumed, not certain if necessary though:
-    #   - cam: +x bore, +z up
-    #   - trg: +x zero lat & lon, +z north pole
+    # assumes that cam axis +x, up +z
     return q_times_v(sc_trg_q, np.array([-1, 0, 0]))
 
 

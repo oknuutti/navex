@@ -105,15 +105,23 @@ def write_header(args):
 def write_row(file, ds, aflow, img1, img2, meta, metrics):
     root = os.path.commonpath([aflow, img1, img2])
     rlen = len(root) + 1
-    rel_q = np.quaternion(*meta[0].flatten().tolist())
 
-    cam_axis = np.array([1, 0, 0])
-    rel_angle = math.degrees(ds_tools.angle_between_v(cam_axis, ds_tools.q_times_v(rel_q, cam_axis)))
+    # as in datasets/base.py: DatabaseImagePairDataset._load_samples
+    rel_dist, sf_trg_q1, sf_trg_q2, light1, light2 = meta
+
+    cf_trg_q1 = np.quaternion(*sf_trg_q1.flatten().tolist())
+    cf_trg_q2 = np.quaternion(*sf_trg_q2.flatten().tolist())
+    cf_trg_rel_q = cf_trg_q1.conj() * cf_trg_q2
+
+    tf_cam_axis = np.array([-1, 0, 0])
+    tf_cam_q1, tf_cam_q2 = cf_trg_q1.conj(), cf_trg_q2.conj()
+    rel_angle = math.degrees(ds_tools.angle_between_v(ds_tools.q_times_v(tf_cam_q1, tf_cam_axis),
+                                                      ds_tools.q_times_v(tf_cam_q2, tf_cam_axis)))
 
     with open(file, 'a') as fh:
         fh.write('\t'.join(map(str, (ds, aflow[rlen:], img1[rlen:], img2[rlen:],
-                                     *meta[2].flatten().tolist(), *meta[3].flatten().tolist(),
-                                     *rel_q.components, rel_angle, meta[1].item(), *metrics))) + '\n')
+                                     *light1.flatten().tolist(), *light2.flatten().tolist(),
+                                     *cf_trg_rel_q.components, rel_angle, rel_dist.item(), *metrics))) + '\n')
 
 
 class ImagePairEvaluator:

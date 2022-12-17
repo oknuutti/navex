@@ -139,12 +139,17 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
             cams[set_id] = cam_obj(index.get_subset(set_id))
 
         stv = np.array([stx, sty, stz])
-        stq = ((np.quaternion(sqw, sqx, sqy, sqz) if sqw is not None else quaternion.one).conj() *
-               (np.quaternion(tqw, tqx, tqy, tqz) if tqw is not None else quaternion.one))  # TODO: verify
+
+        # cam orientation in target frame (not target orientation in cam frame)
+        stq = ((np.quaternion(tqw, tqx, tqy, tqz) if tqw is not None else quaternion.one).conj()
+               * (np.quaternion(sqw, sqx, sqy, sqz) if sqw is not None else quaternion.one))
 
         poses.append((stv, stq))
         dists.append(np.linalg.norm(stv))
-        coords.append(tf_view_unit_v(stq))  # FIX(ed?): nadir_unit_v does not work for Nokia data, coord frame different there
+
+        # cam axis in target frame, FIX(ed?): didn't work for Nokia data, coord frame different there?
+        coords.append(tf_view_unit_v(stq))
+
         centroid_vects.append([[float(a) for a in u] for u in ((cx1, cy1, cz1), (cx2, cy2, cz2),
                                                                (cx3, cy3, cz3), (cx4, cy4, cz4))])
 
@@ -196,7 +201,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
         (i, a), (j, b) = idxs[ii, :], idxs[jj, :]
         id_i, id_j = ids[i], ids[j]
 
-        # calculate angle between relative poses, ignore rotation around camera axis
+        # calculate angle between camera axes in target frame
         angle = math.degrees(angle_between_v(coords[i], coords[j]))
 
         sc_diff = max(dists[i] / dists[j], dists[j] / dists[i])
