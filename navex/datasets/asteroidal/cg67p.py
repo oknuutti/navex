@@ -40,7 +40,7 @@ class CG67pOsinacPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           aflow_rot_norm=aflow_rot_norm, extra_crop=[3, 10, 0, 0],
                                           trg_north_ra=math.radians(69.3), trg_north_dec=math.radians(64.1),
-                                          model_north=[0, 1, 0], cam=INSTR['osinac']['cam'])
+                                          model_north=[0, 0, 1], cam=INSTR['osinac']['cam'])
         # axis ra & dec from http://www.esa.int/ESA_Multimedia/Images/2015/01/Comet_vital_statistics
 
 
