@@ -21,7 +21,7 @@ def not_aflow_file(path):
 
 class AsteroidImagePairDataset(DatabaseImagePairDataset):
     def __init__(self, *args, trg_north_ra=None, trg_north_dec=None, model_north=(0, 0, 1), cam=None,
-                 cam_axis=(0, 0, 1), cam_up=(0, -1, 0), aflow_rot_norm=False, preproc_path=None,
+                 cam_axis=(1, 0, 0), cam_up=(0, 0, 1), aflow_rot_norm=False, preproc_path=None,
                  extra_crop=None, **kwargs):
         super(AsteroidImagePairDataset, self).__init__(*args, **kwargs)
 
@@ -93,7 +93,7 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
                     sc_north = q_times_v(sc_q.conj(), north_v)
                     print('%s: no trg_q!' % self.samples[idx][0][j])
                 else:
-                    # assuming model frame +z is towards the north pole
+                    # assuming model frame +z is towards the north-pole
                     sc_north = q_times_v(sc_q.conj() * trg_q, self.model_north)
 
                 # project to image plane
