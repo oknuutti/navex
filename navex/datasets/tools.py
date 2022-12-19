@@ -301,7 +301,7 @@ def wrap_rads(a):
 
 def if_none_q(w, x, y, z, fallback=None):
     c = [w, x, y, z]
-    return fallback if np.any([v is None for v in c]) else np.quaternion(*c)
+    return fallback if np.any([v is None or np.isnan(v) for v in c]) else np.quaternion(*c)
 
 
 def preprocess_image(data, gamma):
