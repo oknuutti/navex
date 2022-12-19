@@ -19,7 +19,7 @@ class ItokawaPairDataset(AsteroidImagePairDataset, AugmentedPairDatasetMixin):
         AsteroidImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms,
                                           aflow_rot_norm=aflow_rot_norm,
                                           trg_north_ra=math.radians(90.53), trg_north_dec=math.radians(-66.30),
-                                          model_north=[0, 0, 1], cam=CAM)
+                                          model_north=[1, 0, 0], cam=CAM)
 
 
 class ItokawaDataset(BasicDataset):

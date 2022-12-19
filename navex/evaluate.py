@@ -51,13 +51,16 @@ def main():
     parser.add_argument("--mutual", type=int, default=1)
     parser.add_argument("--ratio", type=float, default=0)
     parser.add_argument("--success-px-limit", "--px-lim", type=float, default=5.0)
+    parser.add_argument("--est-ori", action="store_true", help="Estimate image pair orientation change based on"
+                                                               " matched features, not properly implemented yet")
+    parser.add_argument("--debug-ori-est", action="store_true", help="Debug orientation estimation")
     args = parser.parse_args()
 
     ext = Extractor(args.model, gpu=args.gpu, top_k=args.top_k, feat_d=args.feat_d, border=args.border,
                     scale_f=args.scale_f, min_size=args.min_size, max_size=args.max_size,
                     min_scale=args.min_scale, max_scale=args.max_scale, det_lim=args.det_lim,
                     qlt_lim=args.qlt_lim, mode=args.det_mode, kernel_size=args.kernel_size)
-    ori_est = OrientationEstimator()
+    ori_est = OrientationEstimator(debug=args.debug_ori_est) if args.est_ori else None
     eval = ImagePairEvaluator(ext, ori_est, args.success_px_limit, args.mutual, args.ratio)
 
     datasets = {'eros': ErosPairDataset, '67p': CG67pOsinacPairDataset, 'ito': ItokawaPairDataset,
@@ -71,8 +74,21 @@ def main():
         pbar = tqdm(DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True), desc="Evaluating %s..." % key)
         for i, ((img1, img2), aflow, *meta) in enumerate(pbar):
             assert len(meta) >= 2 and dataset.cam, 'dataset "%s" does not have cam model or rel_q, rel_s metadata' % (key,)
-            metrics = eval.evaluate(img1, img2, aflow, dataset.cam, np.quaternion(*meta[0].flatten()))
-            write_row(args.output, key, dataset.samples[i][1], *dataset.samples[i][0], meta, metrics)
+
+            # as in datasets/base.py: DatabaseImagePairDataset._load_samples
+            rel_dist, cf_trg_q1, cf_trg_q2, light1, light2 = meta
+            cf_trg_q1 = np.quaternion(*cf_trg_q1.flatten().tolist())
+            cf_trg_q2 = np.quaternion(*cf_trg_q2.flatten().tolist())
+            cf_trg_rel_q = cf_trg_q1.conj() * cf_trg_q2
+
+            tf_cam_axis = np.array([-1, 0, 0])
+            tf_cam_q1, tf_cam_q2 = cf_trg_q1.conj(), cf_trg_q2.conj()
+            rel_angle = math.degrees(ds_tools.angle_between_v(ds_tools.q_times_v(tf_cam_q1, tf_cam_axis),
+                                                              ds_tools.q_times_v(tf_cam_q2, tf_cam_axis)))
+
+            metrics = eval.evaluate(img1, img2, aflow, dataset.cam, cf_trg_rel_q)
+            write_row(args.output, key, dataset.samples[i][1], *dataset.samples[i][0],
+                      light1, light2, cf_trg_rel_q, rel_angle, rel_dist, metrics)
 
     # TODO:
     #   - fix datasets osinac, synth
@@ -95,28 +111,17 @@ def main():
 def write_header(args):
     anames = [arg for arg in dir(args) if not arg.startswith('_') and arg not in ('output',)]
     avals = [getattr(args, name) for name in anames]
+    header = HEADER if args.est_ori else HEADER[:-5]
 
     with open(args.output, 'w') as fh:
         fh.write('\t'.join(anames) + '\n')
         fh.write('\t'.join(map(str, avals)) + '\n\n')
-        fh.write('\t'.join(HEADER) + '\n')
+        fh.write('\t'.join(header) + '\n')
 
 
-def write_row(file, ds, aflow, img1, img2, meta, metrics):
+def write_row(file, ds, aflow, img1, img2, light1, light2, cf_trg_rel_q, rel_angle, rel_dist, metrics):
     root = os.path.commonpath([aflow, img1, img2])
     rlen = len(root) + 1
-
-    # as in datasets/base.py: DatabaseImagePairDataset._load_samples
-    rel_dist, sf_trg_q1, sf_trg_q2, light1, light2 = meta
-
-    cf_trg_q1 = np.quaternion(*sf_trg_q1.flatten().tolist())
-    cf_trg_q2 = np.quaternion(*sf_trg_q2.flatten().tolist())
-    cf_trg_rel_q = cf_trg_q1.conj() * cf_trg_q2
-
-    tf_cam_axis = np.array([-1, 0, 0])
-    tf_cam_q1, tf_cam_q2 = cf_trg_q1.conj(), cf_trg_q2.conj()
-    rel_angle = math.degrees(ds_tools.angle_between_v(ds_tools.q_times_v(tf_cam_q1, tf_cam_axis),
-                                                      ds_tools.q_times_v(tf_cam_q2, tf_cam_axis)))
 
     with open(file, 'a') as fh:
         fh.write('\t'.join(map(str, (ds, aflow[rlen:], img1[rlen:], img2[rlen:],
@@ -149,29 +154,34 @@ class ImagePairEvaluator:
         brd2 = self.extractor.border * 2      # TODO: (4) exact mAP calculation  --v
         metrics = tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), self.success_px_limit,
                                       active_area=((H1 - brd2) * (W1 - brd2) + (H2 - brd2) * (W2 - brd2)) / 2)
+        metrics = metrics.flatten().tolist()
 
-        # calc relative orientation error (in opencv frame: +z cam axis, -y up)
-        est_q = self.ori_est.estimate(yx1, yx2, matches, mask, cam)  #, debug=(img1, img2, aflow, rel_q))
-        if est_q is not None:
-            ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
-            metrics = metrics.flatten().tolist() + [ori_err, *est_q.components]
-        else:
-            metrics = metrics.flatten().tolist() + [np.nan] * 5
+        # calc relative orientation error
+        if self.ori_est is not None:
+            est_q = self.ori_est.estimate(yx1, yx2, matches, mask, cam,
+                                          debug=(img1, img2, aflow, rel_q) if self.ori_est.debug else None)
+            if est_q is not None:
+                ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
+                metrics = metrics + [ori_err, *est_q.components]
+            else:
+                metrics = metrics + [np.nan] * 5
 
         return metrics
 
 
 class OrientationEstimator:
-    def __init__(self):
+    def __init__(self, debug=False):
+        self.debug = debug
         self.ransac_p = 0.99999
-        self.ransac_err = 1     # decrease?
-        self.min_inliers = 30
+        self.ransac_err = 2
+        self.min_inliers = 25
 
     def estimate(self, yx1, yx2, matches, mask, cam: Camera, debug=None):
         xy1, xy2 = map(lambda yx: torch.flipud(yx[0, :, :]).t().cpu().numpy(), (yx1, yx2))
         matches, mask = map(lambda m: m[0, :].cpu().numpy(), (matches, mask))
 
         if debug is not None:
+            self.ransac_err = 0.5
             img1, img2, aflow, rel_q = debug
             xy2 = aflow[0, :, (xy1[:, 1] + 0.5).astype(int), (xy1[:, 0] + 0.5).astype(int)].cpu().numpy().T
             mask = np.logical_not(np.isnan(xy2[:, 0]))
