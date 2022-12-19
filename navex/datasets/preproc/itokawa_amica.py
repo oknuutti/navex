@@ -90,7 +90,10 @@ def raw_itokawa():
             metadata['sc_ori'], sc_trg_pos, trg_ori = \
                     calc_target_pose(data[:, :, :3], CAM, metadata['sc_ori'], ref_north_v)
 
-            ok = check_img(img, fg_q=150, sat_lo_q=0.995)
+            ok = sc_trg_pos is not None and not np.any(np.isnan(sc_trg_pos)) \
+                 and trg_ori is not None and not np.any(np.isnan(trg_ori))
+
+            ok = ok and check_img(img, fg_q=150, sat_lo_q=0.995)
             rand = np.random.uniform(0, 1) if ok else -1
             rows.append((i, fname[:-4] + '.png', rand) + safe_split(metadata['sc_ori'], True)
                         + safe_split(sc_trg_pos, False) + safe_split(trg_ori, True))

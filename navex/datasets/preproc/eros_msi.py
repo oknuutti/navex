@@ -168,6 +168,8 @@ def process_file(src_path, dst_path, id, index, args):
 
             # cam axis +x, up +z
             _, sc_trg_pos, trg_ori = calc_target_pose(data[:, :, :3], CAM, None, REF_NORTH_V)
+            ok = ok and sc_trg_pos is not None and not np.any(np.isnan(sc_trg_pos)) \
+                    and trg_ori is not None and not np.any(np.isnan(trg_ori))
 
             os.unlink(src_path + '.xml')
             os.unlink(src_path + '.fit.gz')

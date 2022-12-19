@@ -644,6 +644,9 @@ def relative_pose(trg_xyz, cam):
     # opencv cam frame: axis +z, up -y
     ok, rvec, tvec = cv2.solvePnP(trg_xyz[I, :], grid[I, :], cam.matrix, cam.dist_coefs)
 
+    if not ok:
+        return None, None
+
     sc_trg_pos = tvec.flatten()
     sc_trg_ori = quaternion.from_rotation_vector(rvec.flatten())
 
@@ -834,6 +837,9 @@ def calc_target_pose(xyz, cam, sc_ori, ref_north_v):
         cam_sc_trg_pos, cam_sc_trg_ori = relative_pose(xyz, cam)
     except cv2.error as e:
         logging.warning("can't calculate relative pose: %s" % e)
+        cam_sc_trg_pos, cam_sc_trg_ori = [None] * 2
+
+    if cam_sc_trg_pos is None or cam_sc_trg_ori is None:
         return sc_ori, None, None
 
     for _ in range(2):

@@ -154,7 +154,8 @@ def main():
             if ok and cam:
                 metadata['sc_ori'], sc_trg_pos, trg_ori = \
                         calc_target_pose(data[:, :, :3], cam, metadata['sc_ori'], ref_north_v)
-                ok = sc_trg_pos is not None
+                ok = sc_trg_pos is not None and not np.any(np.isnan(sc_trg_pos)) \
+                     and trg_ori is not None and not np.any(np.isnan(trg_ori))
             else:
                 trg_ori = None
 
