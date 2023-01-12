@@ -6,11 +6,10 @@ Setting up environment using conda:
 git clone https://github.com/oknuutti/navex.git navex
 cd navex
 git clone https://github.com/oknuutti/r2d2.git r2d2
-conda create -n navex python=3.8 pip
+
+conda create -n navex -c conda-forge -c pytorch --override-channels pip pytorch torchvision cudatoolkit opencv \
+      pytorch-lightning==1.1.7 opencv paramiko quaternion scipy scikit-optimize pandas numba
 conda activate navex
-conda install -c pytorch pytorch cudatoolkit=11.0
-conda install -c conda-forge pytorch-lightning==1.1.7 opencv paramiko quaternion scipy scikit-optimize pandas numba
-pip install git+https://github.com/pytorch/vision.git#egg=torchvision
 pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0 ray==1.13.0
 pip install git+https://github.com/jatentaki/unets
 pip install git+https://github.com/jatentaki/torch-localize

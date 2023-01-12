@@ -251,7 +251,7 @@ class SynthesizedPairDataset(VisionDataset):
                                        (self.__class__, idx, self.samples[idx],)) from e
 
         # NOTE: needs to be mirrored in DatabaseImagePairDataset
-        meta = (np.ones(4)*np.nan, np.nan, np.ones(3)*np.nan, np.ones(3)*np.nan)
+        meta = (np.nan, np.ones(4)*np.nan, np.ones(4)*np.nan, np.ones(3)*np.nan, np.ones(3)*np.nan)
         return (img1, img2), aflow, *meta
 
     def valid_area(self, img):
