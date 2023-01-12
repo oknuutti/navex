@@ -53,6 +53,7 @@ def main():
     parser.add_argument("--success-px-limit", "--px-lim", type=float, default=5.0)
     parser.add_argument("--est-ori", action="store_true", help="Estimate image pair orientation change based on"
                                                                " matched features, not properly implemented yet")
+    parser.add_argument("--show-matches", action="store_true", help="Show matches if estimating orientation")
     parser.add_argument("--debug-ori-est", action="store_true", help="Debug orientation estimation")
     args = parser.parse_args()
 
@@ -60,7 +61,7 @@ def main():
                     scale_f=args.scale_f, min_size=args.min_size, max_size=args.max_size,
                     min_scale=args.min_scale, max_scale=args.max_scale, det_lim=args.det_lim,
                     qlt_lim=args.qlt_lim, mode=args.det_mode, kernel_size=args.kernel_size)
-    ori_est = OrientationEstimator(debug=args.debug_ori_est) if args.est_ori else None
+    ori_est = OrientationEstimator(debug=args.debug_ori_est, show_matches=args.show_matches) if args.est_ori else None
     eval = ImagePairEvaluator(ext, ori_est, args.success_px_limit, args.mutual, args.ratio)
 
     datasets = {'eros': ErosPairDataset, '67p': CG67pOsinacPairDataset, 'ito': ItokawaPairDataset,
@@ -95,6 +96,7 @@ def main():
     #   - compare r2d2 vs disk
     #   - test r2d2 using reliability for detection only
     #   - see that eval supports akaze, sift and root-sift
+    #       - match feature count with cnn version: increase trad feat count or limit cnn feats? match layers per octave count?
     #   - map/m-score/mma/loc-err(/rel-pose-errs?) of HAFE, LAFE, akaze, (root-)sift, superpoint/r2d2/disk on training+validation sets, test sets
     #       - key metrics (m-score, loc-err, rel-pose-errs?) of HAFE, LAFE on different datasets
     #       - key metrics plotted against phase angle, light direction changes on synth set
@@ -147,9 +149,10 @@ class ImagePairEvaluator:
 
         _, _, H1, W1 = img1.shape
         _, _, H2, W2 = img2.shape
+        norm = 'hamming' if desc1.dtype == torch.uint8 else 2
 
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
-        matches, norm, mask, dist = tools.match(desc1, desc2, mutual=self.mutual, ratio=self.ratio)
+        matches, norm, mask, dist = tools.match(desc1, desc2, norm=norm, mutual=self.mutual, ratio=self.ratio)
 
         brd2 = self.extractor.border * 2      # TODO: (4) exact mAP calculation  --v
         metrics = tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), self.success_px_limit,
@@ -158,8 +161,7 @@ class ImagePairEvaluator:
 
         # calc relative orientation error
         if self.ori_est is not None:
-            est_q = self.ori_est.estimate(yx1, yx2, matches, mask, cam,
-                                          debug=(img1, img2, aflow, rel_q) if self.ori_est.debug else None)
+            est_q = self.ori_est.estimate(yx1, yx2, matches, mask, cam, debug=(img1, img2, aflow, rel_q))
             if est_q is not None:
                 ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
                 metrics = metrics + [ori_err, *est_q.components]
@@ -170,8 +172,9 @@ class ImagePairEvaluator:
 
 
 class OrientationEstimator:
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, show_matches=False):
         self.debug = debug
+        self.show_matches = show_matches
         self.ransac_p = 0.99999
         self.ransac_err = 2
         self.min_inliers = 25
@@ -180,7 +183,7 @@ class OrientationEstimator:
         xy1, xy2 = map(lambda yx: torch.flipud(yx[0, :, :]).t().cpu().numpy(), (yx1, yx2))
         matches, mask = map(lambda m: m[0, :].cpu().numpy(), (matches, mask))
 
-        if debug is not None:
+        if debug is not None and self.debug:
             self.ransac_err = 0.5
             img1, img2, aflow, rel_q = debug
             xy2 = aflow[0, :, (xy1[:, 1] + 0.5).astype(int), (xy1[:, 0] + 0.5).astype(int)].cpu().numpy().T
@@ -218,7 +221,7 @@ class OrientationEstimator:
         # convert so that +x cam axis, +z up
         est_q = from_opencv_q(est_q)
 
-        if debug is not None:
+        if debug is not None and (self.debug or self.show_matches):
             img1, img2, aflow, rel_q = debug
             mask = mask3.flatten().astype(bool)
             gt_xy2 = aflow[0, :, (xy1[:, 0, 1] + 0.5).astype(int), (xy1[:, 0, 0] + 0.5).astype(int)] \

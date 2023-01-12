@@ -129,7 +129,7 @@ def match(des1, des2, norm=2, mutual=True, ratio=0):
         else:
             import cv2
             hamm = lambda x: cv2.norm(x[0:len(x)//2], x[len(x)//2:], cv2.NORM_HAMMING)
-            dist = np.apply_along_axis(hamm, np.concatenate((d1, d2), axis=2), axis=2)
+            dist = np.apply_along_axis(hamm, 2, np.concatenate((d1, d2), axis=2))
 
         dist = torch.Tensor(dist[None, :, :])
 

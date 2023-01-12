@@ -103,6 +103,8 @@ class SingleImageExtractor:
 
 
 class Extractor:
+    TRADITIONAL = {'akaze', 'surf', 'sift', 'orb'}
+
     def __init__(self, model, gpu=True, top_k=None, border=None, feat_d=0.001, scale_f=2 ** (1 / 4), min_size=256,
                  max_size=1024, min_scale=0.0, max_scale=1.0, det_lim=0.7, qlt_lim=0.7,
                  mode='nms', kernel_size=3, verbose=False):
@@ -113,9 +115,14 @@ class Extractor:
 
         self.gpu = gpu
         self.device = "cuda:0" if gpu else "cpu"
-        self.model = load_model(model, self.device)
-        self.rgb = is_rgb_model(self.model)
-        self.model.eval()
+
+        if model not in self.TRADITIONAL:
+            self.model = load_model(model, self.device)
+            self.rgb = is_rgb_model(self.model)
+            self.model.eval()
+        else:
+            self.model = model
+            self.rgb = True
 
         if border is None:
             try:
@@ -139,6 +146,9 @@ class Extractor:
 
     def extract(self, image, debug_det=False, force_cpu=False):
         if isinstance(self.model, str):
+            if isinstance(image, torch.Tensor):
+                from navex.visualizations.misc import tensor2img
+                image = tensor2img(image)
             xys, desc, scores = extract_traditional(self.model, image, top_k=self.top_k,
                                                     feat_d=self.feat_d, border=self.border)
         else:
