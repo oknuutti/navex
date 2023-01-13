@@ -7,7 +7,7 @@ import warnings
 import ray
 import ray._private.ray_constants as ray_constants
 import ray._private.services as services
-from ray._private.utils import parse_resources_json
+from ray._private.utils import parse_resources_json, get_ray_address_file
 from ray._private.storage import _load_class
 from ray._private.usage import usage_lib
 from ray.autoscaler._private.cli_logger import cf, cli_logger
@@ -39,7 +39,7 @@ services.get_node_ip_address = lambda x=None: '127.0.0.1'
 
 # from ..\site-packages\ray\scripts\scripts.py
 #       - i.e. from https://github.com/ray-project/ray/blob/ray-2.2.0/python/ray/scripts/scripts.py
-#       - only the arguments (adding the defaults) and the last two rows of the function have been modified (!)
+#       - only the arguments (adding the defaults) and the last couple of rows of the function have been modified (!)
 #
 def start(
     node_ip_address=None,
@@ -464,6 +464,8 @@ def start(
         # not-reachable
 
     assert ray_params.gcs_address is not None
+
+    os.makedirs(os.path.dirname(get_ray_address_file(temp_dir)), exist_ok=True)     # EDITED: own addition
     ray._private.utils.write_ray_address(ray_params.gcs_address, temp_dir)
 
     return node   # EDITED: own addition
