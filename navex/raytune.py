@@ -18,9 +18,13 @@ try:
     from ray.dashboard import consts as dashboard_constants
     from .ray import overrides      # overrides e.g. services.get_node_ip_address
 except:
-    print('Error importing ray.overrides, probably incompatible version of ray installed, should be 1.13.0, trying 1.2.0')
-    dashboard_constants = None
-    from .ray import overrides_120 as overrides
+    print('Error importing ray.overrides, probably incompatible version of ray installed, should be 2.2.0, trying 1.13.0 and 1.2.0')
+    try:
+        from .ray import overrides_1330 as overrides
+    except:
+        print('Error importing ray.overrides_1330, trying version 1.2.0')
+        dashboard_constants = None
+        from .ray import overrides_120 as overrides
 
 from .ray.ssh import Connection
 from .ray.base import tune_asha, tune_pbs

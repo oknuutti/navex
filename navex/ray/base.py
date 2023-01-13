@@ -17,14 +17,14 @@ from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.callbacks import EarlyStopping
 
 import ray
-from ray import tune
+from ray import air, tune
 from ray.tune import CLIReporter
-from ray.tune.sample import Domain, Quantized, Float, Integer, Categorical, Normal, LogUniform
+from ray.tune.search.sample import Domain, Quantized, Float, Integer, Categorical, Normal, LogUniform
+from ray.tune.search import BasicVariantGenerator, ConcurrencyLimiter
+from ray.tune.search.skopt.skopt_search import SkOptSearch, logger as sk_logger
+from ray.tune.search.variant_generator import parse_spec_vars
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneCallback, TuneReportCallback
-from ray.tune.suggest import BasicVariantGenerator, ConcurrencyLimiter
-from ray.tune.suggest.skopt import SkOptSearch, logger as sk_logger
-from ray.tune.suggest.variant_generator import parse_spec_vars
 from ray.tune.utils import flatten_dict
 from skopt import space as sko_sp
 
@@ -218,31 +218,35 @@ def tune_asha(search_conf, hparams, full_conf):
         parameter_columns=list(hparams.keys())[:4],
         metric_columns=["loss", "tot_ratio", "mAP"])
 
-    tune.run(
-        partial(execute_trial, full_conf=full_conf, update_conf=False,
-                hp_metric=search_conf['metric'], hp_metric_mode=search_conf['mode']),
-        resources_per_trial={
-            "cpu": full_conf['data']['workers'],
-            "gpu": train_conf['gpu'],
-        },
-        config=hparams,
-        search_alg=search_alg,
-        # upload_dir=train_conf['output'],
-        # trial_name_creator=,
-        # trial_dirname_creator=,
-        num_samples=search_conf['samples'],
-        scheduler=scheduler,
-        reuse_actors=False,     # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
-        max_failures=20,
-        resume=search_conf['resume'].lower() == 'true',
-        local_dir="~/ray_results",                  # defaults to ~/ray_results
-        sync_config=tune.SyncConfig(),#syncer=None),   # disable local_dir syncing as it's done by the filesystem
-        # checkpoint_freq=200,      # if use functional api, this wont have any effect
-        # checkpoint_at_end=True,   # if use functional api, this wont have any effect
-        keep_checkpoints_num=1,
-#        checkpoint_score_attr=f"min-{metric}" if mode == 'min' else metric,     # doesn't seem to work if not default
-        progress_reporter=reporter,
-        name=train_conf['name'])
+    if search_conf['resume']:   #.lower() == 'true':
+        tuner = tune.Tuner.restore(search_conf['resume'])
+    else:
+        tuner = tune.Tuner(
+            tune.with_resources(partial(execute_trial,
+                                        full_conf=full_conf, update_conf=False,
+                                        hp_metric=search_conf['metric'],
+                                        hp_metric_mode=search_conf['mode']),
+                                {
+                                    "cpu": full_conf['data']['workers'],
+                                    "gpu": train_conf['gpu'],
+                                }),
+            param_space=hparams,
+            tune_config=tune.TuneConfig(
+                search_alg=search_alg,
+                scheduler=scheduler,
+                num_samples=search_conf['samples'],
+                reuse_actors=False),  # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
+            run_config=air.RunConfig(
+                name=train_conf['name'],
+                local_dir="~/ray_results",  # defaults to ~/ray_results
+                progress_reporter=reporter,
+                failure_config=air.FailureConfig(
+                    max_failures=20),
+                checkpoint_config=air.CheckpointConfig(
+                    num_to_keep=1),
+                sync_config=tune.SyncConfig()),  # syncer=None), disable local_dir syncing as it's done by the filesystem
+        )
+    tuner.fit()
 
     if search_method == 'bo':
         logging.info('RESULT: %s' % (search_alg.searcher._skopt_opt.get_result(),))
@@ -251,6 +255,8 @@ def tune_asha(search_conf, hparams, full_conf):
 
 
 def tune_pbs(search_conf, hparams, full_conf):
+    assert False, 'not yet updated to Ray 2.0'
+
     train_conf = full_conf['training']
     hparams, mutations = split_double_samplers(hparams)
 
