@@ -368,7 +368,7 @@ def rotate_aflow(aflow, shape2, angle1, angle2, legacy=False):
         grid = grid.reshape((-1, 2)).dot(np.linalg.inv(R1).T).reshape((nh1, nw1, 2))
         n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
     else:
-        n_aflow = rotate_array(r_aflow, angle1, fullsize=True, border=cv2.BORDER_REPLICATE, border_val=np.nan)
+        n_aflow = rotate_array(r_aflow, angle1, fullsize=True, border=cv2.BORDER_CONSTANT, border_val=np.nan)
 
     return n_aflow
 

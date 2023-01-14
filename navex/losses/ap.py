@@ -95,7 +95,8 @@ class ThresholdedAPLoss(DiscountedAPLoss):
 
     @property
     def ap_base(self):
-        return self.base * min(1, self.batch_count.item() / self.warmup_batches)
+        r = min(1, self.batch_count.item() / self.warmup_batches)
+        return self.base * r  # (1 - (1 - r)**4)
 
 
 class LogThresholdedAPLoss(ThresholdedAPLoss):
