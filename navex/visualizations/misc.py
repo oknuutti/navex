@@ -12,11 +12,11 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import torch
 
-from navex.datasets.base import ExtractionImageDataset, RGB_STD, GRAY_STD, RGB_MEAN, GRAY_MEAN
-from navex.datasets.tools import find_files, angle_between_q
-from navex.extract import extract_multiscale, extract_traditional
-from navex.models import tools
-from navex.models.tools import is_rgb_model, load_model
+from ..datasets.base import ExtractionImageDataset, RGB_STD, GRAY_STD, RGB_MEAN, GRAY_MEAN
+from ..datasets.tools import find_files, angle_between_q
+from ..extract import extract_multiscale, extract_traditional
+from ..models import tools
+from ..models.tools import is_rgb_model, load_model
 
 
 def main():
@@ -76,7 +76,7 @@ def main():
 
     dataset1 = ExtractionImageDataset(args.images, rgb=rgb, recurse=args.subdirs)
 
-    if args.images2 and not args.detection_only and not args.cluster_desc and not args.cluster_plot:
+    if args.images2 and not args.detection_only and not args.cluster_desc and not args.plot_clusters:
         dataset2 = ExtractionImageDataset(args.images2, rgb=rgb, recurse=args.subdirs)
         n1, n2 = len(dataset1), len(dataset2)
         inlier_counts = np.zeros((n1, n2))
@@ -88,9 +88,13 @@ def main():
             for i2 in pbar:
                 if dataset1.samples[i1] != dataset2.samples[i2]:
                     img2, xys2, desc2, scores2 = get_image_and_features(dataset2, i2, model, device, args)
-                    m, inl, rr = match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args, draw=False, pbar=pbar, device=device)
-                    inlier_counts[i1, i2] = len(inl)
-                    match_counts[i1, i2] = len(m)
+                    if len(xys2) > 0:
+                        m, inl, rr = match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args, draw=False, pbar=pbar, device=device)
+                        inlier_counts[i1, i2] = len(inl)
+                        match_counts[i1, i2] = len(m)
+                    else:
+                        inlier_counts[i1, i2] = 0
+                        match_counts[i1, i2] = 0
                 else:
                     inlier_counts[i1, i2] = np.nan
                     match_counts[i1, i2] = np.nan
@@ -98,13 +102,13 @@ def main():
             # plot inlier counts
             fig = plt.figure(1)
             axs = fig.subplots(2, 1)
-            axs[1].plot(match_counts[i1, :])   # / match_counts[i1, :])
+            axs[0].plot(match_counts[i1, :])   # / match_counts[i1, :])
             axs[0].set_title('match count')
             axs[1].plot(inlier_counts[i1, :] / match_counts[i1, :])   # / match_counts[i1, :])
             axs[1].set_title('inlier ratio')
             plt.show()
 
-            with open('output/temp/inlier-count-%s.pickle' % args.tag, 'wb') as fh:
+            with open('output/inlier-count-%s.pickle' % args.tag, 'wb') as fh:
                 pickle.dump((inlier_counts, match_counts), fh)
 
             # best matches

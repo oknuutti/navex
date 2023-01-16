@@ -235,6 +235,10 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
     # restore value
     torch.backends.cudnn.benchmark = old_bm
 
+    if len(XY) == 0:
+        print("WARNING: No features extracted! Maybe too demanding scaling constraints?")
+        return np.empty((0, 3)), np.empty((0, 128)), np.empty((0,))
+
     XY = np.concatenate(XY)
     S = np.concatenate(S)  # scale
     XYS = np.concatenate([XY, S], axis=1)
