@@ -87,7 +87,10 @@ def main():
     mpl.rcParams['font.size'] = 6
     plot_dims = list(np.where(matern_len_sc < 99)[0])
     axs = skplt.plot_objective(res, dimensions=np.array(search_alg._parameters)[plot_dims], plot_dims=plot_dims)
-    add_marker(axs, np.array(best_mean_x)[plot_dims], color='b', linestyle=":", linewidth=1)
+
+    if 1:
+        # for some unknown reason works for r2d2 but for disk no
+        add_marker(axs, np.array(best_mean_x)[plot_dims], color='b', linestyle=":", linewidth=1)
 
     plt.show()
 
@@ -133,7 +136,7 @@ def add_marker(axs, x, color='b', fill=False, size=100, marker="*", linestyle="-
             if i == j:
                 axs[i, j].axvline(x[i], linestyle=linestyle, color=color, lw=linewidth)
             elif i > j:
-                axs[i, j].scatter(x[j], x[i], **scatter_kwargs)
+                axs[i, j].scatter([x[j]], [x[i]], **scatter_kwargs)
 
 
 if __name__ == '__main__':

@@ -34,12 +34,13 @@ def main():
     parser.add_argument("--max-size", type=int, default=1024)
     parser.add_argument("--min-scale", type=float, default=0)
     parser.add_argument("--max-scale", type=float, default=1)
-    parser.add_argument("--det-lim", type=float, default=0.1)
+    parser.add_argument("--det-lim", type=float, default=0.5)
     parser.add_argument("--qlt-lim", type=float, default=0.5)
     parser.add_argument("--border", type=int, default=16, help="dont detect features if this close to image border")
     parser.add_argument("--min-matches", type=int, default=16)
     parser.add_argument("--skip-pose", type=int, default=0)
     parser.add_argument("--best-n", type=int, default=5)
+    parser.add_argument("--plot-indices", nargs='+', type=int, default=[], help="plot these image indices")
     parser.add_argument("--gpu", type=int, default=1)
     parser.add_argument("--video", type=int, default=0)
     parser.add_argument("--cluster-desc", action="store_true", help="cluster descriptors using mini-batch kmeans")
@@ -104,22 +105,25 @@ def main():
             axs = fig.subplots(2, 1)
             axs[0].plot(match_counts[i1, :])   # / match_counts[i1, :])
             axs[0].set_title('match count')
-            axs[1].plot(inlier_counts[i1, :] / match_counts[i1, :])   # / match_counts[i1, :])
+            axs[1].plot(inlier_counts[i1, :])   # / match_counts[i1, :])
             axs[1].set_title('inlier ratio')
             plt.show()
 
-            with open('output/inlier-count-%s.pickle' % args.tag, 'wb') as fh:
+            with open('output/temp/inlier-count-%s.pickle' % args.tag, 'wb') as fh:
                 pickle.dump((inlier_counts, match_counts), fh)
 
             # best matches
-            if 1:
-                bst = np.argsort(-inlier_counts[i1, :])
+            if not args.plot_indices:
+                args.plot_indices = np.argsort(-inlier_counts[i1, :])
             else:
-                bst = [72, 73, 75]
+                # bst = [72, 73, 75]
+                args.best_n = len(args.plot_indices)
+
             for k in range(args.best_n):
-                print('%d: %s' % (inlier_counts[i1, bst[k]], dataset2.samples[bst[k]]))
-                img2, xys2, desc2, scores2 = get_image_and_features(dataset2, bst[k], model, device, args)
-                match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args, device=device, save_img='output/temp/m%d.png' % bst[k])
+                print('%d: %s' % (args.plot_indices[k], dataset2.samples[args.plot_indices[k]]))
+                img2, xys2, desc2, scores2 = get_image_and_features(dataset2, args.plot_indices[k], model, device, args)
+                match(img1, xys1, desc1, img2, xys2, desc2, cam_mx, args, device=device,
+                      save_img='output/temp/m_%s_%d.png' % (args.tag, args.plot_indices[k]))
 
     else:
         img0, xys0, desc0, scores0 = [None] * 4
@@ -241,6 +245,9 @@ def get_image_and_features(dataset, idx, model, device, args, as_tensor=True):
     kpfile = dataset.samples[idx] + '.' + args.tag
     if os.path.exists(kpfile):
         xys1, desc1, scores1 = load_features(kpfile)
+        if args.top_k:
+            xys1, scores1 = map(lambda x: x[:args.top_k, ...], (xys1, scores1))
+            desc1 = desc1[:, :, :args.top_k]
     else:
         xys1, desc1, scores1 = extract(model, data1.to(device), args)
         save_features(kpfile, data1.shape[2:], xys1, desc1, scores1)
@@ -426,14 +433,14 @@ def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, colo
 
         if heatmap is not None:
             overlay = heatmap[i, :, :, :].permute((1, 2, 0)).cpu().numpy()
-            val_range = overlay.max(axis=(0, 1)) - overlay.min(axis=(0, 1))
-            overlay = (overlay - overlay.min(axis=(0, 1))) / (1 if val_range == 0 else val_range)
+            vmin, vmax = np.quantile(overlay, [0.01, 0.99], axis=(0, 1))
+            overlay = (overlay - vmin) / (1 if vmax - vmin == 0 else vmax - vmin)
 
             if color_map == 'hsv':
                 s, c = 0.33, 0.10
                 overlay = cv2.applyColorMap(((1 - np.clip(overlay*(1-s+c)+s-c, s, 1.0))*255).astype(np.uint8), cv2.COLORMAP_HSV)
             else:
-                overlay = cv2.applyColorMap((overlay * 255).astype(np.uint8), cv2.COLORMAP_SUMMER)
+                overlay = cv2.applyColorMap((np.clip(overlay, 0, 1) * 255).astype(np.uint8), cv2.COLORMAP_SUMMER)
 
             overlay = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
             if data is None:
@@ -508,6 +515,19 @@ def plot_inlier_counts(folder, prefix='inlier-count-', postfix='.pickle'):
         axs[0].set_title('matches')
         axs[1].set_title('inlier ratio')
         axs[0].legend()
+        plt.tight_layout()
+    elif 1:
+        mapping = {"akaze": (0, "AKAZE"), "hafe_ldisk_184": (1, "HAFE")}
+        fig, axs = plt.subplots(len(mapping), 1)
+        data = [[o, l, data[k]] for k, (o, l) in mapping.items()]
+        data = sorted(data, key=lambda x: x[0])
+
+        for i, label, d in data:
+            axs[i].set_title('%s' % label)
+            axs[i].plot(d[1].flatten(), label="Matches")
+            axs[i].plot(d[0].flatten(), label="Inliers")
+            axs[i].legend()
+
         plt.tight_layout()
     else:
         for tag, d in data.items():
@@ -640,4 +660,4 @@ if __name__ == '__main__':
     if 1:
         main()
     else:
-        plot_inlier_counts('output/inlier_counts')
+        plot_inlier_counts('output/temp')

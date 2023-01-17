@@ -26,7 +26,7 @@ def main():
     with open(args.path) as fh:
         mapping = None
         for line in fh:
-            fields = line.split('\t')
+            fields = line.strip().split('\t')
             if mapping is None:
                 if len(fields) > 20 and set(fields).issubset(HEADER):
                     mapping = dict([(h, fields.index(h)) for h in HEADER if h in fields])
@@ -39,7 +39,7 @@ def main():
                       'MMA', 'LE', 'mAP', 'ori-err', 'est_qw', 'est_qx', 'est_qy', 'est_qz'], \
            'Header from evaluate.py does not correspond to current code'
 
-    rawdata = np.array(rawdata, type=object)
+    rawdata = np.array(rawdata, dtype=object)
     datasets = np.unique(rawdata[:, 0]).tolist()
     print("following datasets found: %s" % (datasets,))
     print("plotting results for dataset: %s" % (args.dataset,))
@@ -47,17 +47,17 @@ def main():
     I = np.ones(len(rawdata), dtype=bool) if args.dataset == 'all' else rawdata[:, 0] == args.dataset
 
     info = rawdata[I, 0:4]
-    light1 = rawdata[I, 4:7].atype(float)
-    light2 = rawdata[I, 7:10].atype(float)
+    light1 = rawdata[I, 4:7].astype(float)
+    light2 = rawdata[I, 7:10].astype(float)
     rel_q = [np.quaternion(*q) for q in rawdata[I, 10:14].astype(float)]
-    rel_angle = rawdata[I, 14].atype(float)
-    rel_dist = rawdata[I, 15].atype(float)
-    feat_density = rawdata[I, 16].atype(float)
-    mscore = rawdata[I, 17].atype(float)
-    mma = rawdata[I, 18].atype(float)
-    locerr = rawdata[I, 19].atype(float)
-    map = rawdata[I, 20].atype(float)
-    orierr = rawdata[I, 21].atype(float)
+    rel_angle = rawdata[I, 14].astype(float)
+    rel_dist = rawdata[I, 15].astype(float)
+    feat_density = rawdata[I, 16].astype(float)
+    mscore = rawdata[I, 17].astype(float)
+    mma = rawdata[I, 18].astype(float)
+    locerr = rawdata[I, 19].astype(float)
+    map = rawdata[I, 20].astype(float)
+    orierr = rawdata[I, 21].astype(float)
     est_q = [np.quaternion(*q) for q in rawdata[I, 22:26].astype(float)]
 
     pa_change, ld_change = [None] * 2
@@ -67,6 +67,8 @@ def main():
     plot_metrics_1d(rel_angle, mscore, mma, locerr, map, title="Metrics vs angular camera axis change")
     if pa_change is not None:
         plot_metrics_2d(pa_change, ld_change, mscore, mma, locerr, map, title="Metrics vs changes in lighting")
+
+    plt.tight_layout()
     plt.show()
 
 
@@ -80,8 +82,30 @@ def lighting_change(light1, light2):
 
 def plot_metrics_1d(dim, mscore, mma, locerr, map, xlabel=None, title=None):
     fig, axs = plt.subplots(2, 2, sharex=True, squeeze=True)
+    fig.suptitle(title)  #, fontsize=16)
+    axs = axs.flatten()
 
-    # TODO: make plots
+    xmin, xmax = 10, 30  #np.min(dim), np.max(dim)
+    lims = np.arange(xmin, xmax + 5, 5)
+    I = [np.logical_and(dim >= lims[i], dim < lims[i+1]) for i in range(len(lims) - 1)]
+
+    def plot(ax, y):
+        nn = np.logical_not(np.isnan(y))
+        ax.violinplot([y[np.logical_and(I[i], nn)] for i in range(len(I))], lims[:-1] + 2.5, points=30, widths=2.5,
+                      showmedians=True, showextrema=False)  # , quantiles=[[0.05], [0.5], [0.95]])
+        ax.set_xlabel(xlabel)
+
+    axs[0].set_title('M-score')
+    plot(axs[0], mscore)
+
+    axs[1].set_title('MMA')
+    plot(axs[1], mma)
+
+    axs[2].set_title('Localization Error')
+    plot(axs[2], locerr)
+
+    axs[3].set_title('mAP')
+    plot(axs[3], map)
 
 
 def plot_metrics_2d(dim1, dim2, mscore, mma, locerr, map, xlabel=None, title=None):
