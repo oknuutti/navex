@@ -492,6 +492,10 @@ data:
     alt: ['-d', '--data']
     help: "path to dataset"
 
+  use_synth:
+    type: int
+    help: "use synthetic data in training"
+
   npy:
     alt: ['--npy']
     help: "use npy format data instead of jpg and png"

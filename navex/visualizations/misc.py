@@ -2,6 +2,7 @@ import os
 import argparse
 import pickle
 import re
+import warnings
 from datetime import datetime
 
 import cv2
@@ -243,13 +244,27 @@ def get_image_and_features(dataset, idx, model, device, args, as_tensor=True):
     img1 = ExtractionImageDataset.tensor2img(data1)[0]
 
     kpfile = dataset.samples[idx] + '.' + args.tag
-    if os.path.exists(kpfile):
+    if os.path.exists(kpfile) and not args.detection_only:
         xys1, desc1, scores1 = load_features(kpfile)
         if args.top_k:
             xys1, scores1 = map(lambda x: x[:args.top_k, ...], (xys1, scores1))
             desc1 = desc1[:, :, :args.top_k]
     else:
-        xys1, desc1, scores1 = extract(model, data1.to(device), args)
+        data1 = data1.to(device)
+        for i in range(2):
+            try:
+                xys1, desc1, scores1 = extract(model, data1, args)
+                break
+            except Exception as e:
+                if i == 0:
+                    warnings.warn("Got %s, trying again using CPU" % (e,))
+                    data1 = data1.cpu()
+                    model = model.cpu()
+                else:
+                    raise e
+        if i == 1:
+            xys1, desc1, scores1 = map(lambda x: x.to(device), (xys1, desc1, scores1))
+
         save_features(kpfile, data1.shape[2:], xys1, desc1, scores1)
 
     if as_tensor and not isinstance(desc1, torch.Tensor):

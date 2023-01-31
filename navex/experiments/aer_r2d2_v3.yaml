@@ -36,6 +36,9 @@ training:
   reduced_precision: !h_int 0
   auto_lr_find: 0
   deterministic: 1
+  accuracy:
+    det_mode: 'nms'
+    det_kernel_size: 3
 
 model:
   arch: !h_str 'disk-def'
@@ -102,6 +105,7 @@ data:
   rnd_gain: !h_float 1.2     # related to all dataset types
   image_size: !h_int 224     # related to all dataset types
   path: 'data'
+  use_synth: 0
   npy: 'false'
   trn_ratio: 0.90
   val_ratio: 0.10

@@ -107,6 +107,7 @@ data:
   image_size: 224
   path: 'data/rot-cg67p-osinac.tar;data/cg67p-navcam.tar;data/rot-eros-msi.tar;data/bennu-tagcams.tar;data/rot-synth-bennu-v3.tar;data/rot-itokawa-amica.tar'
   npy: 'false'
+  use_synth: !h_tune2_choice  '[0], [0, 1]'
   trn_ratio: 0.85
   val_ratio: 0.15
   tst_ratio: 0.00   # different test set altogether (itokawa)

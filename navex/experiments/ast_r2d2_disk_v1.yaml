@@ -105,6 +105,7 @@ data:
   rnd_gain: !h_float 1.2
   image_size: !h_int 224
   path: 'data'
+  use_synth: 1
   npy: 'false'
   trn_ratio: 0.85
   val_ratio: 0.15

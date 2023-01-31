@@ -25,8 +25,8 @@ class AsteroidalTrial(TerrestrialTrial):
             dsp, dss = [], []
             if 1:
                 dsp.append(ErosPairDataset(self.data_conf['path'], **common, **pconf))
-            if 1:
-                dsp.append(SynthBennuPairDataset(self.data_conf['path'], **common))
+            if self.data_conf['use_synth']:
+                dss.append(SynthBennuPairDataset(self.data_conf['path'], **common))
             if 1:
                 dss.append(BennuSynthPairDataset(self.data_conf['path'], **common, **sconf))
             if 1:

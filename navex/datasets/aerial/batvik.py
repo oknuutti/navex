@@ -88,7 +88,7 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
         sc2 = proc_imgs[1][1]
         n_aflow = resize_aflow(aflow, img1.size, img2.size, sc2)
 
-        (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]
+        (r_img1_pth, r_img2_pth), r_aflow_pth, *meta = self.samples[idx]
         if 1:
             show_pair(img1, img2, n_aflow, pts=20, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
 
