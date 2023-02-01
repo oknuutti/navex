@@ -187,7 +187,10 @@ def tune_asha(search_conf, hparams, full_conf):
         key_order = list(flatten_dict(hparams, prevent_delimiter=True).keys())
         if search_conf['resume'] and search_conf['resume'].lower() != 'true':
             search_alg = MySkOptSearch()
-            search_alg.restore(search_conf['resume'])
+            if os.path.isdir(search_conf['resume']):
+                search_alg.restore_from_dir(search_conf['resume'])
+            else:
+                search_alg.restore(search_conf['resume'])
             start_config = reorder_cols(search_alg._skopt_opt.Xi, search_alg._parameters, key_order)
             evaluated_rewards = search_alg._skopt_opt.yi
         else:
