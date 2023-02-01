@@ -221,8 +221,11 @@ def tune_asha(search_conf, hparams, full_conf):
         parameter_columns=list(hparams.keys())[:4],
         metric_columns=["loss", "tot_ratio", "mAP"])
 
-    if search_conf['resume']:   #.lower() == 'true':
-        tuner = tune.Tuner.restore(search_conf['resume'])
+    if False and search_conf['resume']:
+        assert False, 'As of version 2.2.0, this will not generate new trials, it only finished pending trials'
+        # see ray/tune/impl/tuner_internal.py: __init__, _restore_from_path_or_uri, fit, _fit_resume
+        # e.g., if a tuner.pkl pickle is loaded, it's _tune_config.search_alg.searcher._skopt_opt.yi is empty
+        tuner = tune.Tuner.restore(search_conf['resume'], resume_unfinished=True, resume_errored=True)
     else:
         tuner = tune.Tuner(
             tune.with_resources(partial(execute_trial,
@@ -237,7 +240,7 @@ def tune_asha(search_conf, hparams, full_conf):
             tune_config=tune.TuneConfig(
                 search_alg=search_alg,
                 scheduler=scheduler,
-                num_samples=search_conf['samples'],
+                num_samples=search_conf['samples'] - len(search_alg.searcher._skopt_opt.yi),
                 reuse_actors=False),  # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
             run_config=air.RunConfig(
                 name=train_conf['name'],
@@ -250,11 +253,12 @@ def tune_asha(search_conf, hparams, full_conf):
                 sync_config=tune.SyncConfig()),  # syncer=None), disable local_dir syncing as it's done by the filesystem
         )
     tuner.fit()
-
-    if search_method == 'bo':
-        logging.info('RESULT: %s' % (search_alg.searcher._skopt_opt.get_result(),))
-        logging.info('Length scales: %s' % (
-            dict(zip(key_order, search_alg.searcher._skopt_opt.base_estimator_.kernel.k2.length_scale)),))
+    logging.info('TUNE FINISHED!')
+    #
+    # if search_method == 'bo':
+    #     logging.info('RESULT: %s' % (search_alg.searcher._skopt_opt.get_result(),))
+    #     logging.info('Length scales: %s' % (
+    #         dict(zip(key_order, search_alg.searcher._skopt_opt.base_estimator_.kernel.k2.length_scale)),))
 
 
 def tune_pbs(search_conf, hparams, full_conf):
