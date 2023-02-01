@@ -178,6 +178,7 @@ def tune_asha(search_conf, hparams, full_conf):
 
     if search_method == 'rs':
         search_alg = BasicVariantGenerator()
+        prev_steps = 0
     elif search_method == 'bo':
         # need to:  pip install scikit-optimize
         initial, hparams = split_double_samplers(hparams)
@@ -193,11 +194,13 @@ def tune_asha(search_conf, hparams, full_conf):
                 search_alg.restore(search_conf['resume'])
             start_config = reorder_cols(search_alg._skopt_opt.Xi, search_alg._parameters, key_order)
             evaluated_rewards = search_alg._skopt_opt.yi
+            prev_steps = len(evaluated_rewards)
         else:
             start_config = [[initial[k].sample() for k in key_order if k in initial]
                              for _ in range(max(1, search_conf['nodes']))]
             evaluated_rewards = None
-
+            prev_steps = 0
+        
         search_alg = MySkOptSearch(metric='hp_metric_max', mode='max',
                                    points_to_evaluate=start_config, evaluated_rewards=evaluated_rewards)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
@@ -240,7 +243,7 @@ def tune_asha(search_conf, hparams, full_conf):
             tune_config=tune.TuneConfig(
                 search_alg=search_alg,
                 scheduler=scheduler,
-                num_samples=search_conf['samples'] - len(search_alg.searcher._skopt_opt.yi),
+                num_samples=search_conf['samples'] - prev_steps,
                 reuse_actors=False),  # not sure if setting this True results in trials that are forever pending, True helps with fd limits though
             run_config=air.RunConfig(
                 name=train_conf['name'],
