@@ -10,7 +10,7 @@ git clone https://github.com/oknuutti/r2d2.git r2d2
 conda create -n navex -c conda-forge -c pytorch --override-channels pip pytorch torchvision cudatoolkit opencv \
       pytorch-lightning==1.1.7 opencv paramiko quaternion scipy scikit-optimize pandas numba
 conda activate navex
-pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0 ray==1.13.0
+pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0 ray==2.2.0 ray[default]
 pip install git+https://github.com/jatentaki/unets
 pip install git+https://github.com/jatentaki/torch-localize
 pip install git+https://github.com/jatentaki/torch-dimcheck

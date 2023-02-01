@@ -203,7 +203,10 @@ class RayTuneHeadNode:
             out, err = self.ssh.exec("scancel %d" % w.slurm_job_id)
 
         del self.ssh
-        os.system("ray stop")
+        try:
+            os.system("ray stop")
+        except Exception as e:
+            logging.error(str(e))
 
         if self.exception:
             if isinstance(self.exception, KeyboardInterrupt):

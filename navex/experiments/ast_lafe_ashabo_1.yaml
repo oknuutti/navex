@@ -93,7 +93,7 @@ data:
   student_rnd_gain: !h_tune2_uniform '(1.08, 1.12), (1.0, 1.3)'
   student_noise_sd: !h_tune2_uniform '(0.02, 0.03), (0.00, 0.10)'
   image_size: 512
-  path: 'data/rot-cg67p-osinac.tar;data/cg67p-navcam.tar;data/rot-eros-msi.tar;data/bennu-tagcams.tar;data/rot-synth-bennu-v3.tar;data/rot-itokawa-amica.tar'
+  path: 'data/rot-cg67p-osinac.tar;data/cg67p-navcam.tar;data/rot-eros-msi.tar;data/bennu-tagcams.tar;data/rot-synth-bennu-v4.tar;data/rot-itokawa-amica.tar'
   use_synth: 1
   npy: 'false'
   trn_ratio: 0.85

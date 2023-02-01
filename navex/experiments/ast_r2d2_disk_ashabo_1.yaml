@@ -105,7 +105,7 @@ data:
   noise_max: !h_tune2_uniform '(0.08, 0.12), (0.00, 0.30)'
   rnd_gain:  1.2        # tried to optimize, doesn't seem to affect much
   image_size: 224
-  path: 'data/rot-cg67p-osinac.tar;data/cg67p-navcam.tar;data/rot-eros-msi.tar;data/bennu-tagcams.tar;data/rot-synth-bennu-v3.tar;data/rot-itokawa-amica.tar'
+  path: 'data/rot-cg67p-osinac.tar;data/cg67p-navcam.tar;data/rot-eros-msi.tar;data/bennu-tagcams.tar;data/rot-synth-bennu-v4.tar;data/rot-itokawa-amica.tar'
   npy: 'false'
   use_synth: !h_tune2_choice  '[0], [0, 1]'
   trn_ratio: 0.85
