@@ -7,8 +7,8 @@ git clone https://github.com/oknuutti/navex.git navex
 cd navex
 git clone https://github.com/oknuutti/r2d2.git r2d2
 
-conda create -n navex -c conda-forge -c pytorch --override-channels pip pytorch torchvision cudatoolkit opencv \
-      pytorch-lightning==1.1.7 opencv paramiko quaternion scipy scikit-optimize pandas numba
+conda create -n navex -c pytorch -c nvidia -c conda-forge --override-channels pip pytorch torchvision pytorch-cuda==11.6 \
+ opencv pytorch-lightning==1.1.7 opencv paramiko quaternion scipy scikit-optimize pandas numba
 conda activate navex
 pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0 ray==2.2.0 ray[default]
 pip install git+https://github.com/jatentaki/unets
@@ -17,7 +17,7 @@ pip install git+https://github.com/jatentaki/torch-dimcheck
 pip install -e ./r2d2
 
 # make functions node_ip_address_from_perspective and get_node_ip_address always return "127.0.0.1":
-vim <env-path>/lib/python3.8/site-packages/ray/_private/services.py
+vim <env-path>/lib/python3.10/site-packages/ray/_private/services.py
 ```
 
 <!-- might need to use pip instead of conda for pandas, numba -->
