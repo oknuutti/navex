@@ -76,11 +76,19 @@ ssh -f -N -T -o StrictHostKeyChecking=no \
 #             -L $H_OBJ_S_PORT:127.0.0.1:$H_OBJ_S_PORT \
 
 # check here for available params: https://github.com/ray-project/ray/blob/ray-1.13.0/src/ray/common/ray_config_def.h
-export RAY_raylet_client_num_connect_attempts=10
-export RAY_raylet_client_connect_timeout_milliseconds=`shuf -i 1000-3000 -n 1`
-export RAY_worker_register_timeout_seconds=120
+#export RAY_raylet_client_num_connect_attempts=10
+#export RAY_raylet_client_connect_timeout_milliseconds=`shuf -i 1000-3000 -n 1`
+#export RAY_raylet_heartbeat_period_milliseconds=3000
+#export RAY_num_heartbeats_timeout=100
+#export RAY_worker_register_timeout_seconds=120
+#export RAY_health_check_initial_delay_ms=15000
+#export RAY_health_check_period_ms=10000
+#export RAY_health_check_timeout_ms=30000
+#export RAY_health_check_failure_threshold=10
+#export RAY_DASHBOARD_AGENT_CHECK_PARENT_INTERVAL_S=100000000
+#export RAY_BACKEND_LOG_LEVEL=debug
 export TUNE_RESULT_DIR="$WRKDIR/navex/output"
-sleep `shuf -i 0-60 -n 1`s
+#sleep `shuf -i 0-60 -n 1`s
 srun python -m navex.ray.worker --num-cpus="$CPUS" --num-gpus=1 --address="127.0.0.1:$HEAD_PORT" \
                                 --redis-shard-ports="$H_SHARD_PORTS" --redis-password="$H_REDIS_PWD" \
                                 --head-object-manager-port="$H_OBJ_M_PORT" --head-node-manager-port="$H_NODE_M_PORT" \

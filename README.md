@@ -7,8 +7,8 @@ git clone https://github.com/oknuutti/navex.git navex
 cd navex
 git clone https://github.com/oknuutti/r2d2.git r2d2
 
-conda create -n navex -c pytorch -c nvidia -c conda-forge --override-channels pip pytorch torchvision pytorch-cuda==11.6 \
- opencv pytorch-lightning==1.1.7 opencv paramiko quaternion scipy scikit-optimize pandas numba
+conda create -n navex -c pytorch -c nvidia -c conda-forge --override-channels python==3.10 pip pytorch torchvision \
+ pytorch-cuda==11.6 opencv pytorch-lightning==1.1.7 opencv paramiko quaternion scipy scikit-optimize pandas numba
 conda activate navex
 pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0 ray==2.2.0 ray[default]
 pip install git+https://github.com/jatentaki/unets

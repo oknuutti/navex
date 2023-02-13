@@ -88,7 +88,7 @@ def main():
     plot_dims = list(np.where(matern_len_sc < 99)[0])
     axs = skplt.plot_objective(res, dimensions=np.array(search_alg._parameters)[plot_dims], plot_dims=plot_dims)
 
-    if 1:
+    if 0:
         # for some unknown reason works for r2d2 but for disk no
         add_marker(axs, np.array(best_mean_x)[plot_dims], color='b', linestyle=":", linewidth=1)
 

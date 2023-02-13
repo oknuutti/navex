@@ -94,21 +94,14 @@ def main():
 
         logging.info('ray worker node started with details: %s' % ((
                       node.address_info, {'metrics_agent_port': node.metrics_agent_port}),))
-        logging.info('waiting 30s before interfacing with python...')
-        time.sleep(30)
-        logging.info('testing if node manager port works...')
-        os.system("nc -z -v 127.0.0.1 %d" % args.node_manager_port)
-
-        addr = ray.init(address=head_address, logging_level=logging.DEBUG,
-                        _redis_password=args.redis_password)
-        node_info = [n for n in ray.nodes() if n['NodeID'] == addr.address_info['node_id']][0]
-
-        # ports on which the worker is listening on
-        local_ports = [head_port,
-                       node_info['NodeManagerPort'],
-                       node_info['ObjectManagerPort']]
-
-        logging.info('ray worker node successfully initialized, ports: %s' % (local_ports,))
+        # time.sleep(30)
+        # logging.info('testing if node manager port works...')
+        # os.system("nc -z -v 127.0.0.1 %d" % args.node_manager_port)
+        #
+        # head_address = 'ray://%s:%d' % (head_host, args.ray_client_port)
+        # client_context = ray.init(address=head_address, logging_level=logging.DEBUG,
+        #                           _redis_password=args.redis_password)
+        # logging.info('Ray worker node successfully initialized!')
 
         # hook signals
         _register_signals()
