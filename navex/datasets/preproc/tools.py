@@ -23,7 +23,7 @@ from navex.datasets import tools
 from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
     q_times_v, angle_between_v, valid_asteriod_area, tf_view_unit_v, preprocess_image, rotate_array, Camera, \
     from_opencv_v, from_opencv_q, save_xyz, save_mono, load_xyz, load_mono, estimate_pose_pnp, estimate_pose_icp, \
-    NearestKernelNDInterpolator
+    NearestKernelNDInterpolator, find_files_recurse
 from navex.experiments.parser import nested_filter
 
 
@@ -73,7 +73,7 @@ def convert_from_exr_to_png():
     assert not args.xyz2d or cam is not None, \
         'if use xyz2d arg, need cam (couldnt find with key %s)' % (os.path.basename(args.root),)
 
-    files = find_files(args.root, ext=re.compile(r"^.*?(\.xyz\.exr|\.d\.exr|\.s\.exr)$"))
+    files = find_files_recurse(args.root, ext=re.compile(r"^.*?(\.xyz\.exr|\.d\.exr|\.s\.exr)$"))
     for file in tqdm(files):
         if file.endswith('.xyz.exr'):
             xyz = load_xyz(file)
