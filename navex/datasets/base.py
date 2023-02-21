@@ -101,8 +101,8 @@ class DatabaseImagePairDataset(ImagePairDataset):
                           'id', 'file', 'sc_sun_x', 'sc_sun_y', 'sc_sun_z', 'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
                           'img_angle', 'sc_trg_x', 'sc_trg_y', 'sc_trg_z', 'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz')):
             index[id] = dict(file=file, sc_sun_v=np.array([sc_sun_x, sc_sun_y, sc_sun_z]),
-                                        sc_q=if_none_q(sc_qw, sc_qx, sc_qy, sc_qz, fallback=quaternion.one)
-                                             * eul_to_q((img_angle or 0,), 'x'),  # in +x cam axis, +z up
+                                        sc_q=if_none_q(sc_qw, sc_qx, sc_qy, sc_qz, fallback=quaternion.one),
+                                        img_angle=img_angle or 0,
                                         sc_trg_v=np.array([sc_trg_x, sc_trg_y, sc_trg_z]),
                                         trg_q=if_none_q(trg_qw, trg_qx, trg_qy, trg_qz, fallback=np.quaternion(*[np.nan]*4)))
 
@@ -117,6 +117,9 @@ class DatabaseImagePairDataset(ImagePairDataset):
         rel_dist = [np.linalg.norm(index[j]['sc_trg_v'])
                     / np.linalg.norm(index[i]['sc_trg_v']) for i, j in self.indices]
 
+        img_angle1 = [index[i]['img_angle'] for i, _ in self.indices]
+        img_angle2 = [index[j]['img_angle'] for _, j in self.indices]
+
         # target orientation in cam frame
         sf_trg_q1 = [(index[i]['sc_q'].conj() * index[i]['trg_q']).components for i, _ in self.indices]
         sf_trg_q2 = [(index[j]['sc_q'].conj() * index[j]['trg_q']).components for _, j in self.indices]
@@ -126,7 +129,8 @@ class DatabaseImagePairDataset(ImagePairDataset):
         light2 = [np.ones((3,))*np.nan if index[j]['sc_q'] == quaternion.one else
                   q_times_v(index[j]['sc_q'].conj(), -normalize_v(index[j]['sc_sun_v'].astype(float))) for i, j in self.indices]
 
-        meta = (rel_dist, sf_trg_q1, sf_trg_q2, light1, light2)    # NOTE: needs to be mirrored in SynthesizedPairDataset
+        # NOTE: needs to be mirrored in SynthesizedPairDataset
+        meta = (rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2)
         samples = list(zip(imgs, aflow, *meta))
         return samples
 
@@ -251,7 +255,7 @@ class SynthesizedPairDataset(VisionDataset):
                                        (self.__class__, idx, self.samples[idx],)) from e
 
         # NOTE: needs to be mirrored in DatabaseImagePairDataset
-        meta = (np.nan, np.ones(4)*np.nan, np.ones(4)*np.nan, np.ones(3)*np.nan, np.ones(3)*np.nan)
+        meta = (np.nan, np.nan, np.nan, np.ones(4)*np.nan, np.ones(4)*np.nan, np.ones(3)*np.nan, np.ones(3)*np.nan)
         return (img1, img2), aflow, *meta
 
     def valid_area(self, img):

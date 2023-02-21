@@ -2,7 +2,6 @@ import itertools
 import math
 import os
 import argparse
-import logging
 import datetime
 import re
 import time
@@ -16,29 +15,28 @@ import numpy as np
 import quaternion
 import matplotlib.pyplot as plt
 import cv2
-import scipy
 from scipy.cluster.vq import kmeans
 from tqdm import tqdm
-from scipy.interpolate import NearestNDInterpolator
 import numba as nb
 
 from navex.datasets import tools
 from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
     q_times_v, angle_between_v, valid_asteriod_area, tf_view_unit_v, preprocess_image, rotate_array, Camera, \
-    from_opencv_v, from_opencv_q
+    from_opencv_v, from_opencv_q, save_xyz, save_mono, load_xyz, load_mono, estimate_pose_pnp, estimate_pose_icp, \
+    NearestKernelNDInterpolator
 from navex.experiments.parser import nested_filter
 
 
 def create_image_pairs_script():
-    parser = argparse.ArgumentParser('Group images based on their *.xyz.exr files')
+    parser = argparse.ArgumentParser('Group images based on their *.xyz files')
     parser.add_argument('--root', help="image data root folder")
     parser.add_argument('--index', help="index file to use, or if missing, create (in root)")
     parser.add_argument('--pairs', help="pairing file to create in root")
-    parser.add_argument('--src', default='', help="subfolder with the *.xyz.exr files")
+    parser.add_argument('--src', default='', help="subfolder with the *.xyz files")
     parser.add_argument('--aflow', help="subfolder where the aflow files are generated")
     parser.add_argument('--img-max', type=int, default=3, help="how many times same images can be repated in pairs")
     parser.add_argument('--hz-fov', type=float,
-                        help="horizontal FoV in degs, can be used with *.d.exr file if *.s.exr file missing")
+                        help="horizontal FoV in degs, can be used with *.d file if *.s file missing")
     parser.add_argument('--min-angle', type=float, default=0,
                         help="min angle (deg) on the unit sphere for pair creation")
     parser.add_argument('--max-angle', type=float, default=0,
@@ -54,6 +52,53 @@ def create_image_pairs_script():
                        min_matches=args.min_matches, read_meta=args.read_meta, show_only=args.show_only)
 
 
+def convert_from_exr_to_png():
+    parser = argparse.ArgumentParser('Convert *.xyz.exr, *.d.exr and *.s.exr files to own png-based format')
+    parser.add_argument('--root', help="image data root folder")
+    parser.add_argument('--xyz2d', action='store_true', help="use .xyz file to generate .d file")
+    parser.add_argument('--rm', action='store_true', help="remove converted files, default: no")
+    args = parser.parse_args()
+
+    from .eros_msi import CAM as msi
+    from .itokawa_amica import CAM as amica
+    from .cg67p_rosetta import INSTR
+    from .synth import CAM as vcam
+    cam = {
+        'synth': vcam,
+        'osinac': INSTR['osinac']['cam'],
+        'eros': msi,
+        'itokawa': amica,
+    }.get(os.path.basename(args.root), None)
+
+    assert not args.xyz2d or cam is not None, \
+        'if use xyz2d arg, need cam (couldnt find with key %s)' % (os.path.basename(args.root),)
+
+    files = find_files(args.root, ext=re.compile(r"^.*?(\.xyz\.exr|\.d\.exr|\.s\.exr)$"))
+    for file in tqdm(files):
+        if file.endswith('.xyz.exr'):
+            xyz = load_xyz(file)
+            if args.xyz2d:
+                d = _convert_xyz2d(xyz, cam)
+                save_mono(file[:-8]+'.d', d)
+            save_xyz(file[:-4], xyz)
+        else:
+            if args.xyz2d and file.endswith('.d.exr'):
+                pass
+            else:
+                x = load_mono(file)
+                save_mono(file[:-4], x)
+
+        if args.rm:
+            os.unlink(file)
+
+
+def _convert_xyz2d(xyz, cam):
+    sc_trg_pos, sc_trg_ori = estimate_pose_pnp(cam, xyz, ba=False)
+    v = xyz + q_times_v(sc_trg_ori.conj(), sc_trg_pos)
+    d = np.linalg.norm(v, axis=2)
+    return d
+
+
 def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov, min_angle,
                        max_angle, min_matches, read_meta, max_sc_diff=1.5, max_dist=None, show_only=False, start=0.0, end=1.0,
                        exclude_shadowed=True, across_subsets=False, depth_src=None, cluster_unit_vects=True,
@@ -64,7 +109,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
     geom_src_fun = (lambda fname: os.path.join(root, geom_src, fname)) if isinstance(geom_src, str) else geom_src
 
     depth_src = depth_src or geom_src
-    depth_src_fun = (lambda fname: os.path.join(root, depth_src, fname[:-4] + '.d.exr')) if isinstance(depth_src, str) else depth_src
+    depth_src_fun = (lambda fname: os.path.join(root, depth_src, fname[:-4] + '.d')) if isinstance(depth_src, str) else depth_src
 
     os.makedirs(aflow_path, exist_ok=True)
 
@@ -86,14 +131,14 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
     if is_new:
         assert isinstance(geom_src, str), 'source path function not supported without existing index'
         logging.info('building the index file...')
-        files = find_files(os.path.join(root, geom_src), ext='.xyz.exr', relative=True)
+        files = find_files(os.path.join(root, geom_src), ext='.xyz', relative=True)
         files = [(i, file[:-8] + '.png') for i, file in enumerate(files)]
     else:
         files = [(id, file) for id, file in
                  index.get_all(('id', 'file'), cond='vd is null', start=start, end=end)]
 
     if is_new or read_meta:
-        for i, fname in tqdm(files, desc='Clustering *.xyz.exr file contents'):
+        for i, fname in tqdm(files, desc='Clustering *.xyz file contents'):
             try:
                 xyz = load_xyzs(geom_src_fun(fname), skip_s=True, hide_shadow=exclude_shadowed).reshape((-1, 3))
             except Exception as e:
@@ -262,11 +307,11 @@ def cam_obj(cam_params):
 
 def gen_aflow_script():
     parser = argparse.ArgumentParser('Get image pairs from an index file, '
-                                     'based on *.xyz.exr and *.s.exr files, generate *.aflow.png file')
+                                     'based on *.xyz and *.s files, generate *.aflow.png file')
     parser.add_argument('--index', help="index file")
     parser.add_argument('--dst', help="output folder for the aflow files")
     parser.add_argument('--hz-fov', type=float,
-                        help="horizontal FoV in degs, can be used with *.d.exr file if *.s.exr file missing")
+                        help="horizontal FoV in degs, can be used with *.d file if *.s file missing")
     args = parser.parse_args()
 
     src_path = os.path.dirname(args.index)
@@ -305,7 +350,10 @@ def load_xyzs(i_file, g_file=None, s_file=None, d_file=None, h_file=None, skip_s
         g_file = g_file or (i_file + '.xyz.exr')
         i_file = i_file + '.png'
 
-    xyz = cv2.imread(g_file, cv2.IMREAD_UNCHANGED)
+    if g_file[-4:] == '.exr' and os.path.exists(g_file[:-4]):
+        g_file = g_file[-4:]
+
+    xyz = load_xyz(g_file)
     if xyz is None:
         raise FileNotFoundError("couldn't read file %s" % g_file)
 
@@ -334,14 +382,20 @@ def load_xyzs(i_file, g_file=None, s_file=None, d_file=None, h_file=None, skip_s
         return xyz
 
     s_file = s_file or (i_file[:-4] + '.s.exr')
+    if s_file[-4:] == '.exr' and os.path.exists(s_file[:-4]):
+        s_file = s_file[-4:]
+
     d_file = d_file or (i_file[:-4] + '.d.exr')
+    if d_file[-4:] == '.exr' and os.path.exists(d_file[:-4]):
+        d_file = d_file[-4:]
+
     if hz_fov is not None and not os.path.exists(s_file) or xyzd:
-        d = cv2.imread(d_file, cv2.IMREAD_UNCHANGED)
+        d = load_mono(d_file)
         if not xyzd:
             coef = 2 * math.sin(math.radians(hz_fov / d.shape[1]) / 2)
             s = d * coef
     else:
-        s = cv2.imread(s_file, cv2.IMREAD_UNCHANGED)
+        s = load_mono(s_file)
 
     xyzs = np.concatenate((xyz, np.atleast_3d(d if xyzd else s)), axis=2)
     if rotate_angle:
@@ -404,34 +458,34 @@ def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0
     # TODO: if either depth map is too flat (i.e. featureless) or err is large, use template matching on images instead
     if 0:
         # run ICP to get pose adjustment
-        adj_rel_pose, err = icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
+        adj_rel_pos, adj_rel_ori, err = estimate_pose_icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
     elif 0:
         # run template matching on images to get pose adjustment
         img0 = load_image(imgfile0, angle0, cam0)
         img1 = load_image(imgfile1, angle1, cam1)
-        adj_rel_pose, err = match_template(img0, img1, I0, cropped_P0, cam1)
+        adj_rel_pos, adj_rel_ori, err = match_template(img0, img1, I0, cropped_P0, cam1)
     else:
         if 0:
             # seems to improve result marginally
-            adj_rel_pose, err = icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
-            c_xyz0_1 = tools.q_times_mx(adj_rel_pose[1], c_xyz0_1) + adj_rel_pose[0]
-            cropped_P0 = tools.q_times_mx(adj_rel_pose[1], cropped_P0) + adj_rel_pose[0]
+            adj_rel_pos, adj_rel_ori, err = estimate_pose_icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
+            c_xyz0_1 = tools.q_times_mx(adj_rel_ori, c_xyz0_1) + adj_rel_pos
+            cropped_P0 = tools.q_times_mx(adj_rel_ori, cropped_P0) + adj_rel_pos
 
         # run template matching on depth maps to get pose adjustment  (best results, very slow though)
         dm0 = c_xyz0_1[:, 2].reshape(xyzd1.shape[:2])
-        adj_rel_pose, err = match_template(dm0, xyzd1[:, :, 3], I0, cropped_P0, cam1, margin_px=120, skip=2,
+        adj_rel_pos, adj_rel_ori, err = match_template(dm0, xyzd1[:, :, 3], I0, cropped_P0, cam1, margin_px=120, skip=2,
                                            depthmap=True, use_edges=False)
 
         if 0:
             # seems to just make it worse
-            c_xyz0_1 = tools.q_times_mx(adj_rel_pose[1], c_xyz0_1) + adj_rel_pose[0]
-            cropped_P0 = tools.q_times_mx(adj_rel_pose[1], cropped_P0) + adj_rel_pose[0]
-            adj_rel_pose, err = icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
+            c_xyz0_1 = tools.q_times_mx(adj_rel_ori, c_xyz0_1) + adj_rel_pos
+            cropped_P0 = tools.q_times_mx(adj_rel_ori, cropped_P0) + adj_rel_pos
+            adj_rel_pos, adj_rel_ori, err = estimate_pose_icp(cropped_P0, cropped_P1, max_n1=200000, max_n2=100000)
 
-    if adj_rel_pose is None:
+    if adj_rel_pos is None:
         return np.ones(xyzd0.shape[:2] + (2,)) * np.nan
 
-    c_xyz0_1a = tools.q_times_mx(adj_rel_pose[1], c_xyz0_1) + adj_rel_pose[0]
+    c_xyz0_1a = tools.q_times_mx(adj_rel_ori, c_xyz0_1) + adj_rel_pos
 
     # project to image-plane-1 to get aflow
     aflow = cam1.project(c_xyz0_1a)
@@ -596,7 +650,7 @@ def match_template(img0, img1, I0, P0_1, cam1, margin_px=60, skip=1, depthmap=Fa
     r = np.nanmedian(P0_1[:, 2])
     tr_vect = r * np.array([-tcx, -tcy, 0]) / np.array([cam1.matrix[0, 0], cam1.matrix[1, 1], 1])
 
-    return [tr_vect, quaternion.one], None
+    return tr_vect, quaternion.one, None
 
 
 @nb.njit(nogil=True, parallel=False, cache=False)
@@ -607,54 +661,6 @@ def template_match_nb(templ, img, scores, max_err):
             sqrd = ((img[i:i + th, j:j + tw] - templ) ** 2).flatten()  # squared difference
             sqrd[sqrd > max_err ** 2] = max_err ** 2
             scores[i, j] = np.nanmean(sqrd)
-
-
-def icp(xyz0, xyz1, max_n1=None, max_n2=None):
-    def limit_points(xyz0, xyz1, max_n):
-        if len(xyz0) > max_n:
-            I = np.floor(np.arange(0, len(xyz0) - 0.5, len(xyz0)/max_n)).astype(int)
-            xyz0 = xyz0[I, :]
-        if len(xyz1) > max_n:
-            I = np.floor(np.arange(0, len(xyz1) - 0.5, len(xyz1)/max_n)).astype(int)
-            xyz1 = xyz1[I, :]
-        return xyz0, xyz1
-
-    if max_n1:
-        xyz0, xyz1 = limit_points(xyz0, xyz1, max_n1)
-
-    ok, xyz0 = cv2.ppf_match_3d.computeNormalsPC3d(xyz0, 20, True, (0, 0, 0))
-    ok, xyz1 = cv2.ppf_match_3d.computeNormalsPC3d(xyz1, 20, True, (0, 0, 0))
-
-    if max_n2:
-        xyz0, xyz1 = limit_points(xyz0, xyz1, max_n2)
-
-    ok, err, T = cv2.ppf_match_3d_ICP().registerModelToScene(xyz1, xyz0)
-
-    rel_pose = [T[:3, 3], quaternion.from_rotation_matrix(T[:3, :3])]
-    return rel_pose, err
-
-
-def relative_pose(trg_xyz, cam):
-    h, w, _ = trg_xyz.shape
-    trg_xyz = trg_xyz.reshape((-1, 3))
-    I = np.where(np.logical_not(np.isnan(trg_xyz[:, 0])))[0]
-    I = I[np.linspace(0, len(I), 100, endpoint=False).astype(int)]
-    grid = unit_aflow(w, h).reshape((-1, 2))
-
-    # opencv cam frame: axis +z, up -y
-    ok, rvec, tvec = cv2.solvePnP(trg_xyz[I, :], grid[I, :], cam.matrix, cam.dist_coefs)
-
-    if not ok:
-        return None, None
-
-    sc_trg_pos = tvec.flatten()
-    sc_trg_ori = quaternion.from_rotation_vector(rvec.flatten())
-
-    # convert to axis +x, up +z
-    sc_trg_pos = from_opencv_v(sc_trg_pos)
-    sc_trg_ori = from_opencv_q(sc_trg_ori)
-
-    return sc_trg_pos, sc_trg_ori
 
 
 def show_all_pairs(aflow_path, img_path, image_db):
@@ -834,7 +840,7 @@ def metadata_value(meta, possible_keys, unit=''):
 
 def calc_target_pose(xyz, cam, sc_ori, ref_north_v):
     try:
-        cam_sc_trg_pos, cam_sc_trg_ori = relative_pose(xyz, cam)
+        cam_sc_trg_pos, cam_sc_trg_ori = estimate_pose_pnp(cam, xyz)
     except cv2.error as e:
         logging.warning("can't calculate relative pose: %s" % e)
         cam_sc_trg_pos, cam_sc_trg_ori = [None] * 2
@@ -880,10 +886,9 @@ def check_img(img, bg_q=0.04, fg_q=240, sat_lo_q=0.998, sat_hi_q=0.9999, fg_lim=
 def write_data(path, img, data, metastr=None, xyzd=False):
     cv2.imwrite(path + '.png', img, (cv2.IMWRITE_PNG_COMPRESSION, 9))
     if data is not None and data.size > 0:
-        cv2.imwrite(path + '.xyz.exr', data[:, :, :3], (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
+        save_xyz(path + '.xyz', data[:, :, :3])
         if data.shape[2] > 3:
-            cv2.imwrite(path + ('.d.exr' if xyzd else '.s.exr'), data[:, :, 3:],
-                        (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
+            save_mono(path + ('.d' if xyzd else '.s'), data[:, :, 3:])
     if metastr is not None:
         with open(path + '.lbl', 'w') as fh:
             fh.write(metastr)
@@ -904,94 +909,6 @@ def get_file(url, path, max_retries=6):
 
     if not ok:
         raise Exception('Error: %s' % last_err)
-
-
-class NearestKernelNDInterpolator(NearestNDInterpolator):
-    def __init__(self, x, y, k_nearest=None, kernel='gaussian', kernel_sc=None,
-                 kernel_eps=1e-12, query_eps=0.05, max_distance=None, **kwargs):
-        """
-        Parameters
-        ----------
-        kernel : one of the following functions of distance that give weight to neighbours:
-            'linear': (kernel_sc/(r + kernel_eps))
-            'quadratic': (kernel_sc/(r + kernel_eps))**2
-            'cubic': (kernel_sc/(r + kernel_eps))**3
-            'gaussian': exp(-(r/kernel_sc)**2)
-        k_nearest : uses k_nearest neighbours for interpolation
-        """
-        choices = ('linear', 'quadratic', 'cubic', 'gaussian')
-        assert kernel in choices, 'kernel must be one of %s' % (choices,)
-        self._tree_options = kwargs.get('tree_options', {})
-
-        assert len(y.shape), 'only one dimensional `y` supported'
-        assert not np.any(np.isnan(x)), 'does not support nan values in `x`'
-
-        super(NearestKernelNDInterpolator, self).__init__(x, y, **kwargs)
-        if max_distance is None:
-            if kernel_sc is None:
-                d, _ = self.tree.query(self.points, k=k_nearest)
-                kernel_sc = np.mean(d) * k_nearest / (k_nearest - 1)
-            max_distance = kernel_sc * 3
-
-        assert kernel_sc is not None, 'kernel_sc need to be set'
-        self.kernel = kernel
-        self.kernel_sc = kernel_sc
-        self.kernel_eps = kernel_eps
-        self.k_nearest = k_nearest
-        self.max_distance = max_distance
-        self.query_eps = query_eps
-
-    def _linear(self, r):
-        if scipy.sparse.issparse(r):
-            return self.kernel_sc / (r + self.kernel_eps)
-        else:
-            return self.kernel_sc / (r + self.kernel_eps)
-
-    def _quadratic(self, r):
-        if scipy.sparse.issparse(r):
-            return np.power(self.kernel_sc / (r.data + self.kernel_eps), 2, out=r.data)
-        else:
-            return (self.kernel_sc / (r + self.kernel_eps)) ** 2
-
-    def _cubic(self, r):
-        if scipy.sparse.issparse(r):
-            return self.kernel_sc / (r + self.kernel_eps).power(3)
-        else:
-            return (self.kernel_sc / (r + self.kernel_eps)) ** 3
-
-    def _gaussian(self, r):
-        if scipy.sparse.issparse(r):
-            return np.exp((-r.data / self.kernel_sc) ** 2, out=r.data)
-        else:
-            return np.exp(-(r / self.kernel_sc) ** 2)
-
-    def __call__(self, *args):
-        """
-        Evaluate interpolator at given points.
-
-        Parameters
-        ----------
-        xi : ndarray of float, shape (..., ndim)
-            Points where to interpolate data at.
-
-        """
-        from scipy.interpolate.interpnd import _ndim_coords_from_arrays
-
-        xi = _ndim_coords_from_arrays(args, ndim=self.points.shape[1])
-        xi = self._check_call_shape(xi)
-        xi = self._scale_x(xi)
-
-        r, idxs = self.tree.query(xi, self.k_nearest, eps=self.query_eps,
-                                  distance_upper_bound=self.max_distance or np.inf)
-
-        w = getattr(self, '_' + self.kernel)(r).reshape((-1, self.k_nearest)) + self.kernel_eps
-        w /= np.sum(w, axis=1).reshape((-1, 1))
-
-        # if idxs[i, j] == len(values), then i:th point doesnt have j:th match
-        yt = np.concatenate((self.values, [np.nan]))
-
-        yi = np.sum(yt[idxs] * w, axis=1)
-        return yi
 
 
 def keys_to_lower(d):
@@ -1031,4 +948,7 @@ class DisableLogger:
 
 
 if __name__ == '__main__':
-    create_image_pairs_script()
+    if 0:
+        create_image_pairs_script()
+    else:
+        convert_from_exr_to_png()

@@ -10,6 +10,8 @@ import numpy as np
 import quaternion
 import matplotlib.pyplot as plt
 import cv2
+import scipy
+from scipy.interpolate import NearestNDInterpolator
 
 
 def _find_files_recurse(root, path, samples, npy, ext, test, depth, relative):
@@ -76,6 +78,96 @@ def load_aflow(fname, img1_size=None, img2_size=None):
     return aflow.reshape((h, w, 2)) / 8
 
 
+def save_xyz(path, xyz, as_png=True):
+    if as_png:
+        isnan, isinf = np.isnan(xyz), np.isinf(xyz)
+        xyz[isinf] = np.nan
+
+        minx, miny, minz = np.nanmin(xyz, axis=(0, 1))
+        maxx, maxy, maxz = np.nanmax(xyz, axis=(0, 1))
+        scx, scy, scz = map(lambda v: (2 ** 16 - 3) / (v[1] - v[0]), zip([minx, miny, minz], [maxx, maxy, maxz]))
+        minvals, sc = np.array([[[minx, miny, minz]]]), np.array([[[scx, scy, scz]]])
+        sc_xyz = np.clip((xyz.astype(np.float32) - minvals) * sc, 0, 2 ** 16 - 3).astype(np.uint16)
+        sc_xyz[isnan] = 2 ** 16 - 2
+        sc_xyz[isinf] = 2 ** 16 - 1
+
+        meta = minvals.astype(np.float32).tobytes() + sc.astype(np.float32).tobytes()
+        ok, img = cv2.imencode('.png', sc_xyz, (cv2.IMWRITE_PNG_COMPRESSION, 9))
+
+        if not ok:
+            return ok
+
+        with open(path, 'wb') as fh:
+            fh.write(meta)
+            fh.write(img)
+
+    else:
+        ok = cv2.imwrite(path + '.exr', xyz, (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
+
+    return ok
+
+
+def load_xyz(path):
+    is_png = path[-4:] != '.exr'
+    if is_png:
+        with open(path, 'rb') as fh:
+            bytes = fh.read()
+        meta_len = 4 * 6
+        minx, miny, minz, scx, scy, scz = np.frombuffer(bytes[:meta_len], dtype=np.float32)
+        minvals, sc = np.array([[[minx, miny, minz]]]), np.array([[[scx, scy, scz]]])
+        scaled_xyz = cv2.imdecode(np.frombuffer(bytes[meta_len:], dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        x = scaled_xyz.astype(np.float32) / sc + minvals
+        x[scaled_xyz == 2 ** 16 - 2] = np.nan
+        x[scaled_xyz == 2 ** 16 - 1] = np.inf
+    else:
+        x = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+
+    return x
+
+
+def save_mono(path, x, as_png=True):
+    if as_png:
+        isnan, isinf = np.isnan(x), np.isinf(x)
+        x[isinf] = np.nan
+        minx = np.nanmin(x, axis=(0, 1))
+        maxx = np.nanmax(x, axis=(0, 1))
+        scx = ((2 ** 16 - 3) / (maxx - minx))
+        scaled_x = np.clip((x - minx) * scx, 0, 2 ** 16 - 3).astype(np.uint16)
+        scaled_x[isnan] = 2 ** 16 - 2
+        scaled_x[isinf] = 2 ** 16 - 1
+
+        meta = minx.astype(np.float32).tobytes() + scx.astype(np.float32).tobytes()
+        ok, img = cv2.imencode('.png', scaled_x, (cv2.IMWRITE_PNG_COMPRESSION, 9))
+        if not ok:
+            return ok
+
+        with open(path, 'wb') as fh:
+            fh.write(meta)
+            fh.write(img)
+
+    else:
+        ok = cv2.imwrite(path + '.exr', x, (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
+
+    return ok
+
+
+def load_mono(path):
+    is_png = path[-4:] != '.exr'
+    if is_png:
+        with open(path, 'rb') as fh:
+            bytes = fh.read()
+        meta_len = 4 * 2
+        minx, scx = np.frombuffer(bytes[:meta_len], dtype=np.float32)
+        scaled_x = cv2.imdecode(np.frombuffer(bytes[meta_len:], dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        x = scaled_x.astype(np.float32) / scx + minx
+        x[scaled_x == 2 ** 16 - 2] = np.nan
+        x[scaled_x == 2 ** 16 - 1] = np.inf
+    else:
+        x = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+
+    return x
+
+
 def show_pair(img1, img2, aflow, file1='', file2='', afile='', pts=8, axs=None, show=True):
     if axs is None:
         fig, axs = plt.subplots(1, 2, figsize=(10, 5))
@@ -122,6 +214,14 @@ def normalize_v(v):
     return v if l == 0 else v/l
 
 
+def normalize_mx(mx, axis=1):
+    norm = np.linalg.norm(mx, axis=axis)
+    with np.errstate(invalid='ignore'):
+        mx /= norm[:, None]
+        mx = np.nan_to_num(mx)
+    return mx
+
+
 def ypr_to_q(dec, ra, cna):
     if dec is None or ra is None or cna is None:
         return None
@@ -148,6 +248,14 @@ def from_opencv_v(v):
     """
     sc2cv_q = np.quaternion(0.5, -0.5, 0.5, -0.5)
     return q_times_v(sc2cv_q, v)
+
+
+def to_opencv_mx(mx):
+    """
+    Convert an orientation from opencv convention where: cam axis +z, up -y to convention where: cam axis +x, up +z
+    """
+    sc2cv_q = np.quaternion(0.5, -0.5, 0.5, -0.5)
+    return q_times_mx(sc2cv_q.conj(), mx)
 
 
 def q_to_ypr(q):
@@ -181,7 +289,7 @@ def q_times_v(q, v):
 def q_times_mx(q, mx):
     qqmx = q * mx2qmx(mx) * q.conj()
     aqqmx = quaternion.as_float_array(qqmx)
-    return aqqmx[:, 1:]
+    return aqqmx[:, 1:].astype(mx.dtype)
 
 
 def mx2qmx(mx):
@@ -293,6 +401,24 @@ def angle_between_q(q1, q2):
     # from  https://chrischoy.github.io/research/measuring-rotation/
     qd = q1.conj() * q2
     return abs(wrap_rads(2 * math.acos(qd.normalized().w)))
+
+
+def angle_between_rows(A, B, normalize=True):
+    assert A.shape[1] == 3 and B.shape[1] == 3, 'matrices need to be of shape (n, 3) and (m, 3)'
+    if A.shape[0] == B.shape[0]:
+        # from https://stackoverflow.com/questions/50772176/calculate-the-angle-between-the-rows-of-two-matrices-in-numpy/50772253
+        cos_angles = np.einsum('ij,ij->i', A, B)
+        if normalize:
+            p2 = np.einsum('ij,ij->i', A, A)
+            p3 = np.einsum('ij,ij->i', B, B)
+            cos_angles /= np.sqrt(p2 * p3)
+    else:
+        if normalize:
+            A = A / np.linalg.norm(A, axis=1).reshape((-1, 1))
+            B = B / np.linalg.norm(B, axis=1).reshape((-1, 1))
+        cos_angles = B.dot(A.T)
+
+    return np.arccos(np.clip(cos_angles, -1.0, 1.0))
 
 
 def wrap_rads(a):
@@ -448,7 +574,7 @@ class Camera:
         self.center = center
         self.f_num = f_num
         self.matrix = matrix
-        self.dist_coefs = dist_coefs
+        self.dist_coefs = np.array([0, 0, 0, 0] if dist_coefs is None else dist_coefs, dtype=float)
         self._inv_matrix = None
 
         if self.matrix is None:
@@ -459,8 +585,6 @@ class Camera:
             self.matrix = np.array([[fl_w, 0, cx],
                                     [0, fl_h, cy],
                                     [0, 0, 1]], dtype=float)
-        if self.dist_coefs is None:
-            self.dist_coefs = np.array([0, 0, 0, 0])
 
     @property
     def width(self):
@@ -486,19 +610,30 @@ class Camera:
                                  K, np.array(dist_coefs),
                                  jacobian=False)[0].squeeze()
 
-    def backproject(self, xi, yi, z_off, undistort=True):
-        """ xi and yi are unaltered image coordinates, z_off is usually negative  """
-        single = isinstance(xi, (int, float))
+    def to_unit_sphere(self, ixy, undistort=True):
+        return self.backproject(ixy, undistort=undistort)
+
+    def backproject(self, ixy, dist=None, z_off=None, undistort=True):
+        """ xi and yi are unaltered image coordinates, z_off is along the camera axis  """
+        assert dist is None or z_off is None, "Use either dist or z_off. z_off is different from dist " \
+                                              "in that it gives only the camera axis aligned component of the " \
+                                              "vector going through a given pixel until intersecting the object."
 
         if undistort and self.dist_coefs is not None and np.sum(np.abs(self.dist_coefs)) > 0:
-            P = np.array([[xi, yi]]) if single else np.hstack((xi[:, None], yi[:, None]))
-            uP = self.undistort(P)
-            xi, yi = uP[0, 0, :] if single else uP.squeeze().T
+            ixy = self.undistort(ixy).squeeze()
 
-        xi, yi = xi + 0.5, yi + 0.5
-        P = np.array([[xi, yi, 1]]) if single else np.hstack((xi[:, None], yi[:, None], np.ones((len(xi), 1))))
-        bP = self.inv_matrix.dot(P.T) * z_off
-        return tuple(bP.flatten()) if single else bP.T
+        P = np.hstack((ixy + 0.5, np.ones((len(ixy), 1))))
+        bP = self.inv_matrix.dot(P.T).T     # z-coordinates of points are all 1
+
+        if z_off is not None:
+            bP *= z_off.reshape((-1, 1))             # z-coordinates are at z_off
+        else:
+            bP = normalize_mx(bP)   # put points on the unit sphere
+
+        if dist is not None:
+            bP *= dist.reshape((-1, 1))              # extending point from unit sphere to be at distance `dist`
+
+        return bP
 
     def undistort(self, P):
         return self._undistort(P, self.matrix, self.dist_coefs)
@@ -679,3 +814,210 @@ class ImageDB:
         r = self._cursor.execute("SELECT count(*) FROM images WHERE 1")
         count = r.fetchone()
         return count[0]
+
+
+def nan_grid_interp(value_map, xy, max_radius=5.0, interp=False):
+    """
+    Interpolate values for sparse 2d-points based on the given value map
+    """
+    assert np.all(xy[:, 1] < value_map.shape[0]) and np.all(xy[:, 0] < value_map.shape[1]) \
+        and np.all(xy[:, 1] >= 0) and np.all(xy[:, 0] >= 0), \
+        'out of bounds %s: %s' % (value_map.shape, (xy,))
+
+    H, W = value_map.shape
+    uxy = unit_aflow(W, H).reshape((-1, 2))
+
+    if interp:
+        from scipy.interpolate import griddata
+        value_map = value_map.flatten()
+        values = griddata(uxy, value_map, xy, method='linear')
+    else:
+        ixy = (xy + 0.5).astype(int)
+        values = value_map[ixy[:, 1], ixy[:, 0]]
+        value_map = value_map.flatten()
+
+    I = np.logical_not(np.isnan(value_map))
+    I2 = np.isnan(values)
+    interpolator = NearestKernelNDInterpolator(uxy[I, :], value_map[I], k_nearest=4 if interp else 1,
+                                               max_distance=max_radius)
+    missing = interpolator(xy[I2, :])
+    values[I2] = missing
+
+    return values
+
+
+def estimate_pose_pnp(cam: Camera, trg_xyz, trg_ixy=None, ransac=False, max_err=1.0, ba=False,
+                      ransac_method=cv2.SOLVEPNP_AP3P, input_in_opencv=False, repr_err_callback=None):
+    if trg_ixy is None:
+        assert len(trg_xyz.shape) == 3, "if feature observations not given, geometry need to be given as an HxWx3 array"
+        h, w, _ = trg_xyz.shape
+        trg_xyz = trg_xyz.reshape((-1, 3))
+        trg_ixy = unit_aflow(w, h).reshape((-1, 2))
+        I = np.where(np.logical_not(np.isnan(trg_xyz[:, 0])))[0]
+        I = I[np.linspace(0, len(I), 100, endpoint=False).astype(int)]
+        trg_xyz, trg_ixy = trg_xyz[I, :], trg_ixy[I, :]
+
+    if not input_in_opencv:
+        # convert from "axis +x, up +z" convention to "axis +z, up -y"
+        trg_xyz = to_opencv_mx(trg_xyz)
+
+    # opencv cam frame: axis +z, up -y
+    if ba:
+        import featstat.algo.model as fsm
+        from featstat.algo.odo.simple import SimpleOdometry
+        fs_cam = fsm.Camera(cam.width, cam.height, cam_mx=cam.matrix, dist_coefs=cam.dist_coefs)
+        odo = SimpleOdometry(fs_cam, max_repr_err=max_err, verbose=0)
+
+        # TODO: optimize by adding a better suited method to SimpleOdometry
+        pos, ori, inliers, kp_3d, succ_rate, track_len, repr_err, repr_err_ids = \
+            odo.pair_stats_with_known_kp3d(np.arange(len(trg_xyz)), trg_ixy, trg_xyz)
+
+        if ori is None:
+            return [None] * 3
+
+        if repr_err_callback:
+            Ie = repr_err_ids[:, 0] == 1
+            repr_err_callback(trg_ixy[repr_err_ids[Ie, 1], :], repr_err[Ie])
+
+        tvec, rvec = pos[-1], quaternion.as_rotation_vector(ori[-1])
+
+    elif ransac:
+        ok, rvec, tvec, inliers = cv2.solvePnPRansac(trg_xyz, trg_ixy, cam.matrix, cam.dist_coefs,
+                                                     iterationsCount=10000, reprojectionError=max_err,
+                                                     flags=ransac_method)
+        if not ok:
+            return [None] * 3
+
+        rvec, tvec = cv2.solvePnPRefineLM(trg_xyz[inliers, :], trg_ixy[inliers, :], cam.matrix,
+                                          cam.dist_coefs, rvec, tvec)
+    else:
+        ok, rvec, tvec = cv2.solvePnP(trg_xyz, trg_ixy, cam.matrix, cam.dist_coefs)
+        if not ok:
+            return [None] * 3
+
+    sc_trg_pos = tvec.flatten()
+    sc_trg_ori = quaternion.from_rotation_vector(rvec.flatten())
+
+    # convert to axis +x, up +z
+    sc_trg_pos = from_opencv_v(sc_trg_pos)
+    sc_trg_ori = from_opencv_q(sc_trg_ori)
+
+    return (sc_trg_pos, sc_trg_ori) + ((inliers,) if ransac else tuple())
+
+
+def estimate_pose_icp(xyz0, xyz1, max_n1=None, max_n2=None):
+    def limit_points(xyz0, xyz1, max_n):
+        if len(xyz0) > max_n:
+            I = np.floor(np.arange(0, len(xyz0) - 0.5, len(xyz0)/max_n)).astype(int)
+            xyz0 = xyz0[I, :]
+        if len(xyz1) > max_n:
+            I = np.floor(np.arange(0, len(xyz1) - 0.5, len(xyz1)/max_n)).astype(int)
+            xyz1 = xyz1[I, :]
+        return xyz0, xyz1
+
+    if max_n1:
+        xyz0, xyz1 = limit_points(xyz0, xyz1, max_n1)
+
+    ok, xyz0 = cv2.ppf_match_3d.computeNormalsPC3d(xyz0, 20, True, (0, 0, 0))
+    ok, xyz1 = cv2.ppf_match_3d.computeNormalsPC3d(xyz1, 20, True, (0, 0, 0))
+
+    if max_n2:
+        xyz0, xyz1 = limit_points(xyz0, xyz1, max_n2)
+
+    ok, err, T = cv2.ppf_match_3d_ICP().registerModelToScene(xyz1, xyz0)
+
+    rel_pos = T[:3, 3]
+    rel_ori = quaternion.from_rotation_matrix(T[:3, :3])
+    return rel_pos, rel_ori, err
+
+
+class NearestKernelNDInterpolator(NearestNDInterpolator):
+    def __init__(self, x, y, k_nearest=None, kernel='gaussian', kernel_sc=None,
+                 kernel_eps=1e-12, query_eps=0.05, max_distance=None, **kwargs):
+        """
+        Parameters
+        ----------
+        kernel : one of the following functions of distance that give weight to neighbours:
+            'linear': (kernel_sc/(r + kernel_eps))
+            'quadratic': (kernel_sc/(r + kernel_eps))**2
+            'cubic': (kernel_sc/(r + kernel_eps))**3
+            'gaussian': exp(-(r/kernel_sc)**2)
+        k_nearest : uses k_nearest neighbours for interpolation
+        """
+        choices = ('linear', 'quadratic', 'cubic', 'gaussian')
+        assert kernel in choices, 'kernel must be one of %s' % (choices,)
+        self._tree_options = kwargs.get('tree_options', {})
+
+        assert len(y.shape), 'only one dimensional `y` supported'
+        assert not np.any(np.isnan(x)), 'does not support nan values in `x`'
+
+        super(NearestKernelNDInterpolator, self).__init__(x, y, **kwargs)
+        if kernel_sc is None:
+            if k_nearest > 1:
+                d, _ = self.tree.query(self.points, k=k_nearest)
+                kernel_sc = np.mean(d) * k_nearest / (k_nearest - 1)
+            else:
+                assert max_distance is not None, 'kernel_sc or max_distance need to be set'
+                kernel_sc = max_distance / 3
+
+        if max_distance is None:
+            max_distance = kernel_sc * 3
+
+        self.kernel = kernel
+        self.kernel_sc = kernel_sc
+        self.kernel_eps = kernel_eps
+        self.k_nearest = k_nearest
+        self.max_distance = max_distance
+        self.query_eps = query_eps
+
+    def _linear(self, r):
+        if scipy.sparse.issparse(r):
+            return self.kernel_sc / (r + self.kernel_eps)
+        else:
+            return self.kernel_sc / (r + self.kernel_eps)
+
+    def _quadratic(self, r):
+        if scipy.sparse.issparse(r):
+            return np.power(self.kernel_sc / (r.data + self.kernel_eps), 2, out=r.data)
+        else:
+            return (self.kernel_sc / (r + self.kernel_eps)) ** 2
+
+    def _cubic(self, r):
+        if scipy.sparse.issparse(r):
+            return self.kernel_sc / (r + self.kernel_eps).power(3)
+        else:
+            return (self.kernel_sc / (r + self.kernel_eps)) ** 3
+
+    def _gaussian(self, r):
+        if scipy.sparse.issparse(r):
+            return np.exp((-r.data / self.kernel_sc) ** 2, out=r.data)
+        else:
+            return np.exp(-(r / self.kernel_sc) ** 2)
+
+    def __call__(self, *args):
+        """
+        Evaluate interpolator at given points.
+
+        Parameters
+        ----------
+        xi : ndarray of float, shape (..., ndim)
+            Points where to interpolate data at.
+
+        """
+        from scipy.interpolate.interpnd import _ndim_coords_from_arrays
+
+        xi = _ndim_coords_from_arrays(args, ndim=self.points.shape[1])
+        xi = self._check_call_shape(xi)
+        xi = self._scale_x(xi)
+
+        r, idxs = self.tree.query(xi, self.k_nearest, eps=self.query_eps,
+                                  distance_upper_bound=self.max_distance or np.inf)
+
+        w = getattr(self, '_' + self.kernel)(r).reshape((-1, self.k_nearest)) + self.kernel_eps
+        w /= np.sum(w, axis=1).reshape((-1, 1))
+
+        # if idxs[i, j] == len(values), then i:th point doesnt have j:th match
+        yt = np.concatenate((self.values, [np.nan]))
+
+        yi = np.sum(yt[idxs] * w, axis=1)
+        return yi

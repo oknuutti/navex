@@ -14,6 +14,7 @@ from navex.datasets.tools import ImageDB, Camera, spherical2cartesian
 from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_pairs, safe_split, check_img, \
     calc_target_pose
 
+# there's also OSIWAC images with geometric backplanes available, not yet supported here though
 INSTR = {
     'navcam': {'src': '/pub/mirror/INTERNATIONAL-ROSETTA-MISSION/NAVCAM', 'regex': r'^RO-C-NAVCAM-2-.*?-V1.1$',
                'deep_path': 'DATA/CAM1', 'has_lbl': True,  'has_geom': False, 'fov': 5, 'cam': None},
@@ -217,8 +218,10 @@ def read_cg67p_img(path, has_geom):
                                                 disp_dir=('down', 'left') if has_geom else ('up', 'right'),
                                                 gamma=1.8, q_wxyz=False)
 
-    # select only pixel value, model x, y, z and depth
-    # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat
+    # selected bands: image, model x, y, z and distance per pixel from the camera to the target surface
+    # the image is radiometric calibrated and geometric distortion corrected
+    # for further details about the data, see:
+    #   https://pds-smallbodies.astro.umd.edu/holdings/ro-c-osiwac-2-esc1-67pchuryumov-m13-v3.0/document/calib/geo_products_v02.pdf
     data[data == 0] = np.nan
 
     return img, data, metadata, metastr

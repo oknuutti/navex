@@ -15,9 +15,16 @@ from navex.datasets.tools import ImageDB, angle_between_v, save_aflow, tf_view_u
 # #   https://www.onsemi.com/pdf/datasheet/mt9p031-d.pdf
 # # lens reference
 # #   http://www.msss.com/brochures/xfov.pdf
-ow, oh, sc = 2592, 1944, 0.5
-CAM = Camera(resolution=(int(sc * ow), int(sc * oh)), center=((ow - 1) * sc / 2, (oh - 1) * sc / 2),
-             pixel_size=2.2e-6 / sc, focal_length=7.7e-3, f_num=3.5)
+ow, oh, sc = 2592, 1944, 0.3951
+resolution = (int(sc * ow), int(sc * oh))
+# CAM = Camera(resolution=resolution, center=((ow - 1) * sc / 2, (oh - 1) * sc / 2),
+#              pixel_size=2.2e-6 / sc, focal_length=7.7e-3, f_num=3.5)
+#
+# turns out the above didn't match exactly the cam matrix used during data generation:
+CAM = Camera(resolution=resolution,
+             matrix=np.array([[1.26724447e+03, 0.00000000e+00, 5.12000000e+02],
+                              [0.00000000e+00, 1.33916715e+03, 3.84000000e+02],
+                              [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]]))
 
 
 def raw_synth():

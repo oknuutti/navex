@@ -10,9 +10,9 @@ import numpy as np
 import quaternion
 
 from navex.datasets.preproc.tools import read_raw_img, write_data, safe_split, create_image_pairs, check_img, \
-    relative_pose, calc_target_pose
+    calc_target_pose
 from navex.datasets.tools import ImageDB, find_files, Camera, q_times_v, angle_between_v, spherical2cartesian, \
-    eul_to_q, plot_vectors
+    eul_to_q, plot_vectors, estimate_pose_pnp
 
 CAM = Camera(resolution=(1024, 1024), center=(511.5, 511.5), pixel_size=12e-6, focal_length=0.1208, f_num=8.0)
 

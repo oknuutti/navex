@@ -200,7 +200,6 @@ def read_eros_img(path):
     data = data[:, 15:-14, :]
 
     # select only pixel value, model x, y, z and depth
-    # - for band indexes, see https://sbnarchive.psi.edu/pds3/hayabusa/HAY_A_AMICA_3_AMICAGEOM_V1_0/catalog/dataset.cat
     px_size = np.atleast_3d(np.max(data[:, :, 3:5], axis=2))
     data = np.concatenate((data[:, :, 0:3], px_size), axis=2)
     data[data <= -1e30] = np.nan
