@@ -111,15 +111,35 @@ def plot_viewangle_metrics(x_va, mscore, mma, locerr, mAP, orierr):
             return
 
     nn = np.logical_not(np.isnan(mscore))
-    print('M-score easy median, mean; all median, mean:\n'
-          + '\n'.join(map(str, (np.median(mscore[np.logical_and(I[0], nn)]),
+    print('M-score easy median, mean; all median, mean: '
+          + ', '.join(map(lambda x: '%.4f' % x, (
+                                np.median(mscore[np.logical_and(I[0], nn)]),
                                 np.mean(mscore[np.logical_and(I[0], nn)]),
                                 np.median(mscore[nn]),
                                 np.mean(mscore[nn]))
                           )))
 
+    nn = np.logical_not(np.isnan(orierr))
+    lv = np.quantile(orierr[nn], 0.995)
+    no = np.logical_and(orierr < lv, nn)
+    print('Orientation error easy median, mean; all median, mean: '
+          + ', '.join(map(lambda x: '%.4f' % x, (
+                                np.median(orierr[np.logical_and(I[0], nn)]),
+                                np.mean(orierr[np.logical_and(I[0], no)]),
+                                np.median(orierr[nn]),
+                                np.mean(orierr[no]))
+                          )))
+
+    easy_fails, fails = np.sum(np.logical_and(I[0], np.isinf(orierr))), np.sum(np.isinf(orierr))
+    easy_tot, tot = np.sum(np.logical_and(I[0], nn)), np.sum(nn)
+    print('Orientation est. failure rate easy; all: '
+          + ', '.join(map(lambda x: '%.3f%%' % x, (
+                                100 * easy_fails / easy_tot,
+                                100 * fails / tot),
+                          )))
+
     def plot(ax, y):
-        nn = np.logical_not(np.isnan(y))
+        nn = np.logical_not(np.logical_or(np.isnan(y), np.isinf(y)))
         ax.violinplot([y[np.logical_and(I[i], nn)] for i in range(len(I))], lims[:-1] + 2.5, points=30, widths=2.5,
                       showmedians=True, showextrema=False)  # , quantiles=[[0.05], [0.5], [0.95]])
         # ax.set_xlabel(xlabel)
@@ -181,7 +201,8 @@ def plot_lightchange_metrics(x_pa, x_ld, mscore, mma, locerr, mAP, orierr):
 
         for f, zz, zl in ((fig, medians, zlabel), (fig2, samples, 'samples')):
             zstep = np.kron(zz, np.ones((2, 2)))
-            scalarMap = plt.cm.ScalarMappable(norm=Normalize(vmin=np.min(zstep), vmax=np.max(zstep)), cmap=plt.cm.PuOr_r)
+            scalarMap = plt.cm.ScalarMappable(norm=Normalize(vmin=np.nanmin(zz), vmax=np.nanmax(zz)),
+                                              cmap=plt.cm.PuOr_r)
 
             ax = f.add_subplot(2, 2, ax_i, projection='3d')
             ax.plot_surface(pa_step, ld_step, zstep, facecolors=scalarMap.to_rgba(zstep), antialiased=True)
