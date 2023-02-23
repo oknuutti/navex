@@ -49,13 +49,13 @@ model:
   cache_dir: 'cache'    # not in use
   des_head:  # should add 3x3 vs 5x5 kernel in hidden layer? or do preliminary testing?
     dimensions:  128
-    hidden_ch:   !h_tune2_randint   '(128, 128), (96, 192)'
+    hidden_ch:   !h_tune2_randint   '(128, 129), (96, 193)'
     exp_coef:    !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
     use_se:      !h_tune2_choice   '[0], [0, 1]'
     dropout:     0.0
   det_head:  # should add 3x3 vs 5x5 kernel in hidden layer? or do preliminary testing?
     after_des:   0
-    hidden_ch:   !h_tune2_randint   '(65, 65), (0, 130)'
+    hidden_ch:   !h_tune2_randint   '(65, 66), (0, 131)'
     exp_coef:    !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
     use_se:      !h_tune2_choice   '[0], [0, 1]'
     dropout:     0.0
