@@ -1,3 +1,4 @@
+import math
 import os
 import argparse
 
@@ -103,7 +104,7 @@ class SingleImageExtractor:
 
 
 class Extractor:
-    TRADITIONAL = {'akaze', 'surf', 'sift', 'orb'}
+    TRADITIONAL = {'akaze', 'surf', 'sift', 'rsift', 'orb'}
 
     def __init__(self, model, gpu=True, top_k=None, border=None, feat_d=0.001, scale_f=2 ** (1 / 4), min_size=256,
                  max_size=1024, min_scale=0.0, max_scale=1.0, det_lim=0.7, qlt_lim=0.7,
@@ -149,8 +150,14 @@ class Extractor:
             if isinstance(image, torch.Tensor):
                 from navex.visualizations.misc import tensor2img
                 image = tensor2img(image)
-            xys, desc, scores = extract_traditional(self.model, image, top_k=self.top_k,
-                                                    feat_d=self.feat_d, border=self.border)
+
+            top_k = self.top_k
+            if top_k is None:
+                top_k = total_feature_count(image.shape[:2], self.scale_f, self.min_scale, self.max_scale,
+                                            self.min_size, self.max_size, self.feat_d, self.border)
+
+            xys, desc, scores = extract_traditional(self.model, image, max_size=self.max_size,
+                                                    top_k=top_k, border=self.border)
         else:
             if force_cpu:
                 image = image.cpu()
@@ -181,6 +188,27 @@ class Extractor:
             idxs = idxs[:self.top_k]
 
         return xys[idxs], desc[idxs], scores[idxs]
+
+
+def total_feature_count(img_shape, scale_f=2 ** 0.25, min_scale=0.0, max_scale=1.0, min_size=256, max_size=1024,
+                        feat_d=0.001, border=16):
+    h0, w0 = img_shape
+    max_sc = min(max_scale, max_size / max(h0, w0))
+    n = np.floor(np.log(max_sc) / np.log(scale_f))      # so that get one set of features at scale 1.0
+    sc = min(max_sc, scale_f ** n)  # current scale factor
+
+    total = 0
+    while sc + 0.001 >= max(min_scale, min_size / max(h0, w0)):
+        if sc - 0.001 <= min(max_scale, max_size / max(h0, w0)):
+            if np.isclose(sc, 1, rtol=1e-2):
+                h, w = h0, w0
+            else:
+                h, w = round(h0 * sc), round(w0 * sc)
+            sc = w / w0
+            total += int((h - border * 2) * (w - border * 2) * feat_d)
+        sc /= scale_f
+
+    return total
 
 
 def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=1.0, min_size=256, max_size=1024,
@@ -249,8 +277,11 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
     return XYS, D, C
 
 
-def extract_traditional(method, img, top_k=None, feat_d=0.001, border=16, asteroid_target=False):
+def extract_traditional(method, img, max_size=None, top_k=None, feat_d=None, border=16, asteroid_target=False):
     import cv2
+
+    sc = min(1, max_size / max(img.shape[:2])) if max_size is not None else 1
+    img = cv2.resize(img, None, fx=sc, fy=sc) if sc < 1 else img
 
     k = np.inf
     h, w = img.shape[:2]
@@ -272,7 +303,7 @@ def extract_traditional(method, img, top_k=None, feat_d=0.001, border=16, astero
             'firstLevel': 0,  # always 0
             'nlevels': 8,  # default: 8
             'patchSize': 31,  # default: 31
-            'scaleFactor': 1.2,  # default: 1.2
+            'scaleFactor': 1.189,  # default: 1.2
             'scoreType': cv2.ORB_HARRIS_SCORE,  # default ORB_HARRIS_SCORE, other: ORB_FAST_SCORE
             'WTA_K': 2,  # default: 2
         }
@@ -290,21 +321,21 @@ def extract_traditional(method, img, top_k=None, feat_d=0.001, border=16, astero
         }
         det = cv2.AKAZE_create(**params)
 
-    elif method == 'sift':
+    elif method in ('sift', 'rsift'):
         params = {
             'nfeatures': k,
-            'nOctaveLayers': 3,  # default: 3
+            'nOctaveLayers': 4,  # default: 3
             'contrastThreshold': 0.01,  # default: 0.04
-            'edgeThreshold': 25,  # default: 10
+            'edgeThreshold': 10,  # default: 10
             'sigma': 1.6,  # default: 1.6
         }
-        det = cv2.xfeatures2d.SIFT_create(**params)
+        det = cv2.SIFT_create(**params)
 
     elif method == 'surf':
         params = {
             'hessianThreshold': 100.0,  # default: 100.0
             'nOctaves': 4,  # default: 4
-            'nOctaveLayers': 3,  # default: 3
+            'nOctaveLayers': 4,  # default: 3
             'extended': False,  # default: False
             'upright': False,  # default: False
         }
@@ -316,11 +347,13 @@ def extract_traditional(method, img, top_k=None, feat_d=0.001, border=16, astero
     k = min(k, len(kps))
     idxs = (-np.array([kp.response for kp in kps])).argsort()
     idxs = idxs[:k]
-    XYS = np.array([[kps[i].pt[0], kps[i].pt[1], kps[i].size] for i in idxs])
+    XYS = np.array([[kps[i].pt[0]/sc, kps[i].pt[1]/sc, kps[i].size] for i in idxs])
     D = np.array([dcs[i] for i in idxs])
     scores = np.array([kps[i].response for i in idxs])
     if method in ('orb', 'akaze'):
         D = D.astype(np.uint8)
+    if method == 'rsift':
+        D = np.sqrt(D / np.sum(D, axis=1, keepdims=True))
 
     return XYS, D, scores
 

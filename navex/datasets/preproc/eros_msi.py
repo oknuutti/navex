@@ -181,7 +181,7 @@ def process_file(src_path, dst_path, id, index, args):
                       [(id, dst_file, rand) + safe_split(sc_trg_pos, False) + safe_split(trg_ori, True)])
 
             if args.start <= rand < args.end or args.debug:
-                write_data(dst_path[:-4] + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=False)
+                write_data(dst_path[:-4] + ('' if ok else ' - FAILED'), img, data, metastr, xyzd=False, cam=CAM)
                 added = True
 
         return added, ok

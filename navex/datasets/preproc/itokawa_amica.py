@@ -99,7 +99,8 @@ def raw_itokawa():
                         + safe_split(sc_trg_pos, False) + safe_split(trg_ori, True))
 
             if ok or args.debug:
-                write_data(os.path.join(args.dst, fname[:-4]) + ('' if ok else ' - FAILED'), img, data, metastr)
+                write_data(os.path.join(args.dst, fname[:-4]) + ('' if ok else ' - FAILED'),
+                           img, data, metastr, cam=CAM)
 
             os.unlink(path + '.img')
 

@@ -122,15 +122,10 @@ def match(des1, des2, norm=2, mutual=True, ratio=0):
         des2_ = des2.numpy()[0, :, :].T
         d1 = np.repeat(des1_[:, None, :], len(des2_), axis=1)
         d2 = np.repeat(des2_[None, :, :], len(des1_), axis=0)
-        if 0:
-            d1 = np.unpackbits(d1, axis=2)
-            d2 = np.unpackbits(d2, axis=2)
-            dist = np.mean(d1 != d2, axis=2)
-        else:
-            import cv2
-            hamm = lambda x: cv2.norm(x[0:len(x)//2], x[len(x)//2:], cv2.NORM_HAMMING)
-            dist = np.apply_along_axis(hamm, 2, np.concatenate((d1, d2), axis=2))
 
+        d1 = np.unpackbits(d1, axis=2)
+        d2 = np.unpackbits(d2, axis=2)
+        dist = np.sum(d1 != d2, axis=2)
         dist = torch.Tensor(dist[None, :, :])
 
     min1, idx1 = torch.min(dist, dim=2)

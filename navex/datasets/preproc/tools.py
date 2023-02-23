@@ -883,12 +883,18 @@ def check_img(img, bg_q=0.04, fg_q=240, sat_lo_q=0.998, sat_hi_q=0.9999, fg_lim=
     return np.min(img.shape) >= min_side and fg - bg >= fg_lim and sat_hi - sat_lo > sat_lim
 
 
-def write_data(path, img, data, metastr=None, xyzd=False):
+def write_data(path, img, data, metastr=None, xyzd=False, cam=None):
     cv2.imwrite(path + '.png', img, (cv2.IMWRITE_PNG_COMPRESSION, 9))
     if data is not None and data.size > 0:
         save_xyz(path + '.xyz', data[:, :, :3])
         if data.shape[2] > 3:
-            save_mono(path + ('.d' if xyzd else '.s'), data[:, :, 3:])
+            if xyzd:
+                save_mono(path + '.d', data[:, :, 3])
+            else:
+                assert cam is not None, 'cam is None'
+                save_mono(path + '.s', data[:, :, 3])
+                d = _convert_xyz2d(data[:, :, :3], cam)
+                save_mono(path + '.d', d)
     if metastr is not None:
         with open(path + '.lbl', 'w') as fh:
             fh.write(metastr)

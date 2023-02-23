@@ -79,20 +79,39 @@ def load_aflow(fname, img1_size=None, img2_size=None):
 
 
 def save_xyz(path, xyz, as_png=True):
+    return save_float_img(path, xyz, as_png)
+
+
+def load_xyz(path):
+    return load_float_img(path, 3)
+
+
+def save_mono(path, x, as_png=True):
+    return save_float_img(path, x, as_png)
+
+
+def load_mono(path):
+    return load_float_img(path, 1)
+
+
+def save_float_img(path, data, as_png=True):
+    data = np.atleast_3d(data)
+    assert len(data.shape) == 3 and data.shape[2] in (1, 3, 4), "data must be 1, 3 or 4 channel image"
+
     if as_png:
-        isnan, isinf = np.isnan(xyz), np.isinf(xyz)
-        xyz[isinf] = np.nan
+        isnan, isinf = np.isnan(data), np.isinf(data)
+        data[isinf] = np.nan
 
-        minx, miny, minz = np.nanmin(xyz, axis=(0, 1))
-        maxx, maxy, maxz = np.nanmax(xyz, axis=(0, 1))
-        scx, scy, scz = map(lambda v: (2 ** 16 - 3) / (v[1] - v[0]), zip([minx, miny, minz], [maxx, maxy, maxz]))
-        minvals, sc = np.array([[[minx, miny, minz]]]), np.array([[[scx, scy, scz]]])
-        sc_xyz = np.clip((xyz.astype(np.float32) - minvals) * sc, 0, 2 ** 16 - 3).astype(np.uint16)
-        sc_xyz[isnan] = 2 ** 16 - 2
-        sc_xyz[isinf] = 2 ** 16 - 1
+        mins = np.nanmin(data, axis=(0, 1))
+        maxs = np.nanmax(data, axis=(0, 1))
+        scs = list(map(lambda v: (2 ** 16 - 3) / (v[1] - v[0]), zip(mins, maxs)))
+        mins, scs = mins.reshape((1, 1, -1)), np.array(scs).reshape((1, 1, -1))
+        sc_data = np.clip((data.astype(np.float32) - mins) * scs, 0, 2 ** 16 - 3).astype(np.uint16)
+        sc_data[isnan] = 2 ** 16 - 2
+        sc_data[isinf] = 2 ** 16 - 1
 
-        meta = minvals.astype(np.float32).tobytes() + sc.astype(np.float32).tobytes()
-        ok, img = cv2.imencode('.png', sc_xyz, (cv2.IMWRITE_PNG_COMPRESSION, 9))
+        meta = mins.astype(np.float32).tobytes() + scs.astype(np.float32).tobytes()
+        ok, img = cv2.imencode('.png', sc_data, (cv2.IMWRITE_PNG_COMPRESSION, 9))
 
         if not ok:
             return ok
@@ -102,53 +121,28 @@ def save_xyz(path, xyz, as_png=True):
             fh.write(img)
 
     else:
-        ok = cv2.imwrite(path + '.exr', xyz, (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
+        ok = cv2.imwrite(path + '.exr', data, (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
 
     return ok
 
 
-def load_xyz(path):
+def load_float_img(path, channels):
     is_png = path[-4:] != '.exr'
     if is_png:
         with open(path, 'rb') as fh:
             bytes = fh.read()
-        meta_len = 4 * 6
-        minx, miny, minz, scx, scy, scz = np.frombuffer(bytes[:meta_len], dtype=np.float32)
-        minvals, sc = np.array([[[minx, miny, minz]]]), np.array([[[scx, scy, scz]]])
-        scaled_xyz = cv2.imdecode(np.frombuffer(bytes[meta_len:], dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-        x = scaled_xyz.astype(np.float32) / sc + minvals
-        x[scaled_xyz == 2 ** 16 - 2] = np.nan
-        x[scaled_xyz == 2 ** 16 - 1] = np.inf
+        meta_len = 4 * 2 * channels
+        meta = np.frombuffer(bytes[:meta_len], dtype=np.float32)
+        mins = np.array(meta[:channels]).reshape((1, 1, -1))
+        scs = np.array(meta[channels:]).reshape((1, 1, -1))
+        sc_data = cv2.imdecode(np.frombuffer(bytes[meta_len:], dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        x = sc_data.astype(np.float32) / scs + mins
+        x[sc_data == 2 ** 16 - 2] = np.nan
+        x[sc_data == 2 ** 16 - 1] = np.inf
     else:
         x = cv2.imread(path, cv2.IMREAD_UNCHANGED)
 
     return x
-
-
-def save_mono(path, x, as_png=True):
-    if as_png:
-        isnan, isinf = np.isnan(x), np.isinf(x)
-        x[isinf] = np.nan
-        minx = np.nanmin(x, axis=(0, 1))
-        maxx = np.nanmax(x, axis=(0, 1))
-        scx = ((2 ** 16 - 3) / (maxx - minx))
-        scaled_x = np.clip((x - minx) * scx, 0, 2 ** 16 - 3).astype(np.uint16)
-        scaled_x[isnan] = 2 ** 16 - 2
-        scaled_x[isinf] = 2 ** 16 - 1
-
-        meta = minx.astype(np.float32).tobytes() + scx.astype(np.float32).tobytes()
-        ok, img = cv2.imencode('.png', scaled_x, (cv2.IMWRITE_PNG_COMPRESSION, 9))
-        if not ok:
-            return ok
-
-        with open(path, 'wb') as fh:
-            fh.write(meta)
-            fh.write(img)
-
-    else:
-        ok = cv2.imwrite(path + '.exr', x, (cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_FLOAT))
-
-    return ok
 
 
 def load_mono(path):
@@ -866,24 +860,25 @@ def estimate_pose_pnp(cam: Camera, trg_xyz, trg_ixy=None, ransac=False, max_err=
         import featstat.algo.model as fsm
         from featstat.algo.odo.simple import SimpleOdometry
         fs_cam = fsm.Camera(cam.width, cam.height, cam_mx=cam.matrix, dist_coefs=cam.dist_coefs)
-        odo = SimpleOdometry(fs_cam, max_repr_err=max_err, verbose=0)
+        odo = SimpleOdometry(fs_cam, max_repr_err=max_err, repr_err=max_err, verbose=0)
 
         # TODO: optimize by adding a better suited method to SimpleOdometry
-        pos, ori, inliers, kp_3d, succ_rate, track_len, repr_err, repr_err_ids = \
+        pos, ori, kp_ids, kp_3d, succ_rate, track_len, repr_err, repr_err_ids = \
             odo.pair_stats_with_known_kp3d(np.arange(len(trg_xyz)), trg_ixy, trg_xyz)
 
         if ori is None:
             return [None] * 3
 
-        if repr_err_callback:
-            Ie = repr_err_ids[:, 0] == 1
-            repr_err_callback(trg_ixy[repr_err_ids[Ie, 1], :], repr_err[Ie])
-
+        Ie = repr_err_ids[:, 0] == 1
+        inliers = repr_err_ids[Ie, 1][repr_err[Ie] < max_err]
         tvec, rvec = pos[-1], quaternion.as_rotation_vector(ori[-1])
+
+        if repr_err_callback:
+            repr_err_callback(trg_ixy[repr_err_ids[Ie, 1], :], repr_err[Ie])
 
     elif ransac:
         ok, rvec, tvec, inliers = cv2.solvePnPRansac(trg_xyz, trg_ixy, cam.matrix, cam.dist_coefs,
-                                                     iterationsCount=10000, reprojectionError=max_err,
+                                                     iterationsCount=20000, reprojectionError=max_err,
                                                      flags=ransac_method)
         if not ok:
             return [None] * 3
@@ -902,7 +897,7 @@ def estimate_pose_pnp(cam: Camera, trg_xyz, trg_ixy=None, ransac=False, max_err=
     sc_trg_pos = from_opencv_v(sc_trg_pos)
     sc_trg_ori = from_opencv_q(sc_trg_ori)
 
-    return (sc_trg_pos, sc_trg_ori) + ((inliers,) if ransac else tuple())
+    return (sc_trg_pos, sc_trg_ori) + ((inliers,) if ransac or ba else tuple())
 
 
 def estimate_pose_icp(xyz0, xyz1, max_n1=None, max_n2=None):

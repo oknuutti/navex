@@ -61,6 +61,9 @@ def main():
     parser.add_argument("--est-gt-ori", default=1, type=int, help="Recalculate ground truth relative orientation "
                                                                   "based on aflow. Default: 1, due to the values "
                                                                   "available in the database being incorrect.")
+    parser.add_argument("--ignore-img-rot", action="store_true", help="Assume images have not been rotated, useful "
+                                                                      "when dataset_all.sqlite has non-zero img_angle "
+                                                                      "even though images are untouched")
     parser.add_argument("--show-matches", action="store_true", help="Show matches if estimating orientation")
     parser.add_argument("--debug-ori-est", action="store_true", help="Debug orientation estimation")
     args = parser.parse_args()
@@ -72,15 +75,8 @@ def main():
 
     ori_est = None
     if args.est_ori:
-        print("WARNING: Currently orientation estimation, even based on ground-truth px correspondences, give\n"
-              "         non-robust results. Orientations can vary by tens of degrees if estimation parameters such as\n"
-              "         maximum reprojection error are changed even a little. Debugging might help, or, it could just\n"
-              "         be that relative pose estimation between two images with only 2d correspondences is\n"
-              "         inherently a difficult task. If 3d coordinates of the keypoints were known, the relative pose\n"
-              "         estimate could be more stable/accurate.")
-
         assert SimpleOdometry is not None, "featstat package not installed, cannot estimate orientation without it"
-        ori_est = OrientationEstimator(max_repr_err=1.5, min_inliers=30, use_ba=False,
+        ori_est = OrientationEstimator(max_repr_err=5.0, min_inliers=12, use_ba=True,
                                        debug=args.debug_ori_est, show_matches=args.show_matches)
 
     eval = ImagePairEvaluator(ext, ori_est, args.success_px_limit, args.mutual, args.ratio,
@@ -94,12 +90,17 @@ def main():
 
     for key, DatasetClass in datasets.items():
         dataset = DatasetClass(root=args.root, eval='test')
+        dataset.skip_preproc = True if args.ignore_img_rot else dataset.skip_preproc
         pbar = tqdm(DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True), desc="Evaluating %s..." % key)
         for i, ((img1, img2), aflow, *meta) in enumerate(pbar):
             assert len(meta) >= 2 and dataset.cam, 'dataset "%s" does not have cam model or rel_q, rel_s metadata' % (key,)
 
             # as in datasets/base.py: DatabaseImagePairDataset._load_samples
             rel_dist, img_rot1, img_rot2, cf_trg_q1, cf_trg_q2, light1, light2 = meta
+
+            if args.ignore_img_rot:
+                img_rot1 = img_rot2 = 0.0
+
             cf_trg_q1 = np.quaternion(*cf_trg_q1.flatten().tolist())
             cf_trg_q2 = np.quaternion(*cf_trg_q2.flatten().tolist())
             cf_trg_rel_q = cf_trg_q1.conj() * cf_trg_q2
@@ -119,9 +120,6 @@ def main():
                       light1, light2, cf_trg_rel_q, rel_angle, rel_dist, metrics)
 
     # TODO:
-    #   - use depth on first view to estimate relative poses
-    #       - refactor so that pnp ransac can be called similar to preproc.tools.relative_pose (move to dataset.tools?)
-    #       - check that resulting pose[0] has unit quaternion
     #   - see that eval supports akaze, sift and root-sift
     #       - match feature count with cnn version: increase trad feat count or limit cnn feats?
     #         match layers per octave count?
@@ -193,11 +191,13 @@ class ImagePairEvaluator:
         if self.ori_est is not None:
             if self.est_gt_ori:
                 rel_q = self.ori_est.estimate_gt(yx1, aflow, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
-                                                 max_repr_err=0.75, min_inliers=50, debug=(img1, img2, aflow, rel_q))
+                                                 max_repr_err=0.75, min_inliers=30, debug=(img1, img2, aflow, rel_q))
 
             if rel_q is not None:
                 est_q = self.ori_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
                                               debug=(img1, img2, aflow, rel_q))
+            else:
+                print("estimate_gt failed!")
 
             if rel_q is not None and est_q is not None:
                 ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
@@ -209,16 +209,18 @@ class ImagePairEvaluator:
 
 
 class OrientationEstimator:
-    def __init__(self, max_repr_err=1.5, min_inliers=25, use_ba=True, debug=False, show_matches=False):
+    def __init__(self, max_repr_err=1.5, min_inliers=25, use_ba=True, rotated_depthmaps=True,
+                 debug=False, show_matches=False):
         self.max_repr_err = max_repr_err
         self.min_inliers = min_inliers
         self.use_ba = use_ba
+        self.rotated_depthmaps = rotated_depthmaps
         self.debug = debug
         self.show_matches = show_matches
         self._debug_logger = fs_tools.get_logger("odo", level=logging.DEBUG) if self.debug > 1 else None
 
     def estimate_gt(self, yx1, aflow, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, debug=None, **kwargs):
-        tmp = self.__dict__
+        tmp = self.__dict__.copy()
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -247,11 +249,16 @@ class OrientationEstimator:
         if debug is not None and (self.debug or self.show_matches):
             img1, img2, aflow, rel_q = debug
 
+        if self.rotated_depthmaps:
+            dist = nan_grid_interp(depth1, xy1[mask, :])
+
         # rotate keypoints back to original image coordinates
         xy1 = self.rotate_kps(xy1, -img_rot1, size1, (cam.width, cam.height))
         xy2 = self.rotate_kps(xy2, -img_rot2, size2, (cam.width, cam.height))
 
-        dist = nan_grid_interp(depth1, xy1[mask, :])
+        if not self.rotated_depthmaps:
+            dist = nan_grid_interp(depth1, xy1[mask, :])
+
         kp3d = cam.backproject(xy1[mask, :], dist=dist)
         repr_err_callback = (lambda kps, errs: self._plot_repr_errs(img2, kps, errs)) if self.show_matches else None
         pos, est_q, inliers = estimate_pose_pnp(cam, kp3d, xy2[matches[mask], :].astype(float),
