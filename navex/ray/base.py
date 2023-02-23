@@ -33,6 +33,7 @@ from ..lightning.base import TrialWrapperBase, MySLURMConnector, MyModelCheckpoi
 from ..models.tools import ordered_nested_dict, reorder_cols
 from ..trials.aerial import AerialTrial
 from ..trials.asteroidal import AsteroidalTrial
+from ..trials.asterostudent import AsteroStudentTrial
 from ..trials.terrastudent import TerraStudentTrial
 from ..trials.terrestrial import TerrestrialTrial
 
@@ -146,7 +147,9 @@ def execute_trial(hparams, checkpoint_dir=None, full_conf=None, update_conf=Fals
         logging.info('new trial with %s' % (full_conf,))
 
         TrialClass = {cls.NAME: cls for cls in (
-            TerrestrialTrial, TerraStudentTrial, AsteroidalTrial, AerialTrial,  # AstraStudentTrial, AeroStudentTrial
+            TerrestrialTrial, TerraStudentTrial,
+            AsteroidalTrial, AsteroStudentTrial,
+            AerialTrial,  # AeroStudentTrial,
         )}.get(train_conf['trial'], None)
         assert TrialClass is not None, 'invalid trial: %s' % train_conf['trial']
         trial = TrialClass(full_conf['model'], full_conf['loss'], full_conf['optimizer'], full_conf['data'],
