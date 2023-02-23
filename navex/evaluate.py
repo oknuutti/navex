@@ -32,6 +32,8 @@ HEADER = ['Dataset', 'aflow', 'img1', 'img2', 'light1_x', 'light1_y', 'light1_z'
           'rel_qw', 'rel_qx', 'rel_qy', 'rel_qz', 'rel_angle', 'rel_dist',  'FD', 'M-Score', 'MMA', 'LE', 'mAP',
           'ori-err', 'est_qw', 'est_qx', 'est_qy', 'est_qz']
 
+logger = fs_tools.get_logger("main", level=logging.INFO)
+
 
 def main():
     parser = argparse.ArgumentParser("evaluate a feature extractor")
@@ -196,14 +198,15 @@ class ImagePairEvaluator:
             if rel_q is not None:
                 est_q = self.ori_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
                                               debug=(img1, img2, aflow, rel_q))
-            else:
-                print("estimate_gt failed!")
 
             if rel_q is not None and est_q is not None:
                 ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
                 metrics = metrics + [ori_err, *est_q.components]
-            else:
+            elif rel_q is None:
+                logger.warning('Failed to estimate ground truth relative orientation.')
                 metrics = metrics + [np.nan] * 5
+            else:
+                metrics = metrics + [np.inf] + [np.nan] * 4
 
         return metrics
 
@@ -271,8 +274,8 @@ class OrientationEstimator:
         if debug is not None and (self.debug or self.show_matches):
             ry, rp, rr = map(math.degrees, q_to_ypr(rel_q))
             ey, ep, er = map(math.degrees, q_to_ypr(est_q))
-            print('\nrel ypr: %.1f, %.1f, %.1f' % (ry, rp, rr))
-            print('est ypr: %.1f, %.1f, %.1f' % (ey, ep, er))
+            logger.info('rel ypr: %.1f, %.1f, %.1f' % (ry, rp, rr))
+            logger.info('est ypr: %.1f, %.1f, %.1f' % (ey, ep, er))
 
             if self.show_matches and 0:
                 res_mask = np.zeros_like(mask)

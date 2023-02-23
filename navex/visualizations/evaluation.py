@@ -69,9 +69,9 @@ def main():
     if not np.all(np.isnan(light1)):
         pa_change, ld_change = lighting_change(light1, light2)
 
-    plot_viewangle_metrics(rel_angle, mscore, mma, locerr, mAP)
+    plot_viewangle_metrics(rel_angle, mscore, mma, locerr, mAP, orierr)
     if pa_change is not None:
-        plot_lightchange_metrics(pa_change, ld_change, mscore, mma, locerr, mAP)
+        plot_lightchange_metrics(pa_change, ld_change, mscore, mma, locerr, mAP, orierr)
 
     plt.show()
 
@@ -96,7 +96,7 @@ def lighting_change(light1, light2):
     return pa_change/np.pi*180, ld_change/np.pi*180
 
 
-def plot_viewangle_metrics(x_va, mscore, mma, locerr, mAP):
+def plot_viewangle_metrics(x_va, mscore, mma, locerr, mAP, orierr):
     xmin, xmax = 10, 30  #np.min(x_va), np.max(x_va)
     lims = np.arange(xmin, xmax + 5, 5)
     I = [np.logical_and(x_va >= lims[i], x_va < lims[i + 1]) for i in range(len(lims) - 1)]
@@ -137,13 +137,17 @@ def plot_viewangle_metrics(x_va, mscore, mma, locerr, mAP):
     axs[2].set_title('Localization Error')
     plot(axs[2], locerr)
 
-    axs[3].set_title('mAP')
-    plot(axs[3], mAP)
+    if 0:
+        axs[3].set_title('mAP')
+        plot(axs[3], mAP)
+    else:
+        axs[3].set_title('Orientation Error')
+        plot(axs[3], orierr)
 
     plt.tight_layout()
 
 
-def plot_lightchange_metrics(x_pa, x_ld, mscore, mma, locerr, mAP):
+def plot_lightchange_metrics(x_pa, x_ld, mscore, mma, locerr, mAP, orierr):
     pa_min, pa_max = 0, 40
     ld_min, ld_max = 0, 60
     pa_lim = np.linspace(pa_min, pa_max, 5)
@@ -193,7 +197,10 @@ def plot_lightchange_metrics(x_pa, x_ld, mscore, mma, locerr, mAP):
     plot(1, mscore, title='M-score')
     plot(2, mma, title='MMA')
     plot(3, locerr, title='Localization Error')
-    plot(4, mAP, title='mAP')
+    if 0:
+        plot(4, mAP, title='mAP')
+    else:
+        plot(4, orierr, title='Orientation Error')
     plt.tight_layout()
 
 
