@@ -272,6 +272,7 @@ class StudentTrialMixin:
         return loss, acc
 
     def evaluate_batch(self, data: Tuple[Tensor, Tensor], component_loss: bool = False):
+        assert isinstance(data, (tuple, list)), 'data must be a tuple or a list of (clean, noisy) tensors'
         clean_data, noisy_data = data
 
         self.model.eval()
@@ -315,7 +316,7 @@ class StudentTrialMixin:
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
         matches, norm, mask, dist = tools.match(descr1, descr2, mutual=['mutual'], ratio=['ratio'])
 
-        aflow = tr.ToTensor()(unit_aflow(W2, H2)).expand((B, 2, W2, H2))
+        aflow = tr.ToTensor()(unit_aflow(W2, H2)).expand((B, 2, W2, H2)).to(yx1.device)
         return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), p['success_px_limit'],
                                    active_area=((H1 - p['border']*2) * (W1 - p['border']*2)
                                                 + (H2 - p['border']*2) * (W2 - p['border']*2)) / 2)

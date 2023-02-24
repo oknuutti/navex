@@ -120,8 +120,14 @@ def plot_viewangle_metrics(x_va, mscore, mma, locerr, mAP, orierr):
                           )))
 
     nn = np.logical_not(np.isnan(orierr))
+    fails = np.isinf(orierr)
+    orierr[fails] = 999
     lv = np.quantile(orierr[nn], 0.995)
+    orierr[fails] = np.inf
+
     no = np.logical_and(orierr < lv, nn)
+    print('Orientation estimate, all, avail gt, has estimate (err lt %.3f), err lt 10deg: %s => %s => %s => %s' % (
+        lv, len(nn), np.sum(nn), np.sum(no), np.sum(np.logical_and(no, orierr < 10))))
     print('Orientation error easy median, mean; all median, mean: '
           + ', '.join(map(lambda x: '%.4f' % x, (
                                 np.median(orierr[np.logical_and(I[0], nn)]),
@@ -130,10 +136,10 @@ def plot_viewangle_metrics(x_va, mscore, mma, locerr, mAP, orierr):
                                 np.mean(orierr[no]))
                           )))
 
-    easy_fails, fails = np.sum(np.logical_and(I[0], np.isinf(orierr))), np.sum(np.isinf(orierr))
+    easy_fails, fails = np.sum(np.logical_and(I[0], fails)), np.sum(fails)
     easy_tot, tot = np.sum(np.logical_and(I[0], nn)), np.sum(nn)
     print('Orientation est. failure rate easy; all: '
-          + ', '.join(map(lambda x: '%.3f%%' % x, (
+          + ', '.join(map(lambda x: '%.2f%%' % x, (
                                 100 * easy_fails / easy_tot,
                                 100 * fails / tot),
                           )))

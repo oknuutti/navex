@@ -28,8 +28,8 @@ class IdentityTransform:
     def __init__(self):
         pass
 
-    def __call__(self, data, *meta):
-        return data, *meta
+    def __call__(self, data):
+        return data
 
 
 class PairedIdentityTransform:

@@ -6,8 +6,6 @@ import math
 import sys
 from shutil import copyfile
 
-import psutil
-
 import torch
 
 from pytorch_lightning.callbacks import EarlyStopping
@@ -40,6 +38,7 @@ def main():
     if args.gpu:
         totmem = torch.cuda.get_device_properties(0).total_memory  # in bytes
     else:
+        import psutil
         totmem = psutil.virtual_memory().available  # in bytes
     totmem -= 256 * 1024 * 1024  # overhead
     acc_grad_batches = 2 ** max(0, math.ceil(math.log2((args.batch_mem * 1024 * 1024) / totmem)))  # in MB

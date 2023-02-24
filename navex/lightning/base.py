@@ -137,7 +137,7 @@ class TrialWrapperBase(pl.LightningModule):
 
     def _eval_step(self, batch, batch_idx, log_prefix):
         if isinstance(self.trial, StudentTrialMixin):
-            data, *meta = batch
+            data = batch
             loss, acc, output = self.trial.evaluate_batch(data, component_loss=True)
         else:
             data, labels, *meta = batch
