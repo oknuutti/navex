@@ -482,8 +482,9 @@ class ScalingEstimator(BaseEstimator):
         for i, c in sorted(enumerate(cs), key=lambda x: x[1]):
             yc = sc_y[lbl == i]
             if len(yc) > 1:
-                v0, v1, d = np.min(yc), np.max(yc), np.max(np.diff(sorted(yc)))
-                if pv0 is not None:
+                v0, v1 = np.min(yc), np.max(yc)
+                d = np.max(np.diff(sorted(yc))) if len(yc) > 2 else 0
+                if pv0 is not None and d + pd > 0:
                     # if there is a margin between consecutive clusters, remove it
                     dd += min(0, (d + pd)/2 - (v0 - pv1))
                     sc_y[lbl == i] += dd
