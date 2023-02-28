@@ -14,7 +14,7 @@ import skopt.plots as skplt
 from skopt.space import Categorical, Integer
 
 from navex.experiments.parser import split_double_samplers, ExperimentConfigParser, to_dict, flatten_dict
-from navex.ray.base import MySkOptSearch
+from navex.ray.base import SkOptSearchSH
 
 
 def main():
@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--config', '-c', help="config file if need to update searcher")
     args = parser.parse_args()
 
-    search_alg = MySkOptSearch()
+    search_alg = SkOptSearchSH()
     if os.path.isdir(args.path):
         search_alg.restore_from_dir(args.path)
     else:
@@ -50,8 +50,6 @@ def main():
         # if search_alg.metric != full_conf['search']['metric'] or search_alg.mode != full_conf['search']['mode']:
         #     print('WARNING: new config has different search metric, new rewards NOT acquired from json files')
 
-        if 0:
-            y = search_alg.rescale_rewards(y)
 
         defaults = {'data/max_rot': 0.0}  # TODO: remove hardcoding
         X = np.array(X)
@@ -61,10 +59,13 @@ def main():
                                                       for p in hparams.keys()])) if not np.isnan(y[i])]
         y = list(np.array(y)[~np.isnan(y)])
 
-        space = MySkOptSearch.convert_search_space(hparams)
-        search_alg = MySkOptSearch(space=space, metric=full_conf['search']['metric'],
+        if 1:
+            steps = [{0: 300, 1: 900, 2: 2700, 3: 8100}[np.where(np.array([9, 3, -0.3, -2]) < yi)[0][0]] for yi in y]
+
+        space = SkOptSearchSH.convert_search_space(hparams)
+        search_alg = SkOptSearchSH(space=space, metric=full_conf['search']['metric'],
                                    mode=full_conf['search']['mode'], points_to_evaluate=Xn,
-                                   evaluated_rewards=y)
+                                   evaluated_rewards=y, evaluated_steps=steps)
         search_alg.save(os.path.join(args.path, 'new-searcher-state.pkl'))
 
     fitted_model = search_alg._skopt_opt.models[-1]

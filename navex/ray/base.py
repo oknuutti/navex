@@ -27,6 +27,7 @@ from ray.tune.search.variant_generator import parse_spec_vars
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneCallback, TuneReportCallback
 from ray.tune.utils import flatten_dict
+from ray.tune.utils.util import is_nan_or_inf
 from sklearn.base import BaseEstimator
 from skopt import space as sko_sp
 import skopt
@@ -193,7 +194,7 @@ def tune_asha(search_conf, hparams, full_conf):
         initial = flatten_dict(initial, prevent_delimiter=True)
         key_order = list(flatten_dict(hparams, prevent_delimiter=True).keys())
         if search_conf['resume'] and search_conf['resume'].lower() != 'true':
-            search_alg = MySkOptSearch()
+            search_alg = SkOptSearchSH()
             if os.path.isdir(search_conf['resume']):
                 search_alg.restore_from_dir(search_conf['resume'])
             else:
@@ -207,7 +208,8 @@ def tune_asha(search_conf, hparams, full_conf):
             evaluated_rewards = None
             prev_steps = 0
         
-        search_alg = MySkOptSearch(metric='hp_metric_max', mode='max', reduction_factor=search_conf['reduction_factor'],
+        search_alg = SkOptSearchSH(metric='hp_metric_max', mode='max', global_step='global_step',
+                                   reduction_factor=search_conf['reduction_factor'],
                                    points_to_evaluate=start_config, evaluated_rewards=evaluated_rewards)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
     else:
@@ -320,17 +322,26 @@ def sample(config, sampled=None):
     return sampled
 
 
-class MySkOptSearch(SkOptSearch):
-    def __init__(self, *args, reduction_factor=3, **kwargs):
+class SkOptSearchSH(SkOptSearch):
+    """
+    Search algorithm that uses SkOpt to optimize hyperparameters while reducing problems created by successive halving
+    by removing performance gaps (if present) between trials that run for different numbers of epochs.
+    """
+
+    def __init__(self, *args, reduction_factor=3, global_step='global_step', evaluated_steps=None, **kwargs):
         self._reduction_factor = reduction_factor
-        super(MySkOptSearch, self).__init__(*args, **kwargs)
+        self._global_step = global_step
+        self._evaluated_steps = evaluated_steps
+        super(SkOptSearchSH, self).__init__(*args, **kwargs)
 
     def _setup_skopt(self):
         self._parameter_names = list(self._parameter_names)
         self._parameter_ranges = list(self._parameter_ranges)
         self._skopt_opt = skopt.Optimizer(self._parameter_ranges)
         self._skopt_opt.base_estimator_ = ScalingEstimator(self._skopt_opt.base_estimator_, self._reduction_factor)
-        super(MySkOptSearch, self)._setup_skopt()
+        if self._evaluated_steps is not None:
+            self._skopt_opt.base_estimator_.si = self._evaluated_steps
+        super(SkOptSearchSH, self)._setup_skopt()
 
     def save(self, checkpoint_path: str):
         save_object = self.__dict__
@@ -408,15 +419,63 @@ class MySkOptSearch(SkOptSearch):
     def _process_result(self, trial_id: str, result: Dict):
         logging.info('trial %s result: %s' % (trial_id, result))
         ensure_nice(5)
-        super(MySkOptSearch, self)._process_result(trial_id, result)
+
+        skopt_trial_info = self._live_trial_mapping[trial_id]
+        if result and not is_nan_or_inf(result[self._metric]):
+            self._skopt_opt.tell(
+                skopt_trial_info, self._metric_op * result[self._metric], step=result[self._global_step]
+            )
+
+        super(SkOptSearchSH, self)._process_result(trial_id, result)
+
+
+class ScalingEstimator(BaseEstimator):
+    def __init__(self, estimator, scaling_factor=3, si=None):
+        self.estimator = estimator
+        self.scaling_factor = scaling_factor
+        self.si = si or []
+        self._initialized = True
+
+    def fit(self, X, y, **kwargs):
+        if len(self.si) != len(y) or np.any(np.isnan(self.si)):
+            logging.debug("fitting without global step labels")
+            rungs = round(np.log(len(y)) // np.log(self.scaling_factor))
+            if rungs > 1:
+                y = self.rescale_rewards(y, rungs=rungs)
+        else:
+            logging.debug("fitting using global step labels")
+            y = self.rescale_rewards(y, labels=self.si)
+        return self.estimator.fit(X, y, **kwargs)
+
+    def tell(self, x, y, step=None, **kwargs):
+        if isinstance(step, (list, tuple)):
+            self.si.extend(step)
+        else:
+            self.si.append(step or np.nan)
+        return self.estimator.tell(x, y, **kwargs)
+
+    def __getattr__(self, key):
+        return getattr(self.estimator, key)
+
+    def __setattr__(self, key, value):
+        if '_initialized' in self.__dict__:
+            setattr(self.estimator, key, value)
+        super().__setattr__(key, value)
 
     @staticmethod
-    def rescale_rewards(y, rungs=5):
+    def rescale_rewards(y, rungs=5, labels=None):
         """
         cluster reward in an attempt to smooth out the difference between different rungs
         """
         sc_y = np.array(y)
-        cs, lbl = kmeans2(y, rungs)
+
+        if labels is not None and len(sc_y) == len(labels):
+            ulbl = {l: i for i, l in enumerate(np.unique(labels))}
+            lbl = np.array([ulbl[label] for label in labels])
+            cs = [np.mean(sc_y[lbl == i]) for i in range(len(ulbl))]
+        else:
+            cs, lbl = kmeans2(sc_y, rungs)
+
         pv0, pv1, pd = [None] * 3
         dd = 0
 
@@ -425,26 +484,12 @@ class MySkOptSearch(SkOptSearch):
             if len(yc) > 1:
                 v0, v1, d = np.min(yc), np.max(yc), np.max(np.diff(sorted(yc)))
                 if pv0 is not None:
-                    dd += (d + pd)/2 - (v0 - pv1)
+                    # if there is a margin between consecutive clusters, remove it
+                    dd += min(0, (d + pd)/2 - (v0 - pv1))
                     sc_y[lbl == i] += dd
                 pv0, pv1, pd = v0, v1, d
 
         return sc_y
-
-
-class ScalingEstimator(BaseEstimator):
-    def __init__(self, estimator, scaling_factor=3):
-        self.estimator = estimator
-        self.scaling_factor = scaling_factor
-
-    def fit(self, X, y, **kwargs):
-        rungs = round(np.log(len(y)) // np.log(self.scaling_factor))
-        if rungs > 1:
-            y = MySkOptSearch.rescale_rewards(y, rungs=rungs)
-        return self.estimator.fit(X, y, **kwargs)
-
-    def __getattr__(self, name):
-        return getattr(self.estimator, name)
 
 
 class MyCategorical(sko_sp.Categorical):
@@ -549,18 +594,3 @@ class CheckOnSLURM(TuneCallback):
         terminate = ray.get(ray.get_actor('term_' + node_id).is_set.remote())
         if terminate:
             trainer.checkpoint_connector.hpc_save(trainer.weights_save_path, trainer.logger)
-
-
-# @ray.remote(num_cpus=0)
-# class Signal:
-#     def __init__(self):
-#         self._flag = False
-#
-#     def set(self):
-#         self._flag = True
-#
-#     def clear(self):
-#         self._flag = False
-#
-#     def is_set(self):
-#         return self._flag
