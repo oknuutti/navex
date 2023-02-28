@@ -192,7 +192,7 @@ class ImagePairEvaluator:
         # calc relative orientation error
         if self.ori_est is not None:
             if self.est_gt_ori:
-                rel_q = self.ori_est.estimate_gt(yx1, aflow, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
+                rel_q = self.ori_est.estimate_gt(aflow, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
                                                  max_repr_err=0.75, min_inliers=30, debug=(img1, img2, aflow, rel_q))
 
             if rel_q is not None:
@@ -222,12 +222,19 @@ class OrientationEstimator:
         self.show_matches = show_matches
         self._debug_logger = fs_tools.get_logger("odo", level=logging.DEBUG) if self.debug > 1 else None
 
-    def estimate_gt(self, yx1, aflow, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, debug=None, **kwargs):
+    def estimate_gt(self, aflow, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, debug=None, **kwargs):
         tmp = self.__dict__.copy()
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-        xy1 = torch.flipud(yx1[0, :, :]).t().cpu().numpy()
+        unitflow = ds_tools.unit_aflow(aflow.shape[3], aflow.shape[2])
+        xy1 = unitflow[torch.logical_not(torch.isnan(aflow[0, 0, :, :])).cpu().numpy()].reshape((-1, 2))
+
+        # sparsify xy1
+        if len(xy1) > 20000:
+            n = len(xy1) // 10000
+            xy1 = xy1[::n, :]
+
         xy2 = aflow[0, :, (xy1[:, 1] + 0.5).astype(int), (xy1[:, 0] + 0.5).astype(int)].cpu().numpy().T
         mask = np.logical_not(np.isnan(xy2[:, 0]))
         matches = np.arange(len(mask))

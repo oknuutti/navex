@@ -27,6 +27,9 @@ class AsteroStudentTrial(StudentTrialMixin, AsteroidalTrial):
         model = TrialWrapperBase.load_from_checkpoint(teacher_ckpt)
         teacher = model.trial.model
 
+        accuracy_params = accuracy_params or {}     # TODO: make configurable from the .yaml file
+        accuracy_params.setdefault('det_lim', 0.1)
+        accuracy_params.setdefault('qlt_lim', 0.1)
         loss_conf['skip_qlt'] = model_conf['qlt_head']['skip']
         AsteroidalTrial.__init__(self, model_conf,
                 StudentLoss(**loss_conf) if isinstance(loss_conf, dict) else loss_conf,

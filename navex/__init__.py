@@ -1,3 +1,10 @@
+import warnings
+
+# ignore warnings
+warnings.filterwarnings("ignore", message="You want to use `wandb` which is not installed yet")
+warnings.filterwarnings("ignore", message="You want to use `gym` which is not installed yet")
+
+
 # random seed used
 RND_SEED = 10
 

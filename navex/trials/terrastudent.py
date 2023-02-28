@@ -16,7 +16,8 @@ from ..losses.student import StudentLoss
 class TerraStudentTrial(StudentTrialMixin, TerrestrialTrial):
     NAME = 'terrst'
 
-    def __init__(self, model_conf, loss_conf, optimizer_conf, data_conf, batch_size, acc_grad_batches=1, hparams=None):
+    def __init__(self, model_conf, loss_conf, optimizer_conf, data_conf, batch_size, acc_grad_batches=1,
+                 hparams=None, accuracy_params=None):
         # load teacher
         teacher_ckpt = loss_conf.pop('teacher')
         if teacher_ckpt[-5:] == '.ckpt':
@@ -25,10 +26,13 @@ class TerraStudentTrial(StudentTrialMixin, TerrestrialTrial):
         else:
             teacher = R2D2(path=teacher_ckpt)
 
+        accuracy_params = accuracy_params or {}     # TODO: make configurable from the .yaml file
+        accuracy_params.setdefault('det_lim', 0.1)
+        accuracy_params.setdefault('qlt_lim', 0.1)
         loss_conf['skip_qlt'] = model_conf['qlt_head']['skip']
         TerrestrialTrial.__init__(self, model_conf,
                 StudentLoss(**loss_conf) if isinstance(loss_conf, dict) else loss_conf,
-                optimizer_conf, data_conf, batch_size, acc_grad_batches, hparams)
+                optimizer_conf, data_conf, batch_size, acc_grad_batches, hparams, accuracy_params)
 
         StudentTrialMixin.__init__(self, teacher=teacher)
         self.target_macs = 0.5e9     # TODO: set at e.g. loss_conf

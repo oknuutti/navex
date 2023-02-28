@@ -11,6 +11,7 @@ from typing import Dict
 
 import numpy as np
 import torch
+from scipy.cluster.vq import kmeans2
 
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities.cloud_io import load as pl_load
@@ -26,7 +27,9 @@ from ray.tune.search.variant_generator import parse_spec_vars
 from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
 from ray.tune.integration.pytorch_lightning import TuneCallback, TuneReportCallback
 from ray.tune.utils import flatten_dict
+from sklearn.base import BaseEstimator
 from skopt import space as sko_sp
+import skopt
 
 from ..experiments.parser import nested_update, split_double_samplers
 from ..lightning.base import TrialWrapperBase, MySLURMConnector, MyModelCheckpoint, MyTrainer, MyLogger, ensure_nice
@@ -204,7 +207,7 @@ def tune_asha(search_conf, hparams, full_conf):
             evaluated_rewards = None
             prev_steps = 0
         
-        search_alg = MySkOptSearch(metric='hp_metric_max', mode='max',
+        search_alg = MySkOptSearch(metric='hp_metric_max', mode='max', reduction_factor=search_conf['reduction_factor'],
                                    points_to_evaluate=start_config, evaluated_rewards=evaluated_rewards)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
     else:
@@ -318,11 +321,16 @@ def sample(config, sampled=None):
 
 
 class MySkOptSearch(SkOptSearch):
+    def __init__(self, *args, reduction_factor=3, **kwargs):
+        self._reduction_factor = reduction_factor
+        super(MySkOptSearch, self).__init__(*args, **kwargs)
 
-    def setup_skopt(self):
+    def _setup_skopt(self):
         self._parameter_names = list(self._parameter_names)
         self._parameter_ranges = list(self._parameter_ranges)
-        super(MySkOptSearch, self).setup_skopt()
+        self._skopt_opt = skopt.Optimizer(self._parameter_ranges)
+        self._skopt_opt.base_estimator_ = ScalingEstimator(self._skopt_opt.base_estimator_, self._reduction_factor)
+        super(MySkOptSearch, self)._setup_skopt()
 
     def save(self, checkpoint_path: str):
         save_object = self.__dict__
@@ -401,6 +409,42 @@ class MySkOptSearch(SkOptSearch):
         logging.info('trial %s result: %s' % (trial_id, result))
         ensure_nice(5)
         super(MySkOptSearch, self)._process_result(trial_id, result)
+
+    @staticmethod
+    def rescale_rewards(y, rungs=5):
+        """
+        cluster reward in an attempt to smooth out the difference between different rungs
+        """
+        sc_y = np.array(y)
+        cs, lbl = kmeans2(y, rungs)
+        pv0, pv1, pd = [None] * 3
+        dd = 0
+
+        for i, c in sorted(enumerate(cs), key=lambda x: x[1]):
+            yc = sc_y[lbl == i]
+            if len(yc) > 1:
+                v0, v1, d = np.min(yc), np.max(yc), np.max(np.diff(sorted(yc)))
+                if pv0 is not None:
+                    dd += (d + pd)/2 - (v0 - pv1)
+                    sc_y[lbl == i] += dd
+                pv0, pv1, pd = v0, v1, d
+
+        return sc_y
+
+
+class ScalingEstimator(BaseEstimator):
+    def __init__(self, estimator, scaling_factor=3):
+        self.estimator = estimator
+        self.scaling_factor = scaling_factor
+
+    def fit(self, X, y, **kwargs):
+        rungs = round(np.log(len(y)) // np.log(self.scaling_factor))
+        if rungs > 1:
+            y = MySkOptSearch.rescale_rewards(y, rungs=rungs)
+        return self.estimator.fit(X, y, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self.estimator, name)
 
 
 class MyCategorical(sko_sp.Categorical):

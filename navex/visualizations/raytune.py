@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from scipy.optimize import fmin_l_bfgs_b
 import skopt.plots as skplt
+from skopt.space import Categorical, Integer
 
 from navex.experiments.parser import split_double_samplers, ExperimentConfigParser, to_dict, flatten_dict
 from navex.ray.base import MySkOptSearch
@@ -49,16 +50,20 @@ def main():
         # if search_alg.metric != full_conf['search']['metric'] or search_alg.mode != full_conf['search']['mode']:
         #     print('WARNING: new config has different search metric, new rewards NOT acquired from json files')
 
+        if 0:
+            y = search_alg.rescale_rewards(y)
+
         defaults = {'data/max_rot': 0.0}  # TODO: remove hardcoding
         X = np.array(X)
-        Xn = np.stack([X[:, search_alg._parameters.index(p)]
-                          if p in search_alg._parameters
-                          else np.ones((len(X),)) * defaults[p]
-                       for p in hparams.keys()], axis=1)
+        Xn = [list(row) for i, row in enumerate(zip(*[parse_pval(X, search_alg, p)
+                                                         if p in search_alg._parameters
+                                                         else np.ones((len(X),)) * defaults[p]
+                                                      for p in hparams.keys()])) if not np.isnan(y[i])]
+        y = list(np.array(y)[~np.isnan(y)])
 
         space = MySkOptSearch.convert_search_space(hparams)
         search_alg = MySkOptSearch(space=space, metric=full_conf['search']['metric'],
-                                   mode=full_conf['search']['mode'], points_to_evaluate=Xn.tolist(),
+                                   mode=full_conf['search']['mode'], points_to_evaluate=Xn,
                                    evaluated_rewards=y)
         search_alg.save(os.path.join(args.path, 'new-searcher-state.pkl'))
 
@@ -85,7 +90,10 @@ def main():
         skplt.plot_convergence(res)
 
     mpl.rcParams['font.size'] = 6
-    plot_dims = list(np.where(matern_len_sc < 99)[0])
+    if 0:
+        plot_dims = list(np.where(matern_len_sc < 99)[0])
+    else:
+        plot_dims = list(range(len(matern_len_sc)))
     axs = skplt.plot_objective(res, dimensions=np.array(search_alg._parameters)[plot_dims], plot_dims=plot_dims)
 
     if 0:
@@ -93,6 +101,16 @@ def main():
         add_marker(axs, np.array(best_mean_x)[plot_dims], color='b', linestyle=":", linewidth=1)
 
     plt.show()
+
+
+def parse_pval(X, search_alg, pname):
+    i = search_alg._parameters.index(pname)
+    type = float
+    if isinstance(search_alg._parameter_ranges[i], Categorical):
+        type = search_alg._parameter_ranges[i].categories[0].__class__
+    elif isinstance(search_alg._parameter_ranges[i], Integer):
+        type = int
+    return X[:, i].astype(type).tolist()
 
 
 def acq_max_mean(space, model, n_points=10000, n_restarts=10, n_jobs=None):
