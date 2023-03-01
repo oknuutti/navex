@@ -437,7 +437,7 @@ class ScalingEstimator(BaseEstimator):
 
     def fit(self, X, y, **kwargs):
         if len(self.si) != len(y) or np.any(np.isnan(self.si)):
-            logging.debug("fitting without global step labels")
+            logging.debug("fitting without global step labels (len(y): %s, si: %s)" % (len(y), self.si,))
             rungs = round(np.log(len(y)) // np.log(self.scaling_factor))
             if rungs > 1:
                 y = self.rescale_rewards(y, rungs=rungs)
