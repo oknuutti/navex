@@ -425,8 +425,6 @@ class SkOptSearchSH(SkOptSearch):
             self._skopt_opt.base_estimator_.add_step_count(result[self._global_step])
             self._skopt_opt.tell(skopt_trial_info, self._metric_op * result[self._metric])
 
-        super(SkOptSearchSH, self)._process_result(trial_id, result)
-
 
 class ScalingEstimator(BaseEstimator):
     def __init__(self, estimator, scaling_factor=3, si=None):
@@ -437,12 +435,12 @@ class ScalingEstimator(BaseEstimator):
 
     def fit(self, X, y, **kwargs):
         if len(self.si) != len(y) or np.any(np.isnan(self.si)):
-            logging.debug("fitting without global step labels (len(y): %s, si: %s)" % (len(y), self.si,))
+            logging.info("fitting without global step labels (len(y): %s, si: %s)" % (len(y), self.si,))
             rungs = round(np.log(len(y)) // np.log(self.scaling_factor))
             if rungs > 1:
                 y = self.rescale_rewards(y, rungs=rungs)
         else:
-            logging.debug("fitting using global step labels")
+            logging.info("fitting using global step labels")
             y = self.rescale_rewards(y, labels=self.si)
         return self.estimator.fit(X, y, **kwargs)
 
