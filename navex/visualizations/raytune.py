@@ -91,10 +91,11 @@ def main():
         skplt.plot_convergence(res)
 
     mpl.rcParams['font.size'] = 6
-    if 0:
+    if 1:
         plot_dims = list(np.where(matern_len_sc < 99)[0])
     else:
         plot_dims = list(range(len(matern_len_sc)))
+
     axs = skplt.plot_objective(res, dimensions=np.array(search_alg._parameters)[plot_dims], plot_dims=plot_dims)
 
     if 0:

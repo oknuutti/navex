@@ -314,7 +314,7 @@ class StudentTrialMixin:
                                                      mode=p['det_mode'], kernel_size=p['det_kernel_size'])
 
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
-        matches, norm, mask, dist = tools.match(descr1, descr2, mutual=['mutual'], ratio=['ratio'])
+        matches, norm, mask, dist = tools.match(descr1, descr2, mutual=p['mutual'], ratio=p['ratio'])
 
         aflow = tr.ToTensor()(unit_aflow(W2, H2)).expand((B, 2, W2, H2)).to(yx1.device)
         return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), p['success_px_limit'],
