@@ -422,9 +422,8 @@ class SkOptSearchSH(SkOptSearch):
 
         skopt_trial_info = self._live_trial_mapping[trial_id]
         if result and not is_nan_or_inf(result[self._metric]):
-            self._skopt_opt.tell(
-                skopt_trial_info, self._metric_op * result[self._metric], step=result[self._global_step]
-            )
+            self._skopt_opt.base_estimator_.add_step_count(result[self._global_step])
+            self._skopt_opt.tell(skopt_trial_info, self._metric_op * result[self._metric])
 
         super(SkOptSearchSH, self)._process_result(trial_id, result)
 
@@ -447,12 +446,11 @@ class ScalingEstimator(BaseEstimator):
             y = self.rescale_rewards(y, labels=self.si)
         return self.estimator.fit(X, y, **kwargs)
 
-    def tell(self, x, y, step=None, **kwargs):
+    def add_step_count(self, step):
         if isinstance(step, (list, tuple)):
             self.si.extend(step)
         else:
             self.si.append(step or np.nan)
-        return self.estimator.tell(x, y, **kwargs)
 
     def __getattr__(self, key):
         return getattr(self.estimator, key)
