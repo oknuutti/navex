@@ -85,8 +85,12 @@ class StudentLoss(BaseLoss):
         des_y, det_y, qlt_y = label
 
         if self.match_method == StudentLoss.MATCH_METHOD_UNSHUFFLE:
+            # selects the values of y at the detection peaks of x
+
             d_det_y = F.pixel_unshuffle(det_y, 8)
             idxs = torch.argmax(d_det_y, dim=1, keepdim=True)
+            lo_det_x = torch.gather(F.pixel_unshuffle(det_x, 8), 1, idxs)
+            lo_det_y = torch.gather(d_det_y, 1, idxs)
 
             d_qlt_y = F.pixel_unshuffle(qlt_y, 8)
             lo_qlt_y = torch.gather(d_qlt_y, 1, idxs)
@@ -95,11 +99,12 @@ class StudentLoss(BaseLoss):
             dI = idxs[:, None, :, :, :].expand(-1, des_y.size(1), 1, -1, -1)
             lo_des_y = torch.gather(d_des_y, 2, dI)[:, :, 0, :, :]
         else:
+            # NOTE: det_x is forced to be peaky using softmax in 8x8 blocks, whereas det_y is not => unnecessary penalty
             assert det_x.shape == det_y.shape, 'should not need to match dimensions of detector output'
             des_x, des_y = self._match_interp(des_x, des_y, upsample=True)
             if not self.skip_qlt:
                 qlt_x, qlt_y = self._match_interp(qlt_x, qlt_y, upsample=False)
-            lo_des_y, lo_qlt_y = des_y, qlt_y
+            lo_det_x, lo_det_y, lo_qlt_y, lo_des_y,  = det_x, det_y, qlt_y, des_y
 
         def multitarget_loss(loss, weight, is_reg):
             # 1.0 if regression, 2.0 if classification
@@ -113,7 +118,7 @@ class StudentLoss(BaseLoss):
             qlt_loss = torch.Tensor([0]).to(des_x.device)
             det_y = det_y * qlt_y     # merge det and qlt labels to be detection target label
 
-        det_loss = multitarget_loss(self.det_loss(det_x, det_y), self.det_w, True)
+        det_loss = multitarget_loss(self.det_loss(lo_det_x, lo_det_y), self.det_w, True)
         des_loss = multitarget_loss((lo_qlt_y * self.des_loss(des_x, lo_des_y)).mean(), self.des_w, False)
 
         loss = torch.stack((des_loss, det_loss, qlt_loss), dim=1)
