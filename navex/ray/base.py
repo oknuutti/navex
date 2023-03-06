@@ -29,6 +29,7 @@ from ray.tune.integration.pytorch_lightning import TuneCallback, TuneReportCallb
 from ray.tune.utils import flatten_dict
 from ray.tune.utils.util import is_nan_or_inf
 from sklearn.base import BaseEstimator
+from skopt.learning.gaussian_process.kernels import Matern
 from skopt import space as sko_sp
 import skopt
 
@@ -210,7 +211,9 @@ def tune_asha(search_conf, hparams, full_conf):
         
         search_alg = SkOptSearchSH(metric='hp_metric_max', mode='max', global_step='global_step',
                                    reduction_factor=search_conf['reduction_factor'],
-                                   points_to_evaluate=start_config, evaluated_rewards=evaluated_rewards)
+                                   length_scale_bounds=(0.1, 100.0),
+                                   points_to_evaluate=start_config,
+                                   evaluated_rewards=evaluated_rewards)
         search_alg = ConcurrencyLimiter(search_alg, max_concurrent=max(1, search_conf['nodes']))
     else:
         assert False, ('Invalid search method "%s", only random search (rs) '
@@ -328,17 +331,21 @@ class SkOptSearchSH(SkOptSearch):
     by removing performance gaps (if present) between trials that run for different numbers of epochs.
     """
 
-    def __init__(self, *args, reduction_factor=3, global_step='global_step', evaluated_steps=None, **kwargs):
+    def __init__(self, *args, reduction_factor=3, global_step='global_step', evaluated_steps=None,
+                 length_scale_bounds=None, **kwargs):
         self._reduction_factor = reduction_factor
         self._global_step = global_step
         self._evaluated_steps = evaluated_steps
+        self._length_scale_bounds = length_scale_bounds
         super(SkOptSearchSH, self).__init__(*args, **kwargs)
 
     def _setup_skopt(self):
         self._parameter_names = list(self._parameter_names)
         self._parameter_ranges = list(self._parameter_ranges)
         self._skopt_opt = skopt.Optimizer(self._parameter_ranges)
-        self._skopt_opt.base_estimator_ = ScalingEstimator(self._skopt_opt.base_estimator_, self._reduction_factor)
+        self._skopt_opt.base_estimator_ = ScalingEstimator(self._skopt_opt.base_estimator_,
+                                                           self._reduction_factor,
+                                                           ls_bounds=self._length_scale_bounds)
         if self._evaluated_steps is not None:
             self._skopt_opt.base_estimator_.si = self._evaluated_steps
         super(SkOptSearchSH, self)._setup_skopt()
@@ -427,7 +434,18 @@ class SkOptSearchSH(SkOptSearch):
 
 
 class ScalingEstimator(BaseEstimator):
-    def __init__(self, estimator, scaling_factor=3, si=None):
+    def __init__(self, estimator, scaling_factor=3, si=None, ls_bounds=None):
+        self.ls_bounds = ls_bounds
+        if ls_bounds is not None:
+            # set the length scales bounds, mainly because the default lower bound 0.01 is too small
+            #  - would use a prior on the length scales instead but seems that skopt doesn't support that
+            assert type(estimator.kernel.k2) == Matern, 'skopt default estimator has changed, ' \
+                                                        'please check how base_estimator is initialized at ' \
+                                                        'skopt.optimizer.optimizer.Optimizer.__init__'
+            n_dims = estimator.kernel.k2.n_dims
+            estimator.kernel.k2 = Matern(length_scale=np.ones(n_dims),
+                                         length_scale_bounds=[ls_bounds] * n_dims, nu=2.5)
+
         self.estimator = estimator
         self.scaling_factor = scaling_factor
         self.si = si or []
@@ -482,7 +500,7 @@ class ScalingEstimator(BaseEstimator):
                 d = np.max(np.diff(sorted(yc))) if len(yc) > 2 else 0
                 if pv0 is not None and d + pd > 0:
                     # if there is a margin between consecutive clusters, remove it
-                    dd += min(0, (d + pd)/2 - (v0 - pv1))
+                    dd += min(0, max(d, pd) - (v0 - pv1))
                     sc_y[lbl == i] += dd
                 pv0, pv1, pd = v0, v1, d
 

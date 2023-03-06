@@ -9,9 +9,6 @@ import torch
 from PIL import ImageOps
 import torchvision.transforms as tr
 
-from r2d2.tools.transforms import RandomTilt
-from r2d2.tools.transforms_tools import persp_apply
-
 from ..models import tools
 from .tools import unit_aflow, show_pair
 
@@ -476,44 +473,6 @@ class RandomHomography2(RandomHomography):
     def __call__(self, imgs, aflow, *meta):
         img1, img2 = imgs
         img2, aflow = super(RandomHomography2, self).__call__(img2, aflow=aflow)
-        return (img1, img2), aflow, *meta
-
-
-class RandomTiltWrapper(RandomTilt):
-    def __call__(self, img):
-        scaled_and_distorted_image = \
-            super(RandomTiltWrapper, self).__call__(dict(img=img, persp=(1, 0, 0, 0, 1, 0, 0, 0)))
-
-        W, H = img.size
-        trf = scaled_and_distorted_image['persp']
-
-        # compute optical flow
-        xy = np.mgrid[0:H, 0:W][::-1].reshape((2, -1)).T
-        aflow = persp_apply(trf, xy).astype(np.float32)
-
-        aflow[np.any(aflow < 0, axis=1), :] = np.nan
-        aflow[np.logical_or(aflow[:, 0] > W - 1, aflow[:, 1] > H - 1), :] = np.nan
-        aflow = aflow.reshape((H, W, 2))
-
-        return scaled_and_distorted_image['img'], aflow
-
-
-class RandomTiltWrapper2(RandomTiltWrapper):
-    def __call__(self, imgs, aflow, *meta):
-        img1, img2 = imgs
-        scaled_and_distorted_image = \
-            super(RandomTiltWrapper, self).__call__(dict(img=img2, persp=(1, 0, 0, 0, 1, 0, 0, 0)))
-
-        img2 = scaled_and_distorted_image['img']
-        w1, h1 = img1.size
-        w2, h2 = img2.size
-        trf = scaled_and_distorted_image['persp']
-        aflow = persp_apply(trf, aflow.reshape((-1, 2)))
-
-        aflow[np.any(aflow < 0, axis=1), :] = np.nan
-        aflow[np.logical_or(aflow[:, 0] > w2 - 1, aflow[:, 1] > h2 - 1), :] = np.nan
-        aflow = aflow.reshape((h1, w1, 2))
-
         return (img1, img2), aflow, *meta
 
 

@@ -56,15 +56,14 @@ class AsteroStudentTrial(StudentTrialMixin, AsteroidalTrial):
             dconf.update(dict(eval=False, rgb=rgb, npy=json.loads(self.data_conf['npy']),
                               max_tr=0, max_rot=math.radians(dconf['max_rot'])))
 
-            ds = [cls(self.data_conf['path'], **dconf) for cls in (
-                ErosDataset,
-                CG67pNavcamDataset,
-                CG67pOsinacDataset,
-                BennuDataset,
-                SynthBennuDataset,
-            )]
+            datasets = [ErosDataset,
+                        CG67pNavcamDataset,
+                        CG67pOsinacDataset,
+                        BennuDataset]
+            if self.data_conf['use_synth']:
+                datasets += [SynthBennuDataset]
 
-            fullset = AugmentedConcatDataset(ds)
+            fullset = AugmentedConcatDataset([cls(self.data_conf['path'], **dconf) for cls in datasets])
             trn, val = fullset.split(self.data_conf['trn_ratio'], 1 - self.data_conf['trn_ratio'], eval=(1,))
             tst = ItokawaDataset(self.data_conf['path'], **dconf)
 

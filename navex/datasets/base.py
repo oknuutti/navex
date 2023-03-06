@@ -18,7 +18,7 @@ import torchvision.transforms as tr
 
 from .transforms import RandomDarkNoise, RandomExposure, PhotometricTransform, ComposedTransforms, \
     GeneralTransform, PairCenterCrop, PairRandomCrop, PairedIdentityTransform, RandomHomography, IdentityTransform, \
-    RandomTiltWrapper, PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
+    PairRandomScale, PairScaleToRange, RandomScale, ScaleToRange, GaussianNoise, \
     PairRandomHorizontalFlip, Clamp, UniformNoise, MatchChannels
 
 from .tools import ImageDB, find_files, find_files_recurse, load_aflow, if_none_q, q_times_v, normalize_v, eul_to_q, \
@@ -224,7 +224,6 @@ class SynthesizedPairDataset(VisionDataset):
 #            ScaleToRange(min_size=max(min_size, 256), max_size=getattr(self, 'resize_max_size', np.inf), max_sc=1.0),
             RandomHomography(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
                              min_size=min_size, fill_value=fv, crop_valid=warp_crop),
-#            RandomTiltWrapper(magnitude=0.5),
         ])
 
         self.image_loader = image_loader

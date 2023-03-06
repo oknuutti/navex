@@ -209,9 +209,12 @@ class MobileAP(BasePoint):
             init_modules = [self.backbone, self.des_head, self.det_head, self.qlt_head]
             initialize_weights(init_modules)
 
-    def add_layer(self, l, in_ch, kernel, exp_coef, out_ch, use_se, activation, stride, dilation, force_out_ch=False):
+    def add_layer(self, l, in_ch, kernel, exp_coef, out_ch, use_se, activation, stride, dilation,
+                  force_out_ch=False, force_in_ch=False):
         irc = InvertedResidualConfig(in_ch, kernel, round(in_ch * exp_coef), out_ch, use_se, activation,
                                      stride, dilation, self.conf['width_mult'])
+        if force_in_ch:
+            irc.input_channels = in_ch
         if force_out_ch:
             irc.out_channels = out_ch
         l.append(self.block_cls(irc))
@@ -223,8 +226,8 @@ class MobileAP(BasePoint):
 
         # building first layer
         in_ch = {'en': 32, 'mn2': 32 if a1 == 'l' else 24, 'mn3': 16}[a0]
-        layers = [ConvBNActivation(in_channels, in_ch, kernel_size=3, stride=2, norm_layer=self.norm_layer,
-                                   activation_layer=nn.Hardswish)]
+        layers = [ConvBNActivation(in_channels, round(in_ch * self.conf['width_mult']), kernel_size=3, stride=2,
+                                   norm_layer=self.norm_layer, activation_layer=nn.Hardswish)]
 
         if a0 == 'mn3' and a1 in ('o', 'l'):
             # mobilenetv3 large
@@ -278,14 +281,15 @@ class MobileAP(BasePoint):
             # in_ch = add_layer(layers, in_ch, 5, 3, 48, True, "HS", 1, 1),
             # in_ch = add_layer(layers, in_ch, 5, 3, 48, True, "HS", 1, 1),
 
-        return nn.Sequential(*layers), in_ch
+        return nn.Sequential(*layers), round(in_ch * self.conf['width_mult'])
 
     def _create_head(self, in_ch, out_ch, conf):
         seq = []
         if conf['hidden_ch'] > 0:
             if conf['exp_coef'] > 0:
-                in_ch = self.add_layer(seq, in_ch, 3, conf['exp_coef'], conf['hidden_ch'], conf['use_se'], "HS", 1, 1,
-                                       force_out_ch=True)
+                self.add_layer(seq, in_ch, 3, conf['exp_coef'], conf['hidden_ch'], conf['use_se'], "HS", 1, 1,
+                               force_out_ch=True, force_in_ch=True)
+                in_ch = conf['hidden_ch']
             else:
                 seq.append(nn.Conv2d(in_ch, conf['hidden_ch'], kernel_size=3, padding=1))
                 seq.append(nn.BatchNorm2d(conf['hidden_ch']))
@@ -306,7 +310,8 @@ class MobileAP(BasePoint):
         return self._create_head(in_ch, 65, conf)
 
     def create_quality_head(self, in_channels, conf):
-        return self._create_head(in_channels, 2, conf)
+        out_ch = 1 if conf.get('single', True) else 2
+        return self._create_head(in_channels, out_ch, conf)
 
     def forward(self, input):
         # input is a pair of images

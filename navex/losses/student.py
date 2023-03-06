@@ -21,8 +21,15 @@ class L2Loss:
 
 
 class StudentLoss(BaseLoss):
-    def __init__(self, des_loss='L1', des_w=1.0, det_w=1.0, qlt_w=1.0, skip_qlt=False, interpolation_mode='bilinear'):
+    (
+        MATCH_METHOD_UNSHUFFLE,
+        MATCH_METHOD_BILINEAR,
+    ) = range(2)
+
+    def __init__(self, des_loss='L1', des_w=1.0, det_w=1.0, qlt_w=1.0, skip_qlt=False,
+                 match_method=MATCH_METHOD_UNSHUFFLE):
         super(StudentLoss, self).__init__()
+        self.match_method = match_method
 
         self.des_w = -math.log(des_w) if des_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-des_w)]))
         self.det_w = -math.log(det_w) if det_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-det_w)]))
@@ -31,11 +38,6 @@ class StudentLoss(BaseLoss):
         else:
             self.qlt_w = -math.log(qlt_w) if qlt_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-qlt_w)]))
         self.skip_qlt = skip_qlt
-
-        assert interpolation_mode != 'bicubic', "can't use bicubic as results could overshoot, "\
-                                                "would need L2-normalization for des, clip(0,1) for det and qlt"
-        self.interpolation_mode = interpolation_mode
-        self.match_sc_method = 'unshuffle'
 
         clss = {'L1': L1Loss, 'L2': L2Loss, 'MSE': MSELoss, 'SmoothL1': SmoothL1Loss}
         assert des_loss in clss, 'invalid descriptor loss function %s' % (des_loss,)
@@ -59,23 +61,30 @@ class StudentLoss(BaseLoss):
                 ok = False
         return ok
 
-    def _match_sc_interp(self, out, lbl):
+    def _match_interp(self, out, lbl, upsample):
         align_corners = None if self.interpolation_mode in ('nearest', 'area') else False
         h1, w1 = out.shape[2:]
         h2, w2 = lbl.shape[2:]
-        # upscale to higher resolution (uses a lot of memory though, could downscale but would seem fishy, hmm...)
         if (h1, w1) != (h2, w2):
-            if h1 * w1 < h2 * w2:
-                out = F.interpolate(out, size=(h2, w2), mode=self.interpolation_mode, align_corners=align_corners)
-            elif h1 * w1 > h2 * w2:
-                lbl = F.interpolate(lbl, size=(h1, w1), mode=self.interpolation_mode, align_corners=align_corners)
+            if upsample:
+                # upsample to higher resolution, uses a lot of memory though
+                if h1 * w1 < h2 * w2:
+                    out = F.interpolate(out, size=(h2, w2), mode='bilinear', align_corners=align_corners)
+                elif h1 * w1 > h2 * w2:
+                    lbl = F.interpolate(lbl, size=(h1, w1), mode='bilinear', align_corners=align_corners)
+            else:
+                # downsample to lower resolution, some trade off from better efficiency?
+                if h1 * w1 < h2 * w2:
+                    lbl = F.interpolate(lbl, size=(h1, w1), mode='bilinear', align_corners=align_corners)
+                elif h1 * w1 > h2 * w2:
+                    out = F.interpolate(out, size=(h2, w2), mode='bilinear', align_corners=align_corners)
         return out, lbl
 
     def forward(self, output, label, component_loss=False):
         des_x, det_x, qlt_x = output
         des_y, det_y, qlt_y = label
 
-        if self.match_sc_method == 'unshuffle':
+        if self.match_method == StudentLoss.MATCH_METHOD_UNSHUFFLE:
             d_det_y = F.pixel_unshuffle(det_y, 8)
             idxs = torch.argmax(d_det_y, dim=1, keepdim=True)
 
@@ -86,26 +95,26 @@ class StudentLoss(BaseLoss):
             dI = idxs[:, None, :, :, :].expand(-1, des_y.size(1), 1, -1, -1)
             lo_des_y = torch.gather(d_des_y, 2, dI)[:, :, 0, :, :]
         else:
-            des_x, des_y = self._match_sc_interp(des_x, des_y)
-            det_x, det_y = self._match_sc_interp(det_x, det_y)
-            qlt_x, qlt_y = self._match_sc_interp(qlt_x, qlt_y)
+            assert det_x.shape == det_y.shape, 'should not need to match dimensions of detector output'
+            des_x, des_y = self._match_interp(des_x, des_y, upsample=True)
+            if not self.skip_qlt:
+                qlt_x, qlt_y = self._match_interp(qlt_x, qlt_y, upsample=False)
             lo_des_y, lo_qlt_y = des_y, qlt_y
 
-        if not self.skip_qlt:
-            weight = self.qlt_w
+        def multitarget_loss(loss, weight, is_reg):
+            # 1.0 if regression, 2.0 if classification
+            coef = 1.0 if is_reg else 2.0
             lib = math if isinstance(weight, float) else torch
-            qlt_loss = 1.0 * lib.exp(-weight) * self.qlt_loss(qlt_x, lo_qlt_y) + weight
+            return torch.atleast_1d(coef * lib.exp(-weight) * loss + weight)
+
+        if not self.skip_qlt:
+            qlt_loss = multitarget_loss(self.qlt_loss(qlt_x, lo_qlt_y), self.qlt_w, True)
         else:
             qlt_loss = torch.Tensor([0]).to(des_x.device)
             det_y = det_y * qlt_y     # merge det and qlt labels to be detection target label
 
-        weight = self.det_w
-        lib = math if isinstance(weight, float) else torch
-        det_loss = 1.0 * lib.exp(-weight) * self.det_loss(det_x, det_y) + weight  # 1.0 if regression, 2.0 if classification
-
-        weight = self.des_w
-        lib = math if isinstance(weight, float) else torch
-        des_loss = 2.0 * lib.exp(-weight) * (lo_qlt_y * self.des_loss(des_x, lo_des_y)).mean() + weight
+        det_loss = multitarget_loss(self.det_loss(det_x, det_y), self.det_w, True)
+        des_loss = multitarget_loss((lo_qlt_y * self.des_loss(des_x, lo_des_y)).mean(), self.des_w, False)
 
         loss = torch.stack((des_loss, det_loss, qlt_loss), dim=1)
         return loss if component_loss else loss.sum(dim=1)

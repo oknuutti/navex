@@ -20,6 +20,8 @@ pip install git+https://github.com/oknuutti/r2d2.git
 # to enable relative pose estimation during feature extractor evaluation:
 pip install git+https://github.com/oknuutti/featstat.git
 
+# to enable experimental MAC operation counting
+pip install thop
 ```
 
 <!-- pip install -U ray ray[tune] -->

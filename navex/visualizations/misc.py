@@ -391,6 +391,8 @@ def view_detections(imgs, dets, qlts, show=True, title=None):
     axs = axs.flatten()
 
     for i, (img, det, qlt) in enumerate(zip(imgs, dets, qlts)):
+        if qlt.shape[-2:] != img.shape[-2:]:
+            qlt = F.interpolate(qlt[None, ...], size=img.shape[-2:], mode='nearest')[0, ...]
         plot_tensor(img, image=True, ax=axs[i * 4 + 0])
         plot_tensor(img, image=True, heatmap=det * qlt, ax=axs[i * 4 + 1])
         plot_tensor(heatmap=det, ax=axs[i * 4 + 2])

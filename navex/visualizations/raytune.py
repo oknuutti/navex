@@ -30,6 +30,7 @@ def main():
         search_alg.restore(args.path)
 
     X, y = search_alg._skopt_opt.Xi, search_alg._skopt_opt.yi
+    si = getattr(search_alg._skopt_opt.base_estimator_, 'si', None)
 
     if args.config:
         # Massage old results so that can be used with new search config,
@@ -59,13 +60,16 @@ def main():
                                                       for p in hparams.keys()])) if not np.isnan(y[i])]
         y = list(np.array(y)[~np.isnan(y)])
 
-        if 1:
+        if si is not None:
+            steps = si
+        else:
             steps = [{0: 300, 1: 900, 2: 2700, 3: 8100}[np.where(np.array([9, 3, -0.3, -2]) < yi)[0][0]] for yi in y]
 
         space = SkOptSearchSH.convert_search_space(hparams)
         search_alg = SkOptSearchSH(space=space, metric=full_conf['search']['metric'],
                                    mode=full_conf['search']['mode'], points_to_evaluate=Xn,
-                                   evaluated_rewards=y, evaluated_steps=steps)
+                                   evaluated_rewards=y, evaluated_steps=steps,
+                                   length_scale_bounds=(0.1, 100))
         search_alg.save(os.path.join(args.path, 'new-searcher-state.pkl'))
 
     fitted_model = search_alg._skopt_opt.models[-1]

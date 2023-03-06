@@ -2,7 +2,6 @@ import abc
 from typing import Tuple
 
 import torch
-from r2d2.tools.dataloader import RGB_mean
 from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data.dataloader import DataLoader
