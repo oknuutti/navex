@@ -75,9 +75,9 @@ class StudentLoss(BaseLoss):
             else:
                 # downsample to lower resolution, some trade off from better efficiency?
                 if h1 * w1 < h2 * w2:
-                    lbl = F.interpolate(lbl, size=(h1, w1), mode='bilinear', align_corners=align_corners)
+                    lbl = F.interpolate(lbl, size=(h1, w1), mode='area', align_corners=align_corners)
                 elif h1 * w1 > h2 * w2:
-                    out = F.interpolate(out, size=(h2, w2), mode='bilinear', align_corners=align_corners)
+                    out = F.interpolate(out, size=(h2, w2), mode='area', align_corners=align_corners)
         return out, lbl
 
     def forward(self, output, label, component_loss=False):
@@ -89,8 +89,12 @@ class StudentLoss(BaseLoss):
 
             d_det_y = F.pixel_unshuffle(det_y, 8)
             idxs = torch.argmax(d_det_y, dim=1, keepdim=True)
-            lo_det_x = torch.gather(F.pixel_unshuffle(det_x, 8), 1, idxs)
-            lo_det_y = torch.gather(d_det_y, 1, idxs)
+            if 0:
+                # pick even the detection scores to avoid unnecessary penalty, leads to poor positive feedback though?
+                lo_det_x = torch.gather(F.pixel_unshuffle(det_x, 8), 1, idxs)
+                lo_det_y = torch.gather(d_det_y, 1, idxs)
+            else:
+                lo_det_x, lo_det_y = det_x, det_y
 
             d_qlt_y = F.pixel_unshuffle(qlt_y, 8)
             lo_qlt_y = torch.gather(d_qlt_y, 1, idxs)
