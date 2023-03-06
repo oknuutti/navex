@@ -307,7 +307,10 @@ class MobileAP(BasePoint):
         return self._create_head(in_ch, conf['dimensions'], conf)
 
     def create_detector_head(self, in_ch, conf):
-        return self._create_head(in_ch, 65, conf)
+        if conf['act_fn_type'] == 'softmax':
+            return self._create_head(in_ch, 65, conf)
+        else:
+            return self._create_head(in_ch, 64, conf)
 
     def create_quality_head(self, in_channels, conf):
         out_ch = 1 if conf.get('single', True) else 2
@@ -339,16 +342,16 @@ class MobileAP(BasePoint):
 
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)
-        detection = F.pixel_shuffle(F.softmax(detection, dim=1)[:, 1:, :, :], 8)
 
-        # like in R2D2
-        def activation(x):
-            if x.shape[1] == 1:
-                x = F.softplus(x)
-                return x / (1 + x)
-            else:
-                return F.softmax(x, dim=1)[:, :1, :, :]
+        if self.conf['det_head']['act_fn_type'] == 'softmax':
+            det = F.pixel_shuffle(F.softmax(detection, dim=1)[:, 1:, :, :], 8)
+        else:
+            det = F.pixel_shuffle(detection, 8)
+            det = self.activation(det, fn_type=self.conf['det_head']['act_fn_type'])
 
-        det = activation(detection)
-        qlt = torch.ones_like(det) if quality is None else activation(quality)
+        if quality is None:
+            qlt = torch.ones_like(det)
+        else:
+            qlt = self.activation(quality, fn_type=self.conf['qlt_head']['act_fn_type'])
+
         return des, det, qlt

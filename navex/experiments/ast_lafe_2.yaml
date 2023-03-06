@@ -59,7 +59,7 @@ model:
     exp_coef:    0.0  # !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
     use_se:      0    # !h_tune2_choice   '[0], [0, 1]'
     dropout:     0.0
-    act_fn_type: 'R2D2'
+    act_fn_type: 'softmax'
   qlt_head:
     skip:        1
     after_des:   0

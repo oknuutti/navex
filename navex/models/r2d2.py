@@ -1,5 +1,4 @@
 
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -127,32 +126,6 @@ class R2D2(BasePoint):
 
         output = self.fix_output(des, det, qlt)
         return output
-
-    @staticmethod
-    def activation(ux, T=1.0, fn_type='r2d2'):
-        if T != 1.0:
-            # T is for temperature scaling, referred e.g. at https://arxiv.org/pdf/1706.04599.pdf
-            ux = ux / T
-
-        if fn_type.lower() == 'none':
-            return ux
-
-        if ux.shape[1] == 1:
-            if fn_type.lower() == 'r2d2':
-                # used in original R2D2 article
-                x = F.softplus(ux)
-                x = x / (1 + x)
-            elif fn_type.lower() == 'sigmoid':
-                # used by e.g. DISK, seems cleaner but results are worse
-                x = torch.sigmoid(ux)
-            else:
-                assert False, 'Wrong activation function type: %s' % fn_type
-        elif ux.shape[1] == 2:
-            x = F.softmax(ux, dim=1)[:, 1:2, :, :]
-        else:
-            assert False, 'Wrong channel count for activation function: %d' % ux.shape[1]
-
-        return x
 
     def fix_output(self, descriptors, detection, quality):
         des = F.normalize(descriptors, p=2, dim=1)

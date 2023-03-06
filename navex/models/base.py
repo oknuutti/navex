@@ -1,6 +1,8 @@
 import os
 
+import torch
 from torch import nn
+import torch.nn.functional as F
 import torchvision.models as models
 
 from . import MODELS as own_models
@@ -115,6 +117,32 @@ class BasePoint(nn.Module):
         initialize_weights(init_modules)
 
         return backbone, out_channels
+
+    @staticmethod
+    def activation(ux, T=1.0, fn_type='r2d2'):
+        if T != 1.0:
+            # T is for temperature scaling, referred e.g. at https://arxiv.org/pdf/1706.04599.pdf
+            ux = ux / T
+
+        if fn_type.lower() == 'none':
+            return ux
+
+        if ux.shape[1] == 1:
+            if fn_type.lower() == 'r2d2':
+                # used in original R2D2 article
+                x = F.softplus(ux)
+                x = x / (1 + x)
+            elif fn_type.lower() == 'sigmoid':
+                # used by e.g. DISK, seems cleaner but results are worse
+                x = torch.sigmoid(ux)
+            else:
+                assert False, 'Wrong activation function type: %s' % fn_type
+        elif ux.shape[1] == 2:
+            x = F.softmax(ux, dim=1)[:, 1:2, :, :]
+        else:
+            assert False, 'Wrong channel count for activation function: %d' % ux.shape[1]
+
+        return x
 
     def params_to_optimize(self, split=False):
         np = list(self.named_parameters(recurse=False))
