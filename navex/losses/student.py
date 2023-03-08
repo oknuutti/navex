@@ -34,7 +34,7 @@ class StudentLoss(BaseLoss):
         self.des_w = -math.log(des_w) if des_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-des_w)]))
         self.det_w = -math.log(det_w) if det_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-det_w)]))
         if skip_qlt:
-            self.qlt_w = 1.0
+            self.qlt_w = 0.0
         else:
             self.qlt_w = -math.log(qlt_w) if qlt_w >= 0 else nn.Parameter(torch.Tensor([-math.log(-qlt_w)]))
         self.skip_qlt = skip_qlt
@@ -119,11 +119,15 @@ class StudentLoss(BaseLoss):
                 m_qlt_x, m_qlt_y = qlt_x, qlt_y
             m_det_x, m_det_y = det_x, det_y
 
-        def multitarget_loss(loss, weight, is_reg):
-            # 1.0 if regression, 2.0 if classification
-            coef = 1.0 if is_reg else 2.0
-            lib = math if isinstance(weight, float) else torch
-            return torch.atleast_1d(coef * lib.exp(-weight) * loss + weight)
+        def multitarget_loss(loss, log_sigma2, is_reg):
+            # from "Multi-task learning using uncertainty to weigh losses for scene geometry and semantics"
+            # https://openaccess.thecvf.com/content_cvpr_2018/papers/Kendall_Multi-Task_Learning_Using_CVPR_2018_paper.pdf
+            # exp(-log_sigma2) == exp(-log(sigma**2)) == exp(log(sigma**-2)) == 1/(sigma**2)
+            # 0.5 * log_sigma2 == 0.5 * log(sigma**2) == log(sigma)
+            # coef: 1/2 if regression, 1 if classification
+            coef = 0.5 if is_reg else 1.0
+            lib = math if isinstance(log_sigma2, float) else torch
+            return torch.atleast_1d(coef * lib.exp(-log_sigma2) * loss + 0.5 * log_sigma2)
 
         if not self.skip_qlt:
             qlt_loss = multitarget_loss(self.qlt_loss(m_qlt_x, m_qlt_y), self.qlt_w, True)
@@ -131,7 +135,7 @@ class StudentLoss(BaseLoss):
             qlt_loss = torch.Tensor([0]).to(des_x.device)
 
         det_loss = multitarget_loss(self.det_loss(m_det_x, m_det_y), self.det_w, True)
-        des_loss = multitarget_loss((md_qlt_y * self.des_loss(m_des_x, m_des_y)).mean(), self.des_w, False)
+        des_loss = multitarget_loss((md_qlt_y * self.des_loss(m_des_x, m_des_y)).mean(), self.des_w, True)
 
         loss = torch.stack((des_loss, det_loss, qlt_loss), dim=1)
         return loss if component_loss else loss.sum(dim=1)

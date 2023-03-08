@@ -49,8 +49,8 @@ model:
   cache_dir: 'cache'    # not in use
   des_head:
     dimensions:  128
-    hidden_ch:   !h_tune2_randint   '(128, 129), (96, 256)'
-    exp_coef:    !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
+    hidden_ch:   128
+    exp_coef:    6.0
     use_se:      !h_tune2_choice   '[1], [0, 1]'
     dropout:     0.0
   det_head:
@@ -64,7 +64,7 @@ model:
     skip:        1
     after_des:   0
     hidden_ch:   0
-    exp_coef:    0.0
+    exp_coef:    1.0
     use_se:      0
     dropout:     0.0
     act_fn_type: 'R2D2'
@@ -72,14 +72,14 @@ model:
 loss:
   teacher: 'data/models/ast_hafe_lr2d2_242.ckpt'
   des_loss: 'L1'    # L1, MSE, L2, SmoothL1
-  des_w: -15.0     # weight for descriptor head loss
+  des_w: -30.0     # weight for descriptor head loss
   det_w: -1.5       # weight for detector head loss
   qlt_w: 1.0        # weight for quality head loss
 
 optimizer:
   method: 'adam'
   learning_rate: 0.001
-  weight_decay:  !h_tune2_loguniform  '(0.9e-8, 1.1e-8), (1e-9, 1e-6)'
+  weight_decay:  !h_tune2_loguniform  '(0.9e-8, 1.1e-8), (1e-9, 1e-5)'
   split_params:  0
   eps:           0.00000001   # tried to optimize, doesn't seem to affect much
 
@@ -92,7 +92,7 @@ data:
   rnd_gain:  1.2
   student_rnd_gain: !h_tune2_uniform '(1.08, 1.12), (1.0, 1.3)'
   student_noise_sd: !h_tune2_uniform '(0.01, 0.02), (0.00, 0.10)'
-  image_size: 512
+  image_size: 448
   path: 'data/rot-cg67p-osinac.tar;data/cg67p-navcam.tar;data/rot-eros-msi.tar;data/bennu-tagcams.tar;data/rot-synth-bennu-v4.tar;data/rot-itokawa-amica.tar'
   use_synth: 0
   npy: 'false'

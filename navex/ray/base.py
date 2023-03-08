@@ -331,6 +331,12 @@ class SkOptSearchSH(SkOptSearch):
     by removing performance gaps (if present) between trials that run for different numbers of epochs.
     """
 
+    # TODO: Principled way to support successive halving (ASHA), e.g., by fitting separate GPs for each bracket and
+    #       using each one to predict the probability of successfully continuing to the next bracket. The last GP could
+    #       be used as before to either give a probability of improvement etc, something like this:
+    #       P(perf1 > mean_perf1 + 0.43*sigma_perf1) * P(perf2 > mean_perf2 + 0.43*sigma_perf2) *
+    #        ... * Pn(perf_n > max_perf_n)
+
     def __init__(self, *args, reduction_factor=3, global_step='global_step', evaluated_steps=None,
                  length_scale_bounds=None, **kwargs):
         self._reduction_factor = reduction_factor

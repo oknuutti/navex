@@ -57,9 +57,9 @@ class AsteroStudentTrial(StudentTrialMixin, AsteroidalTrial):
                               max_tr=0, max_rot=math.radians(dconf['max_rot'])))
 
             datasets = [ErosDataset,
+                        BennuDataset,
                         CG67pNavcamDataset,
-                        CG67pOsinacDataset,
-                        BennuDataset]
+                        CG67pOsinacDataset]
             if self.data_conf['use_synth']:
                 datasets += [SynthBennuDataset]
 
