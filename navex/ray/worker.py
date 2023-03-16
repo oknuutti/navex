@@ -185,9 +185,10 @@ def _register_signals():
         os.system(r"cat ~/slurm-%s.out >> ~/slurm-%s.hist" % (job_id, job_id))
         time.sleep(5)
 
-        # worker node would use atexit in an attempt to shut itself down gracefully
-        #  - however at least in v1.1.0 fails to do so, thus commented out
-        #    - seems that need to exit, otherwise job requeue fails?
+        # could call ray.actor.exit_actor() to shutdown gracefully
+        #  - however, not certain that would work as the documentation says
+        #    "this method of termination will wait until any previously submitted tasks finish executing"
+        #  - seems that need to exit, otherwise job requeue fails?
         sys.exit()
 
     def term_handler(signum, frame):  # pragma: no-cover

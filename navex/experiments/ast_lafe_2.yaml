@@ -51,12 +51,12 @@ model:
     dimensions:  128
     hidden_ch:   128   # !h_tune2_randint   '(128, 128), (96, 192)'
     exp_coef:    6.0   # !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
-    use_se:      1     # !h_tune2_choice   '[0], [0, 1]'
+    use_se:      0     # !h_tune2_choice   '[0], [0, 1]'
     dropout:     0.0
   det_head:  # should add 3x3 vs 5x5 kernel in hidden layer? or do preliminary testing?
     after_des:   0
     hidden_ch:   0   # !h_tune2_randint   '(65, 65), (0, 130)'
-    exp_coef:    0.0  # !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
+    exp_coef:    1.0  # !h_tune2_uniform  '(5.5, 6.5), (1.0, 12.0)'
     use_se:      0    # !h_tune2_choice   '[0], [0, 1]'
     dropout:     0.0
     act_fn_type: 'R2D2'
@@ -64,14 +64,14 @@ model:
     skip:        1
     after_des:   0
     hidden_ch:   0
-    exp_coef:    0.0
+    exp_coef:    1.0
     use_se:      0
     dropout:     0.0
     act_fn_type: 'R2D2'
 
 loss:
   teacher: 'data/models/ast_hafe_lr2d2_242.ckpt'
-  des_loss: 'L1'    # L1, MSE, L2, SmoothL1, TODO: test these, select best
+  des_loss: 'L1'    # L1, MSE, L2, SmoothL1
   des_w: -30.0     # weight for descriptor head loss
   det_w: -1.5      # weight for detector head loss
   qlt_w: 1.0      # weight for quality head loss
@@ -79,7 +79,7 @@ loss:
 optimizer:
   method: 'adam'
   learning_rate: 0.001
-  weight_decay:  0.0000001   # !h_tune2_loguniform  '(0.9e-6, 1.1e-6), (1e-9, 1e-4)'
+  weight_decay:  0.00000001708   # !h_tune2_loguniform  '(0.9e-6, 1.1e-6), (1e-9, 1e-4)'
   split_params:  0
   eps:           0.00000001   # tried to optimize, doesn't seem to affect much
 

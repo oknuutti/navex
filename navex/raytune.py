@@ -147,6 +147,7 @@ class RayTuneHeadNode:
         logging.info('scheduling %d workers...' % self.search_conf['nodes'])
         for i in range(self.search_conf['nodes']):
             self._schedule_worker()
+            time.sleep(1)
         logging.info('following workers scheduled: %s' % ([w.slurm_job_id for w in self.workers],))
 
         if len(self.workers) == self.search_conf['nodes']:
