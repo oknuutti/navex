@@ -159,6 +159,11 @@ class Extractor:
             xys, desc, scores = extract_traditional(self.model, image, max_size=self.max_size,
                                                     top_k=top_k, border=self.border)
         else:
+            if self.rgb and image.shape[1] == 1:
+                image = image.repeat(1, 3, 1, 1)
+            elif not self.rgb and image.shape[1] == 3:
+                image = image[:, 0:1, :, :]
+
             if force_cpu:
                 image = image.cpu()
                 self.model.cpu()

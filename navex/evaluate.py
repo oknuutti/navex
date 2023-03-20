@@ -78,7 +78,7 @@ def main():
     ori_est = None
     if args.est_ori:
         assert SimpleOdometry is not None, "featstat package not installed, cannot estimate orientation without it"
-        ori_est = OrientationEstimator(max_repr_err=5.0, min_inliers=12, use_ba=True,
+        ori_est = OrientationEstimator(max_repr_err=args.success_px_limit, min_inliers=12, use_ba=True,
                                        debug=args.debug_ori_est, show_matches=args.show_matches)
 
     eval = ImagePairEvaluator(ext, ori_est, args.success_px_limit, args.mutual, args.ratio,

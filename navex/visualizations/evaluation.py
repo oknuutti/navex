@@ -110,44 +110,16 @@ def plot_viewangle_metrics(x_va, mscore, mma, locerr, mAP, orierr):
             print("No values in range [%s, %s], skipping plotting" % (xmin, xmax))
             return
 
-    nn = np.logical_not(np.isnan(mscore))
-    print('M-score easy median, mean; all median, mean: '
-          + ', '.join(map(lambda x: '%.4f' % x, (
-                                np.median(mscore[np.logical_and(I[0], nn)]),
-                                np.mean(mscore[np.logical_and(I[0], nn)]),
-                                np.median(mscore[nn]),
-                                np.mean(mscore[nn]))
-                          )))
+    print("Stats vs view angle change:")
+    print_stats(I[0], mscore, mma, locerr, mAP, orierr)
 
-    nn = np.logical_not(np.isnan(orierr))
-    fails = np.isinf(orierr)
-    orierr[fails] = 999
-    lv = np.quantile(orierr[nn], 0.995)
-    orierr[fails] = np.inf
-
-    no = np.logical_and(orierr < lv, nn)
-    print('Orientation estimate, all, avail gt, has estimate (err lt %.3f), err lt 10deg: %s => %s => %s => %s' % (
-        lv, len(nn), np.sum(nn), np.sum(no), np.sum(np.logical_and(no, orierr < 10))))
-    print('Orientation error easy median, mean; all median, mean: '
-          + ', '.join(map(lambda x: '%.4f' % x, (
-                                np.median(orierr[np.logical_and(I[0], nn)]),
-                                np.mean(orierr[np.logical_and(I[0], no)]),
-                                np.median(orierr[nn]),
-                                np.mean(orierr[no]))
-                          )))
-
-    easy_fails, fails = np.sum(np.logical_and(I[0], fails)), np.sum(fails)
-    easy_tot, tot = np.sum(np.logical_and(I[0], nn)), np.sum(nn)
-    print('Orientation est. failure rate easy; all: '
-          + ', '.join(map(lambda x: '%.2f%%' % x, (
-                                100 * easy_fails / easy_tot,
-                                100 * fails / tot),
-                          )))
-
-    def plot(ax, y):
+    def plot(ax, y, max_val=None, points=30):
         nn = np.logical_not(np.logical_or(np.isnan(y), np.isinf(y)))
-        ax.violinplot([y[np.logical_and(I[i], nn)] for i in range(len(I))], lims[:-1] + 2.5, points=30, widths=2.5,
-                      showmedians=True, showextrema=False)  # , quantiles=[[0.05], [0.5], [0.95]])
+        ax.violinplot([y[np.logical_and(I[i], nn)] for i in range(len(I))], lims[:-1] + 2.5, widths=2.5,
+                      showmedians=True, showextrema=False, points=points)
+                      # quantiles=[[0.05], [0.5], [0.95]])
+        if max_val is not None:
+            ax.set_ylim(0, max_val)
         # ax.set_xlabel(xlabel)
 
     fig, axs = plt.subplots(2, 2, sharex=True, squeeze=True)
@@ -168,9 +140,69 @@ def plot_viewangle_metrics(x_va, mscore, mma, locerr, mAP, orierr):
         plot(axs[3], mAP)
     else:
         axs[3].set_title('Orientation Error')
-        plot(axs[3], orierr)
+        plot(axs[3], orierr, max_val=15, points=(30 * 180//15))
 
     plt.tight_layout()
+
+
+def print_stats(easy_I, mscore, mma, locerr, mAP, orierr):
+    hard_I = np.logical_not(easy_I)
+    nn = np.logical_not(np.isnan(mscore))
+    print('M-score all (n=%d) median, mean: ' % (np.sum(nn),)
+          + ', '.join(map(lambda x: '%.4f' % x, (
+                                np.median(mscore[nn]),
+                                np.mean(mscore[nn]),
+                          ))))
+    print('M-score easy (n=%d) median, mean: ' % (np.sum(np.logical_and(easy_I, nn)),)
+          + ', '.join(map(lambda x: '%.4f' % x, (
+                                np.median(mscore[np.logical_and(easy_I, nn)]),
+                                np.mean(mscore[np.logical_and(easy_I, nn)]),
+                          ))))
+    print('M-score hard (n=%d) median, mean: ' % (np.sum(np.logical_and(hard_I, nn)),)
+          + ', '.join(map(lambda x: '%.4f' % x, (
+                                np.median(mscore[np.logical_and(hard_I, nn)]),
+                                np.mean(mscore[np.logical_and(hard_I, nn)]),
+                          ))))
+
+    nn = np.logical_not(np.isnan(orierr))
+    fails = np.isinf(orierr)
+    orierr[fails] = 999
+    lv = np.quantile(orierr[nn], 0.995)
+    orierr[fails] = np.inf
+
+    no = np.logical_and(orierr < lv, nn)
+    print('Orientation estimate, all, avail gt, has estimate (err lt %.3f), err lt 10deg: %s => %s => %s => %s' % (
+        lv, len(nn), np.sum(nn), np.sum(no), np.sum(np.logical_and(no, orierr < 10))))
+    print('Orientation estimate, easy, avail gt, has estimate (err lt %.3f), err lt 10deg: %s => %s => %s => %s' % (
+        lv, np.sum(easy_I), np.sum(np.logical_and(easy_I, nn)), np.sum(np.logical_and(easy_I, no)),
+        np.sum(np.logical_and.reduce((easy_I, no, orierr < 10)))))
+    print('Orientation estimate, hard, avail gt, has estimate (err lt %.3f), err lt 10deg: %s => %s => %s => %s' % (
+        lv, np.sum(hard_I), np.sum(np.logical_and(hard_I, nn)), np.sum(np.logical_and(hard_I, no)),
+        np.sum(np.logical_and.reduce((hard_I, no, orierr < 10)))))
+
+    print('Orientation error all (n=%d) median, mean: ' % (np.sum(nn),)
+          + ', '.join(map(lambda x: '%.4f' % x, (
+                                np.median(orierr[nn]),
+                                np.mean(orierr[no]),
+                          ))))
+    print('Orientation error easy (n=%d) median, mean: ' % (np.sum(np.logical_and(easy_I, nn)),)
+          + ', '.join(map(lambda x: '%.4f' % x, (
+                                np.median(orierr[np.logical_and(easy_I, nn)]),
+                                np.mean(orierr[np.logical_and(easy_I, no)]),
+                          ))))
+    print('Orientation error hard (n=%d) median, mean: ' % (np.sum(np.logical_and(hard_I, nn)),)
+          + ', '.join(map(lambda x: '%.4f' % x, (
+                                np.median(orierr[np.logical_and(hard_I, nn)]),
+                                np.mean(orierr[np.logical_and(hard_I, no)]),
+                          ))))
+
+    all_fails, all_tot = np.sum(fails), np.sum(nn)
+    easy_fails, easy_tot = np.sum(np.logical_and(easy_I, fails)), np.sum(np.logical_and(easy_I, nn))
+    hard_fails, hard_tot = np.sum(np.logical_and(hard_I, fails)), np.sum(np.logical_and(hard_I, nn))
+
+    print('Orientation est. failure rate, all (n=%d): %.2f%%' % (all_tot, 100 * all_fails / all_tot))
+    print('Orientation est. failure rate, easy (n=%d): %.2f%%' % (easy_tot, 100 * easy_fails / easy_tot))
+    print('Orientation est. failure rate, hard (n=%d): %.2f%%' % (hard_tot, 100 * hard_fails / hard_tot))
 
 
 def plot_lightchange_metrics(x_pa, x_ld, mscore, mma, locerr, mAP, orierr):
@@ -181,6 +213,11 @@ def plot_lightchange_metrics(x_pa, x_ld, mscore, mma, locerr, mAP, orierr):
     xx, yy = np.meshgrid(pa_lim, ld_lim)
     pa_step = np.kron(xx, np.ones((2, 2)))[1:-1, 1:-1]
     ld_step = np.kron(yy, np.ones((2, 2)))[1:-1, 1:-1]
+
+    print("\n===")
+    print("Stats vs lighting change:")
+    easy = np.logical_and.reduce((x_pa < pa_lim[2], x_ld < ld_lim[3]))
+    print_stats(easy, mscore, mma, locerr, mAP, orierr)
 
     fig = plt.figure()
     fig.suptitle("Metrics vs changes in lighting")  #, fontsize=16)
