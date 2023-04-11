@@ -179,8 +179,8 @@ class PairRandomCrop:
         res = cv2.filter2D(mask_sc, ddepth=cv2.CV_32F, anchor=(0, 0),
                            kernel=np.ones((n, m), dtype='float32') * (1 / m / n),
                            borderType=cv2.BORDER_ISOLATED)
-        res[res.shape[0] - n:, :] = 0
-        res[:, res.shape[1] - m:] = 0
+        res[res.shape[0] - n - 1:, :] = 0
+        res[:, res.shape[1] - m - 1:] = 0
         res[res < np.max(res) * 0.5] = 0  # only possible to select windows that are at most half as bad as best window
 
         a = np.cumsum(res.flatten())
@@ -190,8 +190,12 @@ class PairRandomCrop:
         else:
             rnd_idx = bst_idx = 0
 
-        rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc
-        bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc
+        bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc + b
+        bst_idxs = np.minimum(bst_idxs, np.subtract(mask.shape, self.shape))
+
+        rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc + b
+        rnd_idxs = np.minimum(rnd_idxs, np.subtract(mask.shape, self.shape))
+
         return bst_idxs, rnd_idxs
 
     def __call__(self, imgs, aflow, *meta, debug=False):

@@ -121,22 +121,6 @@ def main():
             write_row(args.output, key, dataset.samples[i][1], *dataset.samples[i][0],
                       light1, light2, cf_trg_rel_q, rel_angle, rel_dist, metrics)
 
-    # TODO:
-    #   - see that eval supports akaze, sift and root-sift
-    #       - match feature count with cnn version: increase trad feat count or limit cnn feats?
-    #         match layers per octave count?
-    #   - map/m-score/mma/loc-err(/rel-pose-errs?) of HAFE, LAFE, akaze, (root-)sift, superpoint/r2d2/disk
-    #     on training+validation sets, test sets
-    #       - key metrics (m-score, loc-err, rel-pose-errs?) of HAFE, LAFE on different datasets
-    #       - key metrics plotted against phase angle, light direction changes on synth set
-    #       - key metrics plotted against rel ori angle on other sets
-    #   -
-    #   - fix article related to datasets
-    #   - write result section
-    #   - implement plots
-    #   - compare r2d2 vs disk
-    #   - run lafe tune
-
 
 def write_header(args):
     anames = [arg for arg in dir(args) if not arg.startswith('_') and arg not in ('output',)]

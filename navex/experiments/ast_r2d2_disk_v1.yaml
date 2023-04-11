@@ -37,8 +37,8 @@ training:
   auto_lr_find: 0
   deterministic: 1
   accuracy:
-    det_mode: !h_str 'grid'
-    det_kernel_size: !h_int 16
+    det_mode: 'nms'
+    det_kernel_size: 3
 
 model:
   arch: !h_str 'disk-def'

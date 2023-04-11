@@ -1,20 +1,26 @@
+import copy
 import re
 import os
+import sys
 import math
 import argparse
 import logging
+import shutil
 import warnings
 
 from tqdm import tqdm
 import numpy as np
 import cv2
 
-from kapture.io.csv import kapture_from_dir
-from kapture.io.records import get_record_fullpath
+try:
+    from kapture.io.csv import kapture_from_dir
+    from kapture.io.records import get_record_fullpath
+except ModuleNotFoundError:
+    warnings.warn("Kapture not available, cannot preprocess geo-referenced data")
 
 from .tools import create_image_pairs, safe_split
 from ..tools import find_files_recurse, ImageDB, angle_between_v, rotate_expand_border, q_times_v, vector_rejection, \
-    Camera
+    Camera, unit_aflow, save_aflow
 
 
 def main():
@@ -24,6 +30,8 @@ def main():
     """
     parser = argparse.ArgumentParser('Construct image pairs from geo-referenced Nokia Båtvik data')
 
+    parser.add_argument('--type', default='georef', choices=('georef', 'simple', 'sat'),
+                        help="Type of preprocessing to do")
     parser.add_argument('--src', action='append', required=True, help="source folders")
     parser.add_argument('--dst', required=True, help="output folder")
     parser.add_argument('--index', default='dataset_all.sqlite',
@@ -138,12 +146,156 @@ def get_cam_params(kapt, sensor_name):
     return (sid,) + tuple(map(int, sp[1:3])) + tuple(map(float, sp[3:]))
 
 
-def main_old():
+def main_sat_imgs():
+    """
+    Crate image pairs from satellite images of same scene.
+    """
+    parser = argparse.ArgumentParser('Extract frames from satellite images')
+
+    parser.add_argument('--type', default='georef', choices=('georef', 'simple', 'sat'),
+                        help="Type of preprocessing to do")
+    parser.add_argument('--src', help="input folder")
+    parser.add_argument('--dst', help="output folder")
+    parser.add_argument('--index', default='dataset_all.sqlite', help="index file in the output folder")
+    parser.add_argument('--regex', help="regex for subfolder names")
+    parser.add_argument('--start', type=float, default=0.0, help="where to start processing [0-1]")
+    parser.add_argument('--end', type=float, default=1.0, help="where to stop processing [0-1]")
+    parser.add_argument('--log', default='INFO', help="log level")
+    parser.add_argument('--auto-season', action='store_true',
+                        help='determine season from date if not specified using *_(w|t|s).(jpg|png) naming convention')
+    parser.add_argument('--overwrite', action='store_true', help='clear all, overwrite rotated images')
+    args = parser.parse_args()
+
+    logging.basicConfig(level=args.log)
+
+    os.makedirs(os.path.join(args.dst, 'aflow'), exist_ok=True)
+    index_path = os.path.join(args.dst, args.index)
+
+    if args.overwrite or not os.path.exists(index_path):
+        logging.info('Building the index by scanning the source folders...')
+        index = ImageDB(index_path, truncate=True)
+
+        frames = []
+        scene_id = 0
+        for scene_path in tqdm(os.listdir(args.src), desc='Scanning source folders'):
+            if args.regex and not re.match(args.regex, scene_path) \
+                    or not os.path.isdir(os.path.join(args.src, scene_path)):
+                continue
+
+            scene_id += 1
+            os.makedirs(os.path.join(args.dst, scene_path), exist_ok=True)
+
+            for img_path in os.listdir(os.path.join(args.src, scene_path)):
+                if img_path[-4:] not in ('.jpg', '.png'):
+                    continue
+
+                season = img_path.split('_')[-1][0]     # w: winter, t: transition (spring/autumn), s: summer
+                if season not in ('w', 't', 's'):
+                    if args.auto_season:
+                        month = int(img_path.split('_')[1][:2])
+                        season = 'w' if month in (12, 1, 2, 3) else 's' if month in (6, 7, 8, 9) else 't'
+                    else:
+                        season = 't'
+                set_id = scene_id * 4 + {'w': 0, 't': 1, 's': 2}[season]
+
+                src_path = os.path.join(args.src, scene_path, img_path)
+                dst_path = os.path.join(args.dst, scene_path, img_path)
+                shutil.copyfile(src_path, dst_path)
+
+                frames.append((set_id, os.path.join(scene_path, img_path)))
+
+        frames = sorted(frames, key=lambda x: x[0])
+        index.add(('id', 'set_id', 'file'), [(i, *frame) for i, frame in enumerate(frames)])
+    else:
+        index = ImageDB(index_path)
+
+    pairs = []
+    pairs_path = os.path.join(args.dst, 'pairs.txt')
+    if args.overwrite or not os.path.exists(pairs_path):
+        # create pairs
+        scenes = {}
+        for id, set_id, fname in index.get_all(('id', 'set_id', 'file'), start=args.start, end=args.end):
+            scene_id, season_id = divmod(set_id, 4)
+            scenes.setdefault(scene_id, {}).setdefault(season_id == 0, []).append([id, fname, None, None])
+
+        for scene_id, scene_imgs in tqdm(scenes.items(), desc='Creating pairs'):
+            scene_imgs.setdefault(True, {})
+
+            shapes, ref_img, ref_offset = [], None, [0, 0]
+            for temp in scene_imgs.values():
+                for frame_info in temp:
+                    id1, fname, _, _ = frame_info
+                    frame_info[2] = cv2.imread(os.path.join(args.dst, fname), cv2.IMREAD_UNCHANGED)
+                    if ref_img is None:
+                        ref_img, offset = frame_info[2], [0, 0]
+                    else:
+                        offset = get_offset(ref_img, frame_info[2])
+                        ref_offset[0] = max(ref_offset[0], -offset[0])
+                        ref_offset[1] = max(ref_offset[1], -offset[1])
+                    frame_info[3] = offset
+                    shapes.append([*frame_info[2].shape[:2], *offset])
+
+            # common width and height
+            shapes = np.array(shapes)
+            h, w = np.min(shapes[:, :2] - (shapes[:, 2:] + ref_offset), axis=0)
+
+            def crop_img(fname, img, offset):
+                ox, oy = np.add(offset, ref_offset)
+                if img.shape[:2] != (h, w) or offset[0] != 0 or offset[1] != 0:
+                    cv2.imwrite(os.path.join(args.dst, fname), img[oy:oy + h, ox:ox + w],
+                                (cv2.IMWRITE_JPEG_QUALITY, 99) if fname.endswith('.jpg')
+                                else (cv2.IMWRITE_PNG_COMPRESSION, 9))
+
+            for id1, fname1, img1, offset1 in scene_imgs[True]:
+                crop_img(fname1, img1, offset1)
+
+                for id2, fname2, img2, offset2 in scene_imgs[False]:
+                    crop_img(fname2, img2, offset2)
+                    pairs.append((id1, id2, fname1, fname2, w, h))
+
+        with open(pairs_path, 'w') as fh:
+            fh.write('id1 id2 file1 file2 w h\n')
+            for id_i, id_j, fname_i, fname_j, w, h in pairs:
+                fh.write('%d %d %s %s %d %d\n' % (id_i, id_j, fname_i, fname_j, w, h))
+
+        logging.info('Wrote %d pairs to %s', len(pairs), pairs_path)
+
+    else:
+        logging.info('Reading the existing pair file...')
+        pairs = []
+        with open(pairs_path, 'r') as fh:
+            for k, line in enumerate(fh):
+                if k == 0:
+                    continue
+                id1, id2, file1, file2, w, h = line.split(' ')
+                pairs.append((id1, id2, file1, file2, w, h))
+
+    # write unit aflow files
+    for id1, id2, fname1, fname2, w, h in tqdm(pairs, desc='Writing unit aflow files'):
+        aflow_path = os.path.join(args.dst, 'aflow', '%d_%d.png' % (id1, id2))
+        aflow = unit_aflow(w, h)
+        if args.overwrite or not os.path.exists(aflow_path):
+            save_aflow(aflow_path, aflow)
+
+
+def get_offset(ref_img, img):
+    """
+    Find offset between images using phase correlation, assumes that the image scales are the same
+    """
+
+    # TODO
+
+    return [0, 0]
+
+
+def main_simple():
     """
     Extract frames from Nokia Båtvik videos
     """
     parser = argparse.ArgumentParser('Extract frames from Nokia Båtvik videos')
 
+    parser.add_argument('--type', default='georef', choices=('georef', 'simple', 'sat'),
+                        help="Type of preprocessing to do")
     parser.add_argument('--src', help="input folder")
     parser.add_argument('--dst', help="output folder")
     parser.add_argument('--index', default='dataset_all.txt', help="index file in the output folder")
@@ -269,4 +421,9 @@ def test_img(img):
 
 
 if __name__ == '__main__':
-    main()
+    if np.any([re.match(r'(-{1,2}type=)?simple', a) for a in sys.argv]):
+        main_simple()
+    elif np.any([re.match(r'(-{1,2}type=)?sat', a) for a in sys.argv]):
+        main_sat_imgs()
+    else:
+        main()

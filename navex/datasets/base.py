@@ -103,7 +103,8 @@ class DatabaseImagePairDataset(ImagePairDataset):
             index[id] = dict(file=file, sc_sun_v=np.array([sc_sun_x, sc_sun_y, sc_sun_z]),
                                         sc_q=if_none_q(sc_qw, sc_qx, sc_qy, sc_qz, fallback=quaternion.one),
                                         img_angle=img_angle or 0,
-                                        sc_trg_v=np.array([sc_trg_x, sc_trg_y, sc_trg_z]),
+                                        sc_trg_v=np.array([np.nan]*3 if sc_trg_x is None else
+                                                          [sc_trg_x, sc_trg_y, sc_trg_z]),
                                         trg_q=if_none_q(trg_qw, trg_qx, trg_qy, trg_qz, fallback=np.quaternion(*[np.nan]*4)))
 
         aflow = find_files(os.path.join(self.root, 'aflow'), ext='.png')
@@ -452,6 +453,10 @@ class AugmentedConcatDataset(ConcatDataset):
         super(AugmentedConcatDataset, self).__init__(*args, **kwargs)
         self.eval_indices = set()
 
+    def get_dataset_at_index(self, idx):
+        dataset_idx = bisect.bisect_right(self.cumulative_sizes, idx)
+        return self.datasets[dataset_idx]
+
     def __getitem__(self, idx):
         if idx < 0:
             if -idx > len(self):
@@ -487,6 +492,15 @@ class ShuffledDataset(Subset):
     def __init__(self, dataset):
         indices = torch.randperm(len(dataset), generator=torch.default_generator).tolist()
         super(ShuffledDataset, self).__init__(dataset, indices=indices)
+
+
+class RedundantlySampledDataset(Subset):
+    def __init__(self, dataset, counts):
+        assert len(dataset) == len(counts), 'dataset and counts must have the same length'
+        # torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+        indices = np.repeat(np.arange(len(dataset)), counts)
+        ri = torch.randperm(len(indices), generator=torch.default_generator)
+        super(RedundantlySampledDataset, self).__init__(dataset, indices=indices[ri].tolist())
 
 
 def split_tiered_data(primary, secondary, r_trn, r_val, r_tst):
