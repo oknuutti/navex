@@ -15,7 +15,6 @@ import torch
 
 from ..datasets.base import ExtractionImageDataset, RGB_STD, GRAY_STD, RGB_MEAN, GRAY_MEAN, AugmentedPairDatasetMixin
 from ..datasets.tools import find_files, angle_between_q
-from ..extract import extract_multiscale, extract_traditional
 from ..models import tools
 from ..models.tools import is_rgb_model, load_model
 
@@ -292,6 +291,8 @@ def load_features(kpfile):
 def extract(model, data, args):
     # extract keypoints/descriptors for a single image
     if isinstance(model, str):
+        from ..extract import extract_traditional
+
         assert tuple(data.shape[0:2]) == (1, 1), 'image tensor shape %s not supported' % (data.shape,)
         assert data.device.type == 'cpu', 'need to run on cpu'
         img = data.numpy()[0, 0, :, :]
@@ -304,6 +305,7 @@ def extract(model, data, args):
                                                    feat_d=args.feat_d,
                                                    border=args.border)
     else:
+        from ..extract import extract_multiscale
         xys1, desc1, scores1 = extract_multiscale(model, data,
                                                   scale_f=args.scale_f,
                                                   min_scale=args.min_scale,
