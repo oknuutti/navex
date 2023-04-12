@@ -9,8 +9,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from navex.models.tools import is_rgb_model, load_model
-from navex.datasets.base import ExtractionImageDataset
+from navex.datasets.base import ExtractionImageDataset, AugmentedPairDatasetMixin
 from navex.models import tools
+from navex.visualizations.misc import img2tensor
 
 
 # example:
@@ -159,6 +160,9 @@ class Extractor:
             xys, desc, scores = extract_traditional(self.model, image, max_size=self.max_size,
                                                     top_k=top_k, border=self.border)
         else:
+            if not isinstance(image, torch.Tensor):
+                image = img2tensor(image)
+
             if self.rgb and image.shape[1] == 1:
                 image = image.repeat(1, 3, 1, 1)
             elif not self.rgb and image.shape[1] == 3:

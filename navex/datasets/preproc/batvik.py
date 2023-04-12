@@ -202,7 +202,7 @@ def main_sat_imgs():
                 dst_path = os.path.join(args.dst, scene_path, img_path)
                 shutil.copyfile(src_path, dst_path)
 
-                frames.append((set_id, os.path.join(scene_path, img_path)))
+                frames.append((set_id, '/'.join((scene_path, img_path))))
 
         frames = sorted(frames, key=lambda x: x[0])
         index.add(('id', 'set_id', 'file'), [(i, *frame) for i, frame in enumerate(frames)])

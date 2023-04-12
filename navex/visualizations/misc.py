@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import torch
 
-from ..datasets.base import ExtractionImageDataset, RGB_STD, GRAY_STD, RGB_MEAN, GRAY_MEAN
+from ..datasets.base import ExtractionImageDataset, RGB_STD, GRAY_STD, RGB_MEAN, GRAY_MEAN, AugmentedPairDatasetMixin
 from ..datasets.tools import find_files, angle_between_q
 from ..extract import extract_multiscale, extract_traditional
 from ..models import tools
@@ -423,6 +423,12 @@ def tensor2img(img, i=0):
         img = img * np.array(GRAY_STD, dtype=np.float32) + np.array(GRAY_MEAN, dtype=np.float32)
 
     return (img * 255).astype(np.uint8)
+
+
+def img2tensor(image, i=0):
+    image = torch.from_numpy(np.atleast_3d(image)[None, ...]).permute(0, 3, 1, 2).float() / 255.0
+    image = getattr(AugmentedPairDatasetMixin, 'TR_NORM_' + ('RGB' if image.shape[1] == 3 else 'MONO'))(image)
+    return image
 
 
 def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, color_map='hsv'):
