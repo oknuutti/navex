@@ -29,6 +29,11 @@ from .. import RND_SEED
 RGB_MEAN, RGB_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 GRAY_MEAN, GRAY_STD = [0.449], [0.226]
 
+# defined only for DatabaseImagePairDataset, where:
+#                [rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2]
+BLANK_METADATA = [np.nan, np.nan, np.nan, np.ones(4) * np.nan, np.ones(4) * np.nan,
+                  np.ones(3) * np.nan, np.ones(3) * np.nan]
+
 
 def worker_init_fn(id):
     random.seed(RND_SEED)
@@ -168,7 +173,7 @@ class PairIndexFileLoader:
                 if self.aflow_root is not None:
                     aflow_path = os.path.join(self.aflow_root, aflow_path)
 
-                samples.append(((img1_path, img2_path), aflow_path))
+                samples.append(((img1_path, img2_path), aflow_path, *BLANK_METADATA))
 
         return samples
 
@@ -254,9 +259,7 @@ class SynthesizedPairDataset(VisionDataset):
             raise DataLoadingException("Problem with dataset %s, index %s: %s" %
                                        (self.__class__, idx, self.samples[idx],)) from e
 
-        # NOTE: needs to be mirrored in DatabaseImagePairDataset
-        meta = (np.nan, np.nan, np.nan, np.ones(4)*np.nan, np.ones(4)*np.nan, np.ones(3)*np.nan, np.ones(3)*np.nan)
-        return (img1, img2), aflow, *meta
+        return (img1, img2), aflow, *BLANK_METADATA
 
     def valid_area(self, img):
         return np.ones(np.flip(img.size), dtype=bool)
