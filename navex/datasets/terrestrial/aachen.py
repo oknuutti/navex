@@ -8,8 +8,7 @@ from r2d2.tools.transforms import RandomTilt
 from r2d2.tools.transforms_tools import persp_apply
 
 from navex.datasets.base import ImagePairDataset, DataLoadingException, AugmentedPairDatasetMixin, \
-    SynthesizedPairDataset, \
-    BasicDataset, RandomSeed
+    SynthesizedPairDataset, BasicDataset, RandomSeed, BLANK_METADATA
 from navex.datasets.tools import find_files, unit_aflow
 from navex.datasets.transforms import RandomHomography2
 
@@ -38,7 +37,7 @@ class AachenFlowPairDataset(AachenPairs_OpticalFlow, ImagePairDataset, Augmented
             raise DataLoadingException("Problem with dataset %s, index %s: %s" %
                                        (self.__class__, idx, self.samples[idx],)) from e
 
-        return (img1, img2), aflow
+        return (img1, img2), aflow, *BLANK_METADATA
 
 
 class AachenStyleTransferPairDataset(ImagePairDataset, AugmentedPairDatasetMixin):

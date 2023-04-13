@@ -69,6 +69,9 @@ class ImagePairDataset(VisionDataset):
             raise DataLoadingException("Problem with dataset %s, index %s: %s" %
                                        (self.__class__, idx, self.samples[idx],)) from e
 
+        if len(meta) != len(BLANK_METADATA):
+            meta = BLANK_METADATA
+
         return (img1, img2), aflow, *meta
 
     def __len__(self):
