@@ -21,13 +21,18 @@ from navex.visualizations.misc import img2tensor
 
 
 def main():
+    def nullable_float(val):
+        if val.strip().lower() in ('', 'none'):
+            return None
+        return float(val)
+
     parser = argparse.ArgumentParser("extract features from images")
     parser.add_argument("--model", type=str, required=True, help='model path')
     parser.add_argument("--images", type=str, required=True, help='images / list')
     parser.add_argument("--recurse", type=int, default=1, help='find images in subfolders too')
     parser.add_argument("--tag", type=str, required=True, help='output file tag')
     parser.add_argument("--top-k", type=int, default=None, help='limit on total number of keypoints')
-    parser.add_argument("--feat-d", type=float, default=0.001, help='number of keypoints per pixel')
+    parser.add_argument("--feat-d", type=nullable_float, default=0.001, help='number of keypoints per pixel')
     parser.add_argument("--scale-f", type=float, default=2 ** (1/4))
     parser.add_argument("--min-size", type=int, default=256)
     parser.add_argument("--max-size", type=int, default=1024)

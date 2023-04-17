@@ -36,9 +36,15 @@ training:
   reduced_precision: !h_int 0
   auto_lr_find: 0
   deterministic: 1
+  accuracy:
+    det_mode: 'nms'
+    det_kernel_size: 3
+    det_lim: 0.5
+    qlt_lim: 0.5
+    success_px_limit: 5
 
 model:
-  arch: !h_str 'r2d2-own_vgg'
+  arch: !h_str 'r2d2-def'
   in_channels: !h_int 1
   partial_residual: 0   # not in use
   width_mult:       !h_float  1.0
@@ -66,7 +72,7 @@ model:
 
 loss:
   loss_type: !h_str thresholded
-  wpk: !h_float 0.1      # peakiness vs cosim
+  wpk: !h_float -0.5      # peakiness vs cosim
   wdt: !h_float -1.0      # weight for peakiness and cosim losses
   wap: !h_float -1.0      # weight for expected ap loss
   wqt: !h_float -1.0      # weight for expected ap loss
@@ -101,7 +107,7 @@ data:
   image_size: !h_int 224
   path: 'data'
   npy: 'false'
-  trn_ratio: 0.75
-  val_ratio: 0.20
-  tst_ratio: 0.05
+  trn_ratio: 0.85
+  val_ratio: 0.15
+  tst_ratio: 0.00
   workers: 6
