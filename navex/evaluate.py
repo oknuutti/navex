@@ -244,14 +244,14 @@ class OrientationEstimator:
             img1, img2, aflow, rel_q = debug
 
         if self.rotated_depthmaps:
-            dist = nan_grid_interp(depth1, xy1[mask, :])
+            dist = nan_grid_interp(depth1, xy1[mask, :], max_radius=self.max_repr_err)
 
         # rotate keypoints back to original image coordinates
         xy1 = self.rotate_kps(xy1, -img_rot1, size1, (cam.width, cam.height))
         xy2 = self.rotate_kps(xy2, -img_rot2, size2, (cam.width, cam.height))
 
         if not self.rotated_depthmaps:
-            dist = nan_grid_interp(depth1, xy1[mask, :])
+            dist = nan_grid_interp(depth1, xy1[mask, :], max_radius=self.max_repr_err)
 
         kp3d = cam.backproject(xy1[mask, :], dist=dist)
         repr_err_callback = (lambda kps, errs: self._plot_repr_errs(img2, kps, errs)) if self.show_matches else None

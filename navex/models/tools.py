@@ -184,8 +184,8 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
         success_b = err_dist_b <= success_px_limit
         num_successes = success_b.sum()
 
-        # features detected per 100x100 px area
-        acc[b, 0] = 1e4 * ((0 <= yx1[b, 0, :]).sum() + (0 <= yx2[b, 0, :]).sum()) / active_area / 2
+        # features with gt detected per 100x100 px area
+        acc[b, 0] = 1e4 * num_true_matches[b] / active_area
 
         # success ratio (nan if no ground truth), aka matching score or M-score
         acc[b, 1] = num_successes / num_true_matches[b]

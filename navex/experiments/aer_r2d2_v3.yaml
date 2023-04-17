@@ -39,6 +39,8 @@ training:
   accuracy:
     det_mode: 'nms'
     det_kernel_size: 3
+    det_lim: 0.5
+    qlt_lim: 0.5
     success_px_limit: 5
 
 model:

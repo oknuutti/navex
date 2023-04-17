@@ -151,7 +151,7 @@ training:
 
   accuracy:
     __group__: 1
-    # TODO: add also top_k, feat_d, border, mutual, ratio, success_px_limit, det_lim, and qlt_lim
+    # TODO: add also top_k, feat_d, border, mutual, and ratio
 
     det_mode:
       alt: ['--det-mode']
@@ -163,6 +163,16 @@ training:
       alt: ['--det-size']
       type: int
       help: "Grid-size if using gridded detection mode, otherwise it is the NMS max-filter kernel-size"
+
+    det_lim:
+      alt: ['--det-lim']
+      type: float
+      help: "Minimum detection score to keep a feature"
+
+    qlt_lim:
+        alt: ['--qlt-lim']
+        type: float
+        help: "Minimum quality score to keep a feature"
 
     success_px_limit:
       alt: ['--succ-px-lim']
