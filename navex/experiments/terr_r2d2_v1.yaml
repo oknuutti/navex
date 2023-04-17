@@ -27,7 +27,7 @@ training:
   gpu: 1
   epochs: 24001
   print_freq: 5
-  test_freq: 1500  # validation interval in steps
+  test_freq: 1500   # validation interval in steps
   save_freq: 1
   resume: null
   evaluate: 0
@@ -62,6 +62,7 @@ model:
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
+    act_fn_type: 'R2D2'
   qlt_head:
     skip:        !h_int 0
     after_des:   !h_int 1
@@ -69,6 +70,7 @@ model:
     exp_coef:    0.0
     use_se:      0
     dropout:     0.0
+    act_fn_type: 'R2D2'
 
 loss:
   loss_type: !h_str thresholded
@@ -83,7 +85,7 @@ loss:
     subq: -8      # was -8      # grid step size for positive samples
     subd: 1       # was 1       # neigbourhood sampling interval
     pos_d: 1      # was 3       # positive samples generated up to this far from ideal location
-    neg_d: 16     # was 5       # negative samples generated starting from distance from ideal location
+    neg_d: !h_int 16     # was 5       # negative samples generated starting from distance from ideal location
     ngh: 2        # was 7       # neighbourhood size in descriptor cells
     border: 16    # was 16
     subd_neg: -8  # was -8      # grid step size for generating additional negative samples
@@ -106,6 +108,7 @@ data:
   rnd_gain: !h_float 1.2
   image_size: !h_int 224
   path: 'data'
+  use_synth: 0
   npy: 'false'
   trn_ratio: 0.85
   val_ratio: 0.15
