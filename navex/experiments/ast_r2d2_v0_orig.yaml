@@ -39,6 +39,7 @@ training:
   accuracy:
     det_mode: 'nms'
     det_kernel_size: 3
+    success_px_limit: !h_float 5
 
 model:
   arch: !h_str 'r2d2-def'

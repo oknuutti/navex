@@ -164,6 +164,10 @@ training:
       type: int
       help: "Grid-size if using gridded detection mode, otherwise it is the NMS max-filter kernel-size"
 
+    success_px_limit:
+      alt: ['--succ-px-lim']
+      type: float
+      help: "Maximum distance between a detected feature and a ground-truth feature to be considered a success"
 
 model:
   __group__: 1

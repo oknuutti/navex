@@ -109,6 +109,8 @@ class TrialWrapperBase(pl.LightningModule):
         return self._wrap_dl(self.trial.wrap_ds(ds, shuffle=shuffle))
 
     def _wrap_dl(self, dl):
+        if dl.dataset is None:
+            return None
         return AsynchronousLoader(dl) if self.use_gpu else dl
 
     def training_step(self, batch, batch_idx):

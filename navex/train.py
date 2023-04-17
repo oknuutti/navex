@@ -124,7 +124,8 @@ def main():
         return
 
     tst_dl = model.build_test_data_loader(rgb=config.model.in_channels == 3)
-    trainer.test(model, test_dataloaders=tst_dl)
+    if tst_dl is not None:
+        trainer.test(model, test_dataloaders=tst_dl)
 
 
 def preprocess_data(model, config):

@@ -39,6 +39,7 @@ training:
   accuracy:
     det_mode: 'nms'
     det_kernel_size: 3
+    success_px_limit: 5
 
 model:
   arch:             "mob-mn2_M"   # "mob-mn2_M", "mob-mn3_L", "mob-en_L"
