@@ -156,8 +156,8 @@ class ImagePairEvaluator:
     def evaluate(self, img1, img2, aflow, img_rot1, img_rot2, cam, depth1, rel_q):
         xys1, desc1, scores1 = self.extractor.extract(img1)
         xys2, desc2, scores2 = self.extractor.extract(img2)
-        yx1 = torch.flipud(torch.tensor(xys1[:, :2].T, dtype=torch.long))[None, :, :]    # [K1, XYS] => [1, YX, K1]
-        yx2 = torch.flipud(torch.tensor(xys2[:, :2].T, dtype=torch.long))[None, :, :]
+        syx1 = torch.flipud(torch.tensor(xys1.T))[None, :, :]    # [K1, XYS] => [1, SYX, K1]
+        syx2 = torch.flipud(torch.tensor(xys2.T))[None, :, :]
         desc1 = torch.tensor(desc1.T)[None, :, :]     # [K1, D]   => [1, D, K1]
         desc2 = torch.tensor(desc2.T)[None, :, :]
 
@@ -165,8 +165,18 @@ class ImagePairEvaluator:
         _, _, H2, W2 = img2.shape
         norm = 'hamming' if desc1.dtype == torch.uint8 else 2
 
-        # [B, K1], [B, K1], [B, K1], [B, K1, K2]
-        matches, norm, mask, dist = tools.match(desc1, desc2, norm=norm, mutual=self.mutual, ratio=self.ratio)
+        if 1:
+            # [B, K1], [B, K1], [B, K1], [B, K1, K2], [B, K1], [B, K2]
+            matches, mdist, mask, dist, m1, m2 = tools.scale_restricted_match(syx1, desc1, syx2, desc2, norm=norm,
+                                                                              mutual=self.mutual, ratio=self.ratio,
+                                                                              type='topmost')
+            assert matches.shape[0] == 1, 'batch size > 1 not supported'
+            matches, mask, dist = matches[:1, m1[0]], mask[:1, m1[0]], dist[:1, m1[0], :][:, :, m2[0]]
+            yx1, yx2 = syx1[:, 1:, m1[0]].type(torch.long), syx2[:, 1:, m2[0]].type(torch.long)
+        else:
+            # [B, K1], [B, K1], [B, K1], [B, K1, K2]
+            matches, mdist, mask, dist = tools.match(desc1, desc2, norm=norm, mutual=self.mutual, ratio=self.ratio)
+            yx1, yx2 = syx1[:, 1:, :].type(torch.long), syx2[:, 1:, :].type(torch.long)
 
         brd2 = self.extractor.border * 2
         metrics = tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), self.success_px_limit,
@@ -180,8 +190,8 @@ class ImagePairEvaluator:
                                                  max_repr_err=0.75, min_inliers=30, debug=(img1, img2, aflow, rel_q))
 
             if rel_q is not None:
-                est_q = self.ori_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
-                                              debug=(img1, img2, aflow, rel_q))
+                est_q = self.ori_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2),
+                                              cam, debug=(img1, img2, aflow, rel_q))
 
             if rel_q is not None and est_q is not None:
                 ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))

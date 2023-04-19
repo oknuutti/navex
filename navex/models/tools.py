@@ -3,6 +3,7 @@ import os
 from collections import OrderedDict
 
 import numpy as np
+import scipy
 
 import torch
 from torch import nn
@@ -100,7 +101,90 @@ def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt
     return yx, scores, descr
 
 
-def match(des1, des2, norm=2, mutual=True, ratio=0):
+def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0, octave_levels=4, type='topmost'):
+    # log scales used
+    s1, s2 = syx1[:, 0, :].log(), syx2[:, 0, :].log()
+
+    # initial matching for scale difference estimation
+    matches, mdist, mask, dist = match(des1, des2, norm, mutual, ratio)
+    B, K1, K2 = dist.shape
+    m1, m2 = [], []
+
+    # one level scale difference
+    lvl_sc = np.log(2) / octave_levels
+    match_levels = 1
+
+    for b in range(B):
+        # get scale difference
+        ms1, ms2 = s1[b, mask[b, :]], s2[b, matches[b, mask[b, :]]]
+        sd = (ms2 - ms1).cpu().numpy()
+
+        # gaussian kernel density estimate
+        kde = scipy.stats.gaussian_kde(sd, bw_method=5 * lvl_sc)
+        sd_mean = np.mean(sd)
+
+        # get mode, start from the mean
+        sd_mode = scipy.optimize.minimize_scalar(lambda x: -kde(x), method='bounded',
+                                                 bounds=(sd_mean - 1.5 * lvl_sc, sd_mean + 1.5 * lvl_sc)).x
+
+        if 0:
+            u, c = np.unique(sd, return_counts=True)
+            x = np.linspace(sd.min(), sd.max(), 1000)
+
+            import matplotlib.pyplot as plt
+            plt.plot(x, kde(x))
+            plt.plot(u, c / c.max() * kde(sd_mode), 'x')
+            plt.show()
+
+        if type == 'topmost':
+            # take the highest resolution features from the lowest resolution image, match those to similar scale features
+            if sd_mode < 0:
+                # second image has lower resolution, select only top level features
+                s2_min = s2[b, :].min()
+                mask2 = s2[b, :] <= s2_min + lvl_sc * (match_levels - 1 + 0.1)
+
+                # match only features with similar scale
+                mask1 = (s1[b, :] - (s2_min - sd_mode)).abs() < lvl_sc * (match_levels - 1 + 0.6)
+
+            else:
+                # first image has lower resolution, select only top level features
+                s1_min = s1[b, :].min()
+                mask1 = s1[b, :] <= s1_min + lvl_sc * (match_levels - 1 + 0.1)
+
+                # match only features with similar scale
+                mask2 = (s2[b, :] - (s1_min + sd_mode)).abs() < lvl_sc * (match_levels - 1 + 0.6)
+
+            match_mask = None
+
+        elif type == 'weighted':
+            mask1 = torch.ones((K1,), device=des1.device, dtype=torch.bool)
+            mask2 = torch.ones((K2,), device=des1.device, dtype=torch.bool)
+            match_mask = (s1.view((1, K1, 1)).expand((1, K1, K2)) + sd_mode
+                          - s2.view((1, 1, K2)).expand((1, K1, K2))).abs() / (lvl_sc * (match_levels - 1 + 0.6)) + 1
+            match_mask = match_mask.type(torch.float32)
+
+        else:
+            assert type == 'windowed', 'Unknown match type: %s' % type
+            mask1 = torch.ones((K1,), device=des1.device, dtype=torch.bool)
+            mask2 = torch.ones((K2,), device=des1.device, dtype=torch.bool)
+            match_mask = (s1.view((1, K1, 1)).expand((1, K1, K2)) + sd_mode
+                          - s2.view((1, 1, K2)).expand((1, K1, K2))).abs() < lvl_sc * (match_levels - 1 + 0.6)
+
+        # [B, K1], [B, K1], [B, K1], [B, K1, K2]
+        _matches, _mdist, _mask, _dist = match(des1[b:b+1, :, mask1], des2[b:b+1, :, mask2], norm, mutual, ratio,
+                                               mask=match_mask)
+        matches[b:b + 1, mask1] = _matches
+        mdist[b:b + 1, mask1] = _mdist
+        mask[b:b + 1, :] = False
+        mask[b:b + 1, mask1] = _mask
+        dist[b:b + 1, mask1, :][:, :, mask2] = _dist
+        m1.append(mask1)
+        m2.append(mask2)
+
+    return matches, mdist, mask, dist, torch.stack(m1), torch.stack(m2)
+
+
+def match(des1, des2, norm=2, mutual=True, ratio=0, mask=None):
     B, D, K1 = des1.shape
     _, _, K2 = des2.shape
     dev = des1.device
@@ -128,6 +212,12 @@ def match(des1, des2, norm=2, mutual=True, ratio=0):
         dist = np.sum(d1 != d2, axis=2)
         dist = torch.Tensor(dist[None, :, :])
 
+    if mask is not None:
+        if mask.dtype in (torch.bool, torch.uint8):
+            dist[~mask] = float('inf')
+        else:
+            dist = dist * mask
+
     min1, idx1 = torch.min(dist, dim=2)
     mask = torch.ones((B, K1), dtype=torch.bool, device=dev)
 
@@ -147,6 +237,7 @@ def match(des1, des2, norm=2, mutual=True, ratio=0):
         for b in range(B):
             dist[b, :, idx1[b, :]] = min1[b, :]
 
+    # [B, K1], [B, K1], [B, K1], [B, K1, K2]
     return idx1, min1, mask, dist
 
 
@@ -162,7 +253,7 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
 
     # valid correspondence exists
     gt_mask = (0 <= gt_yx2[:, 0, :]) * (0 <= gt_yx2[:, 1, :]) * (gt_yx2[:, 0, :] < H2) * (gt_yx2[:, 1, :] < W2)
-    num_true_matches = gt_mask.sum(dim=1)
+    num_gt_matches = gt_mask.sum(dim=1)
 
     mask *= gt_mask
     num_matches = mask.sum(dim=1)
@@ -185,10 +276,10 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
         num_successes = success_b.sum()
 
         # features with gt detected per 100x100 px area
-        acc[b, 0] = 1e4 * num_true_matches[b] / active_area
+        acc[b, 0] = 1e4 * num_gt_matches[b] / active_area
 
         # success ratio (nan if no ground truth), aka matching score or M-score
-        acc[b, 1] = num_successes / num_true_matches[b]
+        acc[b, 1] = num_successes / num_gt_matches[b]
 
         # inlier ratio (nan if no valid matches), aka mean matching accuracy or MMA
         acc[b, 2] = num_successes / num_matches[b]
