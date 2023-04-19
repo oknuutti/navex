@@ -4,6 +4,8 @@ from collections import OrderedDict
 
 import numpy as np
 import scipy
+import scipy.stats
+import scipy.optimize
 
 import torch
 from torch import nn
