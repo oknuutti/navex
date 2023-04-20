@@ -95,7 +95,14 @@ def main():
     for key, DatasetClass in datasets.items():
         dataset = DatasetClass(root=args.root, eval='test')
         dataset.skip_preproc = True if args.ignore_img_rot else dataset.skip_preproc
-        pbar = tqdm(DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True), desc="Evaluating %s..." % key)
+
+        sampler = None
+        if 1:
+            ids = [s[1].split(os.sep)[-1].split('.')[0] for s in dataset.samples]
+            sampler = [ids.index('553_23454')]
+
+        pbar = tqdm(DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True, sampler=sampler),
+                    desc="Evaluating %s..." % key)
         for i, ((img1, img2), aflow, *meta) in enumerate(pbar):
             assert len(meta) >= 2 and dataset.cam, 'dataset "%s" does not have cam model or rel_q, rel_s metadata' % (key,)
 
@@ -183,7 +190,7 @@ class ImagePairEvaluator:
                 # [B, K1], [B, K1], [B, K1], [B, K1, K2], [B, K1], [B, K2]
                 matches, mdist, mask, dist, m1, m2 = tools.scale_restricted_match(syx1, desc1, syx2, desc2, norm=norm,
                                                                                   mutual=self.mutual, ratio=self.ratio,
-                                                                                  type='topmost')
+                                                                                  type='hires')
             except MatchException as e:
                 raise EvaluationException(f'Matching failed due to: {e}')
 

@@ -107,7 +107,7 @@ class MatchException(Exception):
     pass
 
 
-def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0, octave_levels=4, type='topmost'):
+def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0, octave_levels=4, type='hires'):
     # log scales used
     s1, s2 = syx1[:, 0, :].log(), syx2[:, 0, :].log()
 
@@ -119,6 +119,7 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
     # one level scale difference
     lvl_sc = np.log(2) / octave_levels
     match_levels = 1
+    match_margin = 0.6
 
     def group_sd(sd):
         x, y = np.unique(sd, return_counts=True)
@@ -145,23 +146,25 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
                                                  bounds=(sd_mean - 1.5 * lvl_sc, sd_mean + 1.5 * lvl_sc)).x
 
         if 0:
-            sd, gn = group_sd(sd)
+            s, n = group_sd(sd)
             x = np.linspace(sd.min(), sd.max(), 1000)
 
             import matplotlib.pyplot as plt
             plt.plot(x, kde(x))
-            plt.plot(sd, gn / gn.max() * kde(sd_mode), 'x')
+            plt.plot(s, n / n.max() * kde(sd_mode), 'x')
             plt.show()
 
-        if type == 'topmost':
+        if type == 'hires':
+            cs2 = s2[b, :] - sd_mode
+            s1_min, s2_min = s1[b, :].min(), cs2.min()
+
             # take the highest resolution features from the lowest resolution image, match those to similar scale features
-            if sd_mode < 0:
+            if s2_min > s1_min:
                 # second image has lower resolution, select only top level features
-                s2_min = s2[b, :].min()
-                mask2 = s2[b, :] <= s2_min + lvl_sc * (match_levels - 1 + 0.1)
+                mask2 = cs2 <= s2_min + lvl_sc * (match_levels - 1 + 0.1)
 
                 # match only features with similar scale
-                mask1 = (s1[b, :] - (s2_min - sd_mode)).abs() < lvl_sc * (match_levels - 1 + 0.6)
+                mask1 = (s1[b, :] - s2_min).abs() < lvl_sc * (match_levels - 1 + match_margin)
 
             else:
                 # first image has lower resolution, select only top level features
@@ -169,7 +172,7 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
                 mask1 = s1[b, :] <= s1_min + lvl_sc * (match_levels - 1 + 0.1)
 
                 # match only features with similar scale
-                mask2 = (s2[b, :] - (s1_min + sd_mode)).abs() < lvl_sc * (match_levels - 1 + 0.6)
+                mask2 = (cs2 - s1_min).abs() < lvl_sc * (match_levels - 1 + match_margin)
 
             match_mask = None
 
@@ -198,10 +201,10 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
             mask[b:b + 1, mask1] = _mask
             dist[b:b + 1, mask1, :][:, :, mask2] = _dist
         else:
-            sd, gn = group_sd(sd)
+            s, n = group_sd(sd)
             raise MatchException(f'No features pass scale restriction, details:'
                                  f' n1: {mask1.sum()}, n2: {mask2.sum()}, sd_mode: {sd_mode}, sd_mean: {sd_mean},'
-                                 f' sd: {sd.tolist()}, gn: {gn.tolist()}')
+                                 f' s: {s.tolist()}, n: {n.tolist()}')
         m1.append(mask1)
         m2.append(mask2)
 
