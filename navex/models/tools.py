@@ -145,7 +145,7 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
         sd_mode = scipy.optimize.minimize_scalar(lambda x: -kde(x), method='bounded',
                                                  bounds=(sd_mean - 1.5 * lvl_sc, sd_mean + 1.5 * lvl_sc)).x
 
-        if 0:
+        if 1:
             s, n = group_sd(sd)
             x = np.linspace(sd.min(), sd.max(), 1000)
 

@@ -97,7 +97,7 @@ def main():
         dataset.skip_preproc = True if args.ignore_img_rot else dataset.skip_preproc
 
         sampler = None
-        if 1:
+        if 0:
             ids = [s[1].split(os.sep)[-1].split('.')[0] for s in dataset.samples]
             sampler = [ids.index('553_23454')]
 
