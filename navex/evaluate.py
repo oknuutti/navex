@@ -11,6 +11,8 @@ import cv2
 import torch
 from torch.utils.data import DataLoader
 
+from navex.models.tools import MatchException
+
 try:
     import featstat.algo.model as fsm
     from featstat.algo.odo.simple import SimpleOdometry
@@ -117,7 +119,12 @@ def main():
                 path = dataset.samples[i][0][0][:-4] + '.d'
                 depth1 = load_mono(path if os.path.exists(path) else path + '.exr')
 
-            metrics = eval.evaluate(img1, img2, aflow, img_rot1, img_rot2, dataset.cam, depth1, cf_trg_rel_q)
+            try:
+                metrics = eval.evaluate(img1, img2, aflow, img_rot1, img_rot2, dataset.cam, depth1, cf_trg_rel_q)
+            except EvaluationException as e:
+                fa, (f1, f2) = dataset.samples[i][1], dataset.samples[i][0]
+                logger.warning(f'During evaluation of {fa}, {f1}, {f2}: {e}')
+                metrics = e.result
             write_row(args.output, key, dataset.samples[i][1], *dataset.samples[i][0],
                       light1, light2, cf_trg_rel_q, rel_angle, rel_dist, metrics)
 
@@ -143,6 +150,12 @@ def write_row(file, ds, aflow, img1, img2, light1, light2, cf_trg_rel_q, rel_ang
                                      *cf_trg_rel_q.components, rel_angle, rel_dist.item(), *metrics))) + '\n')
 
 
+class EvaluationException(Exception):
+    def __init__(self, msg, result=None):
+        super().__init__(msg)
+        self.result = result if result is not None else 2 * [0.] + 8 * [float('nan')]
+
+
 class ImagePairEvaluator:
     def __init__(self, extractor: Extractor, ori_est: 'OrientationEstimator', success_px_limit, mutual, ratio,
                  est_gt_ori=True):
@@ -166,10 +179,14 @@ class ImagePairEvaluator:
         norm = 'hamming' if desc1.dtype == torch.uint8 else 2
 
         if 1:
-            # [B, K1], [B, K1], [B, K1], [B, K1, K2], [B, K1], [B, K2]
-            matches, mdist, mask, dist, m1, m2 = tools.scale_restricted_match(syx1, desc1, syx2, desc2, norm=norm,
-                                                                              mutual=self.mutual, ratio=self.ratio,
-                                                                              type='topmost')
+            try:
+                # [B, K1], [B, K1], [B, K1], [B, K1, K2], [B, K1], [B, K2]
+                matches, mdist, mask, dist, m1, m2 = tools.scale_restricted_match(syx1, desc1, syx2, desc2, norm=norm,
+                                                                                  mutual=self.mutual, ratio=self.ratio,
+                                                                                  type='topmost')
+            except MatchException as e:
+                raise EvaluationException(f'Matching failed due to: {e}')
+
             assert matches.shape[0] == 1, 'batch size > 1 not supported'
             matches, mask, dist = matches[:1, m1[0]], mask[:1, m1[0]], dist[:1, m1[0], :][:, :, m2[0]]
             yx1, yx2 = syx1[:, 1:, m1[0]].type(torch.long), syx2[:, 1:, m2[0]].type(torch.long)
@@ -197,8 +214,8 @@ class ImagePairEvaluator:
                 ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
                 metrics = metrics + [ori_err, *est_q.components]
             elif rel_q is None:
-                logger.warning('Failed to estimate ground truth relative orientation.')
-                metrics = metrics + [np.nan] * 5
+                raise EvaluationException('Failed to estimate ground truth relative orientation',
+                                          metrics + [np.nan] * 5)
             else:
                 metrics = metrics + [np.inf] + [np.nan] * 4
 

@@ -103,6 +103,10 @@ def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt
     return yx, scores, descr
 
 
+class MatchException(Exception):
+    pass
+
+
 def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0, octave_levels=4, type='topmost'):
     # log scales used
     s1, s2 = syx1[:, 0, :].log(), syx2[:, 0, :].log()
@@ -116,13 +120,24 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
     lvl_sc = np.log(2) / octave_levels
     match_levels = 1
 
+    def group_sd(sd):
+        x, y = np.unique(sd, return_counts=True)
+        arr = []    # [sum(x*y), sum(y)]
+        for i in range(len(x)):
+            if i > 0 and abs(x[i] - arr[-1][0] / arr[-1][1]) < lvl_sc * 0.1:
+                arr[-1][0] += x[i]*y[i]
+                arr[-1][1] += y[i]
+            else:
+                arr.append([x[i]*y[i], y[i]])
+        return np.array([[sx/sy, sy] for sx, sy in arr]).reshape((-1, 2)).T
+
     for b in range(B):
         # get scale difference
         ms1, ms2 = s1[b, mask[b, :]], s2[b, matches[b, mask[b, :]]]
         sd = (ms2 - ms1).cpu().numpy()
 
         # gaussian kernel density estimate
-        kde = scipy.stats.gaussian_kde(sd, bw_method=5 * lvl_sc)
+        kde = scipy.stats.gaussian_kde(sd, bw_method=3 * lvl_sc)
         sd_mean = np.mean(sd)
 
         # get mode, start from the mean
@@ -130,12 +145,12 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
                                                  bounds=(sd_mean - 1.5 * lvl_sc, sd_mean + 1.5 * lvl_sc)).x
 
         if 0:
-            u, c = np.unique(sd, return_counts=True)
+            sd, gn = group_sd(sd)
             x = np.linspace(sd.min(), sd.max(), 1000)
 
             import matplotlib.pyplot as plt
             plt.plot(x, kde(x))
-            plt.plot(u, c / c.max() * kde(sd_mode), 'x')
+            plt.plot(sd, gn / gn.max() * kde(sd_mode), 'x')
             plt.show()
 
         if type == 'topmost':
@@ -175,11 +190,18 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
         _matches, _mdist, _mask, _dist = match(des1[b:b+1, :, mask1], des2[b:b+1, :, mask2], norm, mutual, ratio,
                                                mask=match_mask)
-        matches[b:b + 1, mask1] = _matches
-        mdist[b:b + 1, mask1] = _mdist
-        mask[b:b + 1, :] = False
-        mask[b:b + 1, mask1] = _mask
-        dist[b:b + 1, mask1, :][:, :, mask2] = _dist
+
+        if mask1.sum() > 0 and mask2.sum() > 0:
+            matches[b:b + 1, mask1] = _matches
+            mdist[b:b + 1, mask1] = _mdist
+            mask[b:b + 1, :] = False
+            mask[b:b + 1, mask1] = _mask
+            dist[b:b + 1, mask1, :][:, :, mask2] = _dist
+        else:
+            sd, gn = group_sd(sd)
+            raise MatchException(f'No features pass scale restriction, details:'
+                                 f' n1: {mask1.sum()}, n2: {mask2.sum()}, sd_mode: {sd_mode}, sd_mean: {sd_mean},'
+                                 f' sd: {sd.tolist()}, gn: {gn.tolist()}')
         m1.append(mask1)
         m2.append(mask2)
 
