@@ -190,7 +190,7 @@ class ImagePairEvaluator:
                 # [B, K1], [B, K1], [B, K1], [B, K1, K2], [B, K1], [B, K2]
                 matches, mdist, mask, dist, m1, m2 = tools.scale_restricted_match(syx1, desc1, syx2, desc2, norm=norm,
                                                                                   mutual=self.mutual, ratio=self.ratio,
-                                                                                  type='hires')
+                                                                                  type='windowed')
             except MatchException as e:
                 raise EvaluationException(f'Matching failed due to: {e}')
 

@@ -138,14 +138,17 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
         sd = (ms2 - ms1).cpu().numpy()
 
         # gaussian kernel density estimate
-        kde = scipy.stats.gaussian_kde(sd, bw_method=3 * lvl_sc)
+        try:
+            kde = scipy.stats.gaussian_kde(sd, bw_method=3 * lvl_sc)
+        except np.linalg.LinAlgError as e:
+            raise MatchException('Gaussian KDE failed') from e
         sd_mean = np.mean(sd)
 
         # get mode, start from the mean
         sd_mode = scipy.optimize.minimize_scalar(lambda x: -kde(x), method='bounded',
                                                  bounds=(sd_mean - 1.5 * lvl_sc, sd_mean + 1.5 * lvl_sc)).x
 
-        if 1:
+        if 0:
             s, n = group_sd(sd)
             x = np.linspace(sd.min(), sd.max(), 1000)
 
@@ -161,18 +164,17 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
             # take the highest resolution features from the lowest resolution image, match those to similar scale features
             if s2_min > s1_min:
                 # second image has lower resolution, select only top level features
-                mask2 = cs2 <= s2_min + lvl_sc * (match_levels - 1 + 0.1)
+                mask2 = cs2 <= s2_min + lvl_sc * (match_levels - 1 + match_margin)
 
                 # match only features with similar scale
-                mask1 = (s1[b, :] - s2_min).abs() < lvl_sc * (match_levels - 1 + match_margin)
+                mask1 = (s1[b, :] - cs2[mask2].mean()).abs() < lvl_sc * (match_levels - 1 + match_margin)
 
             else:
                 # first image has lower resolution, select only top level features
-                s1_min = s1[b, :].min()
-                mask1 = s1[b, :] <= s1_min + lvl_sc * (match_levels - 1 + 0.1)
+                mask1 = s1[b, :] <= s1_min + lvl_sc * (match_levels - 1 + match_margin)
 
                 # match only features with similar scale
-                mask2 = (cs2 - s1_min).abs() < lvl_sc * (match_levels - 1 + match_margin)
+                mask2 = (cs2 - s1[b, mask1].mean()).abs() < lvl_sc * (match_levels - 1 + match_margin)
 
             match_mask = None
 
