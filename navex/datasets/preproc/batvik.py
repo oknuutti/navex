@@ -98,12 +98,14 @@ def main():
                 angle = rotate_image(src_path, dst_path, ori)
                 angles[rel_dst_path] = angle
 
-                frames.append((set_id, rel_dst_path, hz_fov, angle) + safe_split(ori, True) + safe_split(loc, False))
+                frames.append((set_id, rel_dst_path, hz_fov, angle) + safe_split(ori, True) + safe_split(loc, False)
+                              + (1, 0, 0, 0))
 
         frames = sorted(frames, key=lambda x: x[0])
         index.add(('id', 'set_id', 'file', 'hz_fov', 'img_angle',
                    'sc_qw', 'sc_qx', 'sc_qy', 'sc_qz',
-                   'sc_trg_x', 'sc_trg_y', 'sc_trg_z'),
+                   'sc_trg_x', 'sc_trg_y', 'sc_trg_z',
+                   'trg_qw', 'trg_qx', 'trg_qy', 'trg_qz'),
                   [(i, *frame) for i, frame in enumerate(frames)])
     else:
         index = ImageDB(index_path)
