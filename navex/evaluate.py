@@ -11,6 +11,7 @@ import cv2
 import torch
 from torch.utils.data import DataLoader
 
+from navex.datasets.transforms import PairCenterCrop
 from navex.models.tools import MatchException
 from navex.visualizations.misc import tensor2img, img2tensor
 
@@ -44,19 +45,20 @@ def main():
     parser.add_argument("--output", type=str, required=True, help='csv file for evaluation output')
     parser.add_argument("--root", type=str, default='data', help='root folder of all datasets')
     parser.add_argument("--dataset", "-d", choices=('eros', 'ito', '67p', 'synth'), action='append',
-                        help='selected dataset, can give multiple, default: all')
-    parser.add_argument("--top-k", type=int, default=None, help='limit on total number of keypoints')
-    parser.add_argument("--feat-d", type=float, default=0.001, help='number of keypoints per pixel')
+                        help='Selected dataset, can give multiple, default: all')
+    parser.add_argument("--top-k", type=int, default=None, help='Limit on total number of keypoints')
+    parser.add_argument("--feat-d", type=float, default=0.001, help='Number of keypoints per pixel')
     parser.add_argument("--scale-f", type=float, default=2 ** (1/4))
     parser.add_argument("--min-size", type=int, default=256)
     parser.add_argument("--max-size", type=int, default=1024)
+    parser.add_argument("--crop", type=int, default=1, help='Crop images to max-size instead of down-scaling')
     parser.add_argument("--min-scale", type=float, default=0)
     parser.add_argument("--max-scale", type=float, default=1)
     parser.add_argument("--det-lim", type=float, default=0.7)
     parser.add_argument("--qlt-lim", type=float, default=0.7)
     parser.add_argument("--kernel-size", type=int, default=3)
     parser.add_argument("--det-mode", default='nms')
-    parser.add_argument("--border", type=int, default=16, help="dont detect features if this close to image border")
+    parser.add_argument("--border", type=int, default=16, help="Dont detect features if this close to image border")
     parser.add_argument("--gpu", type=int, default=1)
     parser.add_argument("--mutual", type=int, default=1)
     parser.add_argument("--ratio", type=float, default=0)
@@ -97,7 +99,12 @@ def main():
     write_header(args)
 
     for key, DatasetClass in datasets.items():
-        dataset = DatasetClass(root=args.root, eval='test')
+        dataset = DatasetClass(root=args.root, eval='test', image_size=args.max_size if args.crop else None)
+        if args.crop:
+            tfs = dataset.transforms.transforms
+            tfs[[t.__class__ for t in tfs].index(PairCenterCrop)].return_bounds = True
+            # dataset.cam.resolution = (args.max_size, args.max_size)
+            # dataset.cam.matrix[0:2, 2] = args.max_size / 2
         dataset.skip_preproc = True if args.ignore_img_rot else dataset.skip_preproc
 
         sampler = None
@@ -111,7 +118,7 @@ def main():
             assert len(meta) >= 2 and dataset.cam, 'dataset "%s" does not have cam model or rel_q, rel_s metadata' % (key,)
 
             # as in datasets/base.py: DatabaseImagePairDataset._load_samples
-            rel_dist, img_rot1, img_rot2, cf_trg_q1, cf_trg_q2, light1, light2 = meta
+            rel_dist, img_rot1, img_rot2, cf_trg_q1, cf_trg_q2, light1, light2, *xtra = meta
 
             if args.ignore_img_rot:
                 img_rot1 = img_rot2 = 0.0
@@ -131,10 +138,11 @@ def main():
                 depth1 = load_mono(path if os.path.exists(path) else path + '.exr')
 
             try:
-                metrics = eval.evaluate(img1, img2, aflow, img_rot1, img_rot2, dataset.cam, depth1, cf_trg_rel_q)
+                metrics = eval.evaluate(img1, img2, aflow, img_rot1, img_rot2, dataset.cam, depth1, cf_trg_rel_q,
+                                        crop_bounds=xtra[0] if args.crop else None)
             except EvaluationException as e:
                 fa, (f1, f2) = dataset.samples[i][1], dataset.samples[i][0]
-                logger.warning(f'During evaluation of {fa}, {f1}, {f2}: {e}')
+                logger.warning(f'During evaluation of {fa}, {f1}, {f2}:\n\t{e}')
                 metrics = e.result
             write_row(args.output, key, dataset.samples[i][1], *dataset.samples[i][0],
                       light1, light2, cf_trg_rel_q, rel_angle, rel_dist, metrics)
@@ -177,7 +185,10 @@ class ImagePairEvaluator:
         self.ratio = ratio
         self.est_gt_ori = est_gt_ori
 
-    def evaluate(self, img1, img2, aflow, img_rot1, img_rot2, cam, depth1, rel_q):
+    def evaluate(self, img1, img2, aflow, img_rot1, img_rot2, cam, depth1, rel_q, crop_bounds=None):
+        if depth1.shape != (cam.height, cam.width):
+            raise EvaluationException(f"Unexpected image size: ({depth1.shape[0]}, {depth1.shape[1]})")
+
         xys1, desc1, scores1 = self.extractor.extract(img1)
         xys2, desc2, scores2 = self.extractor.extract(img2)
         syx1 = torch.flipud(torch.tensor(xys1.T))[None, :, :]    # [K1, XYS] => [1, SYX, K1]
@@ -219,11 +230,12 @@ class ImagePairEvaluator:
         if self.ori_est is not None:
             if self.est_gt_ori:
                 rel_q = self.ori_est.estimate_gt(aflow, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
-                                                 max_repr_err=0.75, min_inliers=30, debug=(img1, img2, aflow, rel_q))
+                                                 max_repr_err=0.75, min_inliers=30, crop_bounds=crop_bounds,
+                                                 debug=(img1, img2, aflow, rel_q))
 
             if rel_q is not None:
                 est_q = self.ori_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2),
-                                              cam, debug=(img1, img2, aflow, rel_q))
+                                              cam, crop_bounds=crop_bounds, debug=(img1, img2, aflow, rel_q))
 
             if rel_q is not None and est_q is not None:
                 ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
@@ -248,8 +260,9 @@ class OrientationEstimator:
         self.show_matches = show_matches
         self._debug_logger = fs_tools.get_logger("odo", level=logging.DEBUG) if self.debug > 1 else None
 
-    def estimate_gt(self, aflow, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, debug=None, **kwargs):
-        # kwargs.update({'debug': False, 'show_matches': False})
+    def estimate_gt(self, aflow, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, crop_bounds=None,
+                    debug=None, **kwargs):
+        kwargs.update({'debug': False, 'show_matches': False})
 
         tmp = self.__dict__.copy()
         for k, v in kwargs.items():
@@ -267,14 +280,16 @@ class OrientationEstimator:
         mask = np.logical_not(np.isnan(xy2[:, 0]))
         matches = np.arange(len(mask))
 
-        gt_q = self.estimate(xy1, xy2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam, debug=debug)
+        gt_q = self.estimate(xy1, xy2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam,
+                             crop_bounds=crop_bounds, debug=debug)
 
         for k in kwargs.keys():
             setattr(self, k, tmp[k])
 
         return gt_q
 
-    def estimate(self, yx1, yx2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, debug=None):
+    def estimate(self, yx1, yx2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam: Camera,
+                 crop_bounds=None, debug=None):
         if isinstance(yx1, np.ndarray):
             xy1, xy2 = yx1, yx2
         else:
@@ -287,6 +302,15 @@ class OrientationEstimator:
         if debug is not None and (self.debug or self.show_matches):
             img1, img2, aflow, rel_q = debug
 
+        if crop_bounds is not None:
+            (i1s, j1s, i1e, j1e, w1, h1) = map(lambda x: x.item(), crop_bounds[0])
+            (i2s, j2s, i2e, j2e, w2, h2) = map(lambda x: x.item(), crop_bounds[1])
+            size1, size2 = (w1, h1), (w2, h2)
+            xy1[:, 0] += i1s
+            xy1[:, 1] += j1s
+            xy2[:, 0] += i2s
+            xy2[:, 1] += j2s
+
         if self.rotated_depthmaps:
             dist = nan_grid_interp(depth1, xy1[mask, :], max_radius=self.max_repr_err)
 
@@ -295,11 +319,11 @@ class OrientationEstimator:
         xy2 = self.rotate_kps(xy2, -img_rot2, size2, (cam.width, cam.height))
 
         # mark keypoints outside of images as invalid
-        mask = np.logical_and(mask, np.logical_and.reduce((xy1[:, 0] >= 0, xy1[:, 1] >= 0,
-                                                           xy1[:, 0] < cam.width, xy1[:, 1] < cam.height)))
+        mask = np.logical_and(mask, np.logical_and.reduce((xy1[:, 0] >= -0.5, xy1[:, 1] >= -0.5,
+                                                           xy1[:, 0] < cam.width-0.5, xy1[:, 1] < cam.height-0.5)))
         mxy2 = xy2[matches[mask], :]
-        mask[mask] = np.logical_and.reduce((mxy2[:, 0] >= 0, mxy2[:, 1] >= 0, mxy2[:, 0] < cam.width,
-                                            mxy2[:, 1] < cam.height))
+        mask[mask] = np.logical_and.reduce((mxy2[:, 0] >= -0.5, mxy2[:, 1] >= -0.5, mxy2[:, 0] < cam.width-0.5,
+                                            mxy2[:, 1] < cam.height-0.5))
 
         if not self.rotated_depthmaps:
             dist = nan_grid_interp(depth1, xy1[mask, :], max_radius=self.max_repr_err)
@@ -320,21 +344,35 @@ class OrientationEstimator:
             logger.info('est ypr: %.1f, %.1f, %.1f' % (ey, ep, er))
 
             if self.show_matches and 1:
+                nsize = (cam.width, cam.height) if crop_bounds is None else 'full'
                 np_img1, np_img2 = map(tensor2img, (img1, img2))
-                np_img1 = ds_tools.rotate_array(np_img1, -img_rot1, new_size=(cam.width, cam.height))
-                np_img2 = ds_tools.rotate_array(np_img2, -img_rot2, new_size=(cam.width, cam.height))
+                np_img1 = ds_tools.rotate_array(np_img1, -img_rot1, new_size=nsize, border=cv2.BORDER_CONSTANT)
+                np_img2 = ds_tools.rotate_array(np_img2, -img_rot2, new_size=nsize, border=cv2.BORDER_CONSTANT)
                 np_aflow = aflow[0, ...].permute((1, 2, 0)).cpu().numpy()
                 np_aflow = ds_tools.rotate_aflow(np_aflow, (img2.shape[3], img2.shape[2]), -img_rot1, -img_rot2,
-                                                 new_size1=(cam.width, cam.height), new_size2=(cam.width, cam.height))
+                                                 new_size1=nsize, new_size2=nsize)
                 aflow = torch.Tensor(np_aflow[None, ...]).permute((0, 3, 1, 2))
                 img1, img2 = map(img2tensor, (np_img1, np_img2))
 
+                xoff1, yoff1 = (0, 0) if crop_bounds is None else \
+                    self.rotated_crop_offset((i1s, j1s, i1e, j1e), -img_rot1, size1, (cam.width, cam.height))
+                xoff2, yoff2 = (0, 0) if crop_bounds is None else \
+                    self.rotated_crop_offset((i2s, j2s, i2e, j2e), -img_rot2, size2, (cam.width, cam.height))
+
                 res_mask = np.zeros_like(mask)
                 res_mask[np.where(mask)[0][inliers]] = True
-                self._plot_matches(img1, xy1, img2, xy2, aflow, matches, res_mask,
-                                   title=f'inliers (n={inliers.size})', kps_only=True)
+                self._plot_matches(img1, xy1 - np.array([[xoff1, yoff1]]),
+                                   img2, xy2 - np.array([[xoff2, yoff2]]),
+                                   aflow, matches, res_mask, title=f'inliers (n={inliers.size})', kps_only=True)
 
         return est_q
+
+    @staticmethod
+    def rotated_crop_offset(crop_bounds, img_rot, size0, size1):
+        i0, j0, i1, j1 = crop_bounds
+        pts = np.array([[i0, j0], [i1, j0], [i1, j1], [i0, j1]])
+        pts = OrientationEstimator.rotate_kps(pts, img_rot, size0, size1)
+        return pts.min(axis=0).astype(int)
 
     @staticmethod
     def rotate_kps(xy, angle, size0, size1):

@@ -806,9 +806,9 @@ def nan_grid_interp(value_map, xy, max_radius=5.0, interp=False):
     """
     Interpolate values for sparse 2d-points based on the given value map
     """
-    bad = ~(np.logical_and.reduce((xy[:, 1] < value_map.shape[0],
-                                   xy[:, 0] < value_map.shape[1],
-                                   xy[:, 1] >= 0, xy[:, 0] >= 0)))
+    bad = ~(np.logical_and.reduce((xy[:, 1] < value_map.shape[0]-0.5,
+                                   xy[:, 0] < value_map.shape[1]-0.5,
+                                   xy[:, 1] >= -0.5, xy[:, 0] >= -0.5)))
     assert ~np.any(bad), 'out of bounds %s: %s' % (value_map.shape, (xy[bad, :]))
 
     H, W = value_map.shape

@@ -60,7 +60,7 @@ class ComposedTransforms:
 
     def __call__(self, images, aflow, *meta):
         for transform in self.transforms:
-            images, aflow = transform(images, aflow)
+            images, aflow, *meta = transform(images, aflow, *meta)
         return images, aflow, *meta
 
 
@@ -161,7 +161,7 @@ class PairRandomHorizontalFlip:
 
 class PairRandomCrop:
     def __init__(self, shape, random=True, max_sc_diff=None, random_sc_diff=True, fill_value=None,
-                 margin=16, blind_crop=False, interp_method=PIL.Image.BILINEAR):
+                 margin=16, blind_crop=False, interp_method=PIL.Image.BILINEAR, only_crop=False, return_bounds=False):
         self.shape = (shape, shape) if isinstance(shape, int) else shape       # yx i.e. similar to aflow.shape
         self.random = random
         self.max_sc_diff = max_sc_diff
@@ -170,6 +170,8 @@ class PairRandomCrop:
         self.margin = margin
         self.blind_crop = blind_crop  # don't try to validate cropping location, good for certain datasets
         self.interp_method = interp_method
+        self.only_crop = only_crop
+        self.return_bounds = return_bounds
 
     def most_ok_in_window(self, mask, sc=4):
         b = self.margin
@@ -201,8 +203,10 @@ class PairRandomCrop:
     def __call__(self, imgs, aflow, *meta, debug=False):
         img1, img2 = imgs
         n, m = self.shape
+        ow1, oh1 = img1.size
+        ow2, oh2 = img2.size
 
-        if m > img1.size[0] or n > img1.size[1]:
+        if (m > img1.size[0] or n > img1.size[1]) and not self.only_crop:
             # need to pad as otherwise image too small
             img1, aflow = self._pad((m, n), img1, aflow, first=True)
 
@@ -248,11 +252,11 @@ class PairRandomCrop:
                 from navex.datasets.base import DataLoadingException
                 raise DataLoadingException("no valid correspondences even for central crop")
             print("no valid correspondences even for central crop")
-            c_img1 = img1.crop((i1, j1, i1+m, j1+n))
-            c_img2 = img2.crop((0, 0, m, n))
-            return (c_img1, c_img2), c_aflow
+            c_img1 = img1.crop((i1, j1, min(i1+m, img1.size[0]), min(j1+n, img1.size[1])))
+            c_img2 = img2.crop((0, 0, min(m, img2.size[0]), min(n, img2.size[1])))
+            return (c_img1, c_img2), c_aflow, *meta
 
-        c_img1 = img1.crop((i1, j1, i1+m, j1+n))
+        c_img1 = img1.crop((i1, j1, min(i1+m, img1.size[0]), min(j1+n, img1.size[1])))
         c_mask = mask[j1:j1+n, i1:i1+m]
 
         # determine current scale of cropped img1 relative to cropped img0 based on aflow
@@ -264,8 +268,10 @@ class PairRandomCrop:
         curr_sc = np.clip(sc2 / (sc1 + 1e-8), 1/5, 5)  # limit to reasonable original scale range between the image pair
 
         # determine target scale based on current scale, self.max_sc_diff, and self.random_sc_diff
-        lsc = abs(np.log10(self.max_sc_diff))
-        if self.random_sc_diff and is_random:
+        lsc = abs(np.log10(self.max_sc_diff or 1e10))
+        if self.only_crop:
+            trg_sc = curr_sc
+        elif self.random_sc_diff and is_random:
             # if first try fails, don't scale for second try
             trg_sc = 10**np.random.uniform(-lsc, lsc)
         else:
@@ -273,7 +279,7 @@ class PairRandomCrop:
             trg_sc = np.clip(curr_sc, min_sc, max_sc)
 
         cm, cn = math.ceil(m * curr_sc / trg_sc), math.ceil(n * curr_sc / trg_sc)
-        if cm > img2.size[0] or cn > img2.size[1]:
+        if (cm > img2.size[0] or cn > img2.size[1]) and not self.only_crop:
             # padding is necessary
             img2, c_aflow = self._pad((cm, cn), img2, c_aflow, first=False)
 
@@ -304,7 +310,9 @@ class PairRandomCrop:
         i2e, j2e = min(img2.size[0], i2e), min(img2.size[1], j2e)
 
         try:
-            c_img2 = img2.crop((i2s, j2s, i2e, j2e)).resize((m, n), self.interp_method)
+            c_img2 = img2.crop((i2s, j2s, i2e, j2e))
+            if not self.only_crop:
+                c_img2 = c_img2.resize((m, n), self.interp_method)
         except PIL.Image.DecompressionBombError as e:
             from navex.datasets.base import DataLoadingException
             raise DataLoadingException((
@@ -323,7 +331,8 @@ class PairRandomCrop:
         assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
         assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
 
-        return (c_img1, c_img2), c_aflow, *meta
+        return (c_img1, c_img2), c_aflow, *meta, \
+            *((((i1, j1, i1+m, j1+n, ow1, oh1), (i2s, j2s, i2e, j2e, ow2, oh2)),) if self.return_bounds else tuple())
 
     def _pad(self, min_size, img, aflow, first):
         w, h = img.size
@@ -344,12 +353,14 @@ class PairRandomCrop:
 
 
 class PairCenterCrop(PairRandomCrop):
-    def __init__(self, shape, margin, max_sc_diff=None, fill_value=None, blind_crop=False):
+    def __init__(self, shape, margin, max_sc_diff=None, fill_value=None, blind_crop=False,
+                 only_crop=False, return_bounds=False):
         super(PairCenterCrop, self).__init__(shape, random=0, margin=margin, max_sc_diff=max_sc_diff,
-                                             random_sc_diff=False, blind_crop=blind_crop, fill_value=fill_value)
+                                             random_sc_diff=False, blind_crop=blind_crop, fill_value=fill_value,
+                                             only_crop=only_crop, return_bounds=return_bounds)
 
-    def __call__(self, imgs, aflow, *meta):
-        return super(PairCenterCrop, self).__call__(imgs, aflow, *meta)
+    def __call__(self, imgs, aflow, *meta, **kwargs):
+        return super(PairCenterCrop, self).__call__(imgs, aflow, *meta, **kwargs)
 
 
 class RandomHomography:

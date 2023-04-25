@@ -63,14 +63,14 @@ class ImagePairDataset(VisionDataset):
             (img1, img2), aflow, meta = self.preprocess(idx, (img1, img2), aflow, meta)
 
             if self.transforms is not None:
-                # TODO: include meta in transforms, use better data structure for meta
-                (img1, img2), aflow = self.transforms((img1, img2), aflow)
+                # TODO: use better data structure for meta
+                (img1, img2), aflow, *meta = self.transforms((img1, img2), aflow, *meta)
 
         except Exception as e:
             raise DataLoadingException("Problem with dataset %s, index %s: %s" %
                                        (self.__class__, idx, self.samples[idx],)) from e
 
-        if len(meta) != len(BLANK_METADATA):
+        if len(meta) < len(BLANK_METADATA):
             meta = BLANK_METADATA
 
         return (img1, img2), aflow, *meta
@@ -326,6 +326,8 @@ class AugmentedPairDatasetMixin:
         ])
         self._test_transf = ComposedTransforms([
             PhotometricTransform(tr.Grayscale(num_output_channels=1)) if not self.rgb else PairedIdentityTransform(),
+            PairCenterCrop(self.image_size, margin=self.margin, blind_crop=self.blind_crop, fill_value=self.fill_value,
+                           only_crop=True) if self.image_size is not None else PairedIdentityTransform(),
             GeneralTransform(tr.ToTensor()),
             PhotometricTransform(Clamp(0, 1)),
             PhotometricTransform(self.TR_NORM_MONO if not self.rgb else self.TR_NORM_RGB),
