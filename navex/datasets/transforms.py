@@ -193,10 +193,10 @@ class PairRandomCrop:
             rnd_idx = bst_idx = 0
 
         bst_idxs = np.array(np.unravel_index(bst_idx, res.shape)) * sc + b
-        bst_idxs = np.minimum(bst_idxs, np.subtract(mask.shape, self.shape))
+        bst_idxs = np.maximum(np.minimum(bst_idxs, np.subtract(mask.shape, self.shape)), 0)
 
         rnd_idxs = np.array(np.unravel_index(rnd_idx, res.shape)) * sc + b
-        rnd_idxs = np.minimum(rnd_idxs, np.subtract(mask.shape, self.shape))
+        rnd_idxs = np.maximum(np.minimum(rnd_idxs, np.subtract(mask.shape, self.shape)), 0)
 
         return bst_idxs, rnd_idxs
 
@@ -220,7 +220,7 @@ class PairRandomCrop:
             # secure window selection
             bst_idxs, rnd_idxs = self.most_ok_in_window(mask)
 
-        assert np.all(np.array((*bst_idxs, *rnd_idxs)) >= 0), \
+        assert self.only_crop or np.all(np.array((*bst_idxs, *rnd_idxs)) >= 0), \
                'image size is smaller than the crop area: %s vs %s' % (img1.size, (m, n))
 
         for t in range(2):
@@ -242,7 +242,7 @@ class PairRandomCrop:
             if ratio_valid > 0.05:
                 break
 
-        assert i1 + m <= aflow.shape[1] and j1 + n <= aflow.shape[0], \
+        assert self.only_crop or i1 + m <= aflow.shape[1] and j1 + n <= aflow.shape[0], \
             'invalid crop origin (%d, %d) for window size (%d, %d) and image size (%d, %d), is_random: %s' % (
                 i1, j1, m, n, aflow.shape[1], aflow.shape[0], is_random)
 
@@ -252,15 +252,19 @@ class PairRandomCrop:
                 from navex.datasets.base import DataLoadingException
                 raise DataLoadingException("no valid correspondences even for central crop")
             print("no valid correspondences even for central crop")
-            c_img1 = img1.crop((i1, j1, min(i1+m, img1.size[0]), min(j1+n, img1.size[1])))
-            c_img2 = img2.crop((0, 0, min(m, img2.size[0]), min(n, img2.size[1])))
-            return (c_img1, c_img2), c_aflow, *meta
+            i1e, j1e = min(i1+m, img1.size[0]), min(j1+n, img1.size[1])
+            i2e, j2e = min(m, img2.size[0]), min(n, img2.size[1])
+            c_img1 = img1.crop((i1, j1, i1e, j1e))
+            c_img2 = img2.crop((0, 0, i2e, j2e))
+            return (c_img1, c_img2), c_aflow, *meta, \
+                *((((i1, j1, i1e, j1e, ow1, oh1), (0, 0, i2e, j2e, ow2, oh2)),) if self.return_bounds else tuple())
 
         c_img1 = img1.crop((i1, j1, min(i1+m, img1.size[0]), min(j1+n, img1.size[1])))
         c_mask = mask[j1:j1+n, i1:i1+m]
+        m1, n1 = c_img1.size
 
         # determine current scale of cropped img1 relative to cropped img0 based on aflow
-        xy1 = np.stack(np.meshgrid(range(m), range(n)), axis=2).reshape((-1, 2))
+        xy1 = np.stack(np.meshgrid(range(m1), range(n1)), axis=2).reshape((-1, 2))
         ic1, jc1 = np.median(xy1[c_mask.flatten(), :], axis=0)
         sc1 = np.sqrt(np.median(np.sum((xy1[c_mask.flatten(), :] - np.array((ic1, jc1)))**2, axis=1)))
         ic2, jc2 = np.nanmedian(c_aflow, axis=(0, 1))
@@ -298,12 +302,6 @@ class PairRandomCrop:
             c_ok[idxs[:, 1], idxs[:, 0]] = 1
             (j2, i2), _ = self.most_ok_in_window(c_ok)
 
-        # massage aflow
-        c_aflow = (c_aflow - np.array((i2, j2), dtype=c_aflow.dtype)).reshape((-1, 2))
-        c_aflow[np.any(c_aflow < 0, axis=1), :] = np.nan
-        c_aflow[np.logical_or(c_aflow[:, 0] > m - 1, c_aflow[:, 1] > n - 1), :] = np.nan
-        c_aflow = c_aflow.reshape((n, m, 2))
-
         # crop and resize image 2
         i2s, i2e, j2s, j2e = (np.array((i2, i2+m, j2, j2+n))*curr_sc/trg_sc + 0.5).astype(np.int)
         i2s, j2s = max(0, i2s), max(0, j2s)
@@ -313,12 +311,19 @@ class PairRandomCrop:
             c_img2 = img2.crop((i2s, j2s, i2e, j2e))
             if not self.only_crop:
                 c_img2 = c_img2.resize((m, n), self.interp_method)
+            m2, n2 = c_img2.size
         except PIL.Image.DecompressionBombError as e:
             from navex.datasets.base import DataLoadingException
             raise DataLoadingException((
                 "invalid crop params? (i2s, j2s, i2e, j2e): %s, img1.size: %s, "
                 "sc1: %s, sc2: %s, curr_sc: %s, trg_sc: %s"
                 ) % ((i2s, j2s, i2e, j2e), img2.size, sc1, sc2, curr_sc, trg_sc)) from e
+
+        # massage aflow
+        c_aflow = (c_aflow - np.array((i2, j2), dtype=c_aflow.dtype)).reshape((-1, 2))
+        c_aflow[np.any(c_aflow < 0, axis=1), :] = np.nan
+        c_aflow[np.logical_or(c_aflow[:, 0] > m2 - 1, c_aflow[:, 1] > n2 - 1), :] = np.nan
+        c_aflow = c_aflow.reshape((n1, m1, 2))
 
         if debug or 0:
             show_pair(c_img1, c_img2, c_aflow, pts=20)
@@ -327,9 +332,9 @@ class PairRandomCrop:
             # assert min_i >= 0 and min_j >= 0, 'flow coord less than zero: i: %s, j: %s' % (min_i, min_j)
             # assert max_i < m and max_j < n, 'flow coord greater than cropped size: i: %s, j: %s' % (max_i, max_j)
 
-        assert tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
-        assert tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
-        assert tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
+        assert self.only_crop or tuple(c_img1.size) == tuple(np.flip(self.shape)), 'Image 1 is wrong size: %s' % (c_img1.size,)
+        assert self.only_crop or tuple(c_img2.size) == tuple(np.flip(self.shape)), 'Image 2 is wrong size: %s' % (c_img2.size,)
+        assert self.only_crop or tuple(c_aflow.shape[:2]) == tuple(self.shape), 'Absolute flow is wrong shape: %s' % (c_aflow.shape,)
 
         return (c_img1, c_img2), c_aflow, *meta, \
             *((((i1, j1, i1+m, j1+n, ow1, oh1), (i2s, j2s, i2e, j2e, ow2, oh2)),) if self.return_bounds else tuple())

@@ -25,7 +25,7 @@ from navex.datasets.preproc.tools import write_data, read_raw_img, create_image_
 #  - https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1029/97JE01742
 #  - extra horizontal crop: img[:, 15:-14]
 # axis ra & dec from https://science.sciencemag.org/content/289/5487/2097/tab-figures-data
-CAM = Camera(resolution=(537-29, 412), center=((537 - 28) / 2 - 0.5 - 1, 412/2 - 0.5),
+CAM = Camera(resolution=(537 - 29*2, 412), center=((537 - 29*2) / 2 - 0.5, 412/2 - 0.5),
              pixel_size=16e-6, focal_length=0.16735, f_num=[0.9, 3.85])
 REF_NORTH_V = spherical2cartesian(math.radians(11.38), math.radians(17.18), 1)
 
