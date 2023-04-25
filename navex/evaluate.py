@@ -2,6 +2,7 @@ import math
 import argparse
 import logging
 import os
+from typing import Union
 
 from tqdm import tqdm
 import numpy as np
@@ -397,7 +398,8 @@ class OrientationEstimator:
 
     @staticmethod
     def _plot_matches(img1: torch.Tensor, xy1: np.ndarray, img2: torch.Tensor, xy2: np.ndarray, aflow: torch.Tensor,
-                      matches: torch.Tensor | np.ndarray, mask: torch.Tensor | np.ndarray, title=None, kps_only=False):
+                      matches: Union[torch.Tensor, np.ndarray], mask: Union[torch.Tensor, np.ndarray],
+                      title=None, kps_only=False):
         matches = matches[0, :].cpu().numpy() if isinstance(matches, torch.Tensor) else matches
         mask = mask[0, :].cpu().numpy().astype(bool) if isinstance(mask, torch.Tensor) else mask.astype(bool)
         img = OrientationEstimator._draw_matches(img1, xy1[mask, :], img2, xy2[matches[mask], :], kps_only=kps_only)
