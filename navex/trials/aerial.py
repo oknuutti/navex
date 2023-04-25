@@ -18,17 +18,17 @@ class AerialTrial(TerrestrialTrial):
 
             ds = []
             ds_counts = {}
-            if 1:
+            if 0:
                 # n=8516
                 ds_counts[BatvikSynthPairDataset] = 1
                 ds.append(BatvikSynthPairDataset(self.data_conf['path'],
                                                  subset=('14', '18', '20', '24', '31', '33'), **common, **sconf))
-            if 1:
+            if 0:
                 # give more weight to this dataset as it's much smaller (n=102)
                 ds_counts[GoogleEarthPairDataset] = 8516//102
                 ds.append(GoogleEarthPairDataset(self.data_conf['path'], **common))
 
-            if 0:
+            if 1:
                 # n = 4564 (v1) or 7477 (v2)
                 common['noise_max'] = 0.0
                 common['rnd_gain'] = 1.0

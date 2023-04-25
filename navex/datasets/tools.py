@@ -435,16 +435,18 @@ def preprocess_image(data, gamma):
     return img, (bot_v, top_v)
 
 
-def rotate_array(arr, angle, fullsize=False, border=cv2.BORDER_REPLICATE, border_val=None):
+def rotate_array(arr, angle, new_size='same', border=cv2.BORDER_REPLICATE, border_val=None):
     arr = np.array(arr).squeeze()
     h, w, *c = arr.shape
     c = c[0] if len(c) > 0 else 1
     border_val = border_val if border_val is None else [border_val] * c
 
-    if fullsize:
+    if new_size == 'full':
         rh, rw = rot_arr_shape((h, w), angle)
-    else:
+    elif new_size == 'same':
         rw, rh = w, h
+    else:
+        rw, rh = new_size
 
     cx, cy = w / 2, h / 2
     mx = cv2.getRotationMatrix2D((cx, cy), math.degrees(angle), 1)
@@ -462,34 +464,24 @@ def rot_arr_shape(shape, angle):
     return rh, rw
 
 
-def rotate_aflow(aflow, shape2, angle1, angle2, legacy=False):
+def rotate_aflow(aflow, old_shape2, angle1, angle2, new_size1='full', new_size2='full'):
     # rotate aflow content so that points to new rotated img1
-    (oh2, ow2), (nh2, nw2) = shape2, rot_arr_shape(shape2, angle2)
+    (oh2, ow2) = old_shape2
+
+    if new_size2 == 'full':
+        nh2, nw2 = rot_arr_shape((oh2, ow2), angle2)
+    elif new_size2 == 'same':
+        nw2, nh2 = ow2, oh2
+    else:
+        nw2, nh2 = new_size2
+
     R2 = np.array([[math.cos(angle2), -math.sin(angle2)],
                    [math.sin(angle2),  math.cos(angle2)]], dtype=np.float32)
 
     r_aflow = aflow - np.array([[[ow2 / 2, oh2 / 2]]], dtype=np.float32)
-    r_aflow = r_aflow.reshape((-1, 2)).dot(R2.T.T).reshape(aflow.shape)     # not sure why need extra .T
-    r_aflow = r_aflow + np.array([[[nw2 / 2, nh2 / 2]]], dtype=np.float32)
-
-    if legacy:
-        # TODO: remove legacy code when new way validated
-        # rotate aflow indices same way as img0 was rotated
-        import scipy.interpolate as interp
-        R1 = np.array([[math.cos(angle1), -math.sin(angle1)],
-                       [math.sin(angle1), math.cos(angle1)]], dtype=np.float32)
-        (oh1, ow1), (nh1, nw1) = aflow.shape[:2], rot_arr_shape(aflow.shape[:2], angle1)
-
-        ifun = interp.RegularGridInterpolator((np.arange(-oh1 / 2, oh1 / 2, dtype=np.float32),
-                                               np.arange(-ow1 / 2, ow1 / 2, dtype=np.float32)), r_aflow,
-                                              method="nearest", bounds_error=False, fill_value=np.nan)
-
-        grid = unit_aflow(nw1, nh1) - np.array([[[nw1 / 2, nh1 / 2]]])
-        grid = grid.reshape((-1, 2)).dot(np.linalg.inv(R1).T).reshape((nh1, nw1, 2))
-        n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
-    else:
-        n_aflow = rotate_array(r_aflow, angle1, fullsize=True, border=cv2.BORDER_CONSTANT, border_val=np.nan)
-
+    r_aflow = r_aflow.reshape((-1, 2)).dot(R2).reshape(aflow.shape)
+    r_aflow += np.array([[[nw2 / 2, nh2 / 2]]], dtype=np.float32)
+    n_aflow = rotate_array(r_aflow, angle1, new_size=new_size1, border=cv2.BORDER_CONSTANT, border_val=np.nan)
     return n_aflow
 
 
@@ -814,9 +806,10 @@ def nan_grid_interp(value_map, xy, max_radius=5.0, interp=False):
     """
     Interpolate values for sparse 2d-points based on the given value map
     """
-    assert np.all(xy[:, 1] < value_map.shape[0]) and np.all(xy[:, 0] < value_map.shape[1]) \
-        and np.all(xy[:, 1] >= 0) and np.all(xy[:, 0] >= 0), \
-        'out of bounds %s: %s' % (value_map.shape, (xy,))
+    bad = ~(np.logical_and.reduce((xy[:, 1] < value_map.shape[0],
+                                   xy[:, 0] < value_map.shape[1],
+                                   xy[:, 1] >= 0, xy[:, 0] >= 0)))
+    assert ~np.any(bad), 'out of bounds %s: %s' % (value_map.shape, (xy[bad, :]))
 
     H, W = value_map.shape
     uxy = unit_aflow(W, H).reshape((-1, 2))

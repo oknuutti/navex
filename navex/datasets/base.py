@@ -60,9 +60,10 @@ class ImagePairDataset(VisionDataset):
             img2 = self.image_loader(img2_pth)
             aflow = self.aflow_loader(aflow_pth, img1.size, img2.size)
 
-            (img1, img2), aflow = self.preprocess(idx, (img1, img2), aflow)
+            (img1, img2), aflow, meta = self.preprocess(idx, (img1, img2), aflow, meta)
 
             if self.transforms is not None:
+                # TODO: include meta in transforms, use better data structure for meta
                 (img1, img2), aflow = self.transforms((img1, img2), aflow)
 
         except Exception as e:
@@ -80,8 +81,8 @@ class ImagePairDataset(VisionDataset):
     def _load_samples(self):
         raise NotImplemented()
 
-    def preprocess(self, idx, imgs, aflow):
-        return imgs, aflow
+    def preprocess(self, idx, imgs, aflow, meta):
+        return imgs, aflow, meta
 
 
 class DatabaseImagePairDataset(ImagePairDataset):
@@ -139,7 +140,7 @@ class DatabaseImagePairDataset(ImagePairDataset):
                   q_times_v(index[j]['sc_q'].conj(), -normalize_v(index[j]['sc_sun_v'].astype(float))) for i, j in self.indices]
 
         # NOTE: needs to be mirrored in SynthesizedPairDataset
-        meta = (rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2)
+        meta = [rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2]
         samples = list(zip(imgs, aflow, *meta))
         return samples
 

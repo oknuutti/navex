@@ -213,8 +213,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
         matches, norm, mask, dist = tools.match(descr1, descr2, mutual=p['mutual'], ratio=p['ratio'])
 
         return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), p['success_px_limit'],
-                                   active_area=((H1 - p['border']*2) * (W1 - p['border']*2)
-                                                + (H2 - p['border']*2) * (W2 - p['border']*2)) / 2)
+                                   border=p['border'])
 
     def log_values(self):
         """
@@ -317,5 +316,4 @@ class StudentTrialMixin:
 
         aflow = tr.ToTensor()(unit_aflow(W2, H2)).expand((B, 2, W2, H2)).to(yx1.device)
         return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), p['success_px_limit'],
-                                   active_area=((H1 - p['border']*2) * (W1 - p['border']*2)
-                                                + (H2 - p['border']*2) * (W2 - p['border']*2)) / 2)
+                                   border=p['border'])

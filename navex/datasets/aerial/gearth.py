@@ -21,11 +21,11 @@ class GoogleEarthPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin
         self.pre_transf = RandomHomography2(max_tr=max_tr, max_rot=max_rot, max_shear=max_shear, max_proj=max_proj,
                                             min_size=image_size//2, crop_valid=True)
 
-    def preprocess(self, idx, imgs, aflow):
+    def preprocess(self, idx, imgs, aflow, meta):
         eval = getattr(self, 'eval', False)
         if eval:
             with RandomSeed(idx):
                 imgs, aflow = self.pre_transf(imgs, aflow)
         else:
             imgs, aflow = self.pre_transf(imgs, aflow)
-        return imgs, aflow
+        return imgs, aflow, meta

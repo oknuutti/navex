@@ -12,6 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from navex.models.tools import MatchException
+from navex.visualizations.misc import tensor2img, img2tensor
 
 try:
     import featstat.algo.model as fsm
@@ -68,6 +69,8 @@ def main():
     parser.add_argument("--ignore-img-rot", action="store_true", help="Assume images have not been rotated, useful "
                                                                       "when dataset_all.sqlite has non-zero img_angle "
                                                                       "even though images are untouched")
+    parser.add_argument("--rotated-depthmaps", action="store_true", help="The depthmaps have already been rotated in "
+                                                                         "the dataset, so don't rotate them again")
     parser.add_argument("--show-matches", action="store_true", help="Show matches if estimating orientation")
     parser.add_argument("--debug-ori-est", action="store_true", help="Debug orientation estimation")
     args = parser.parse_args()
@@ -81,7 +84,8 @@ def main():
     if args.est_ori:
         assert SimpleOdometry is not None, "featstat package not installed, cannot estimate orientation without it"
         ori_est = OrientationEstimator(max_repr_err=args.success_px_limit, min_inliers=12, use_ba=True,
-                                       debug=args.debug_ori_est, show_matches=args.show_matches)
+                                       debug=args.debug_ori_est, show_matches=args.show_matches,
+                                       rotated_depthmaps=args.rotated_depthmaps)
 
     eval = ImagePairEvaluator(ext, ori_est, args.success_px_limit, args.mutual, args.ratio,
                               est_gt_ori=args.est_gt_ori)
@@ -197,14 +201,18 @@ class ImagePairEvaluator:
             assert matches.shape[0] == 1, 'batch size > 1 not supported'
             matches, mask, dist = matches[:1, m1[0]], mask[:1, m1[0]], dist[:1, m1[0], :][:, :, m2[0]]
             yx1, yx2 = syx1[:, 1:, m1[0]].type(torch.long), syx2[:, 1:, m2[0]].type(torch.long)
+            xys1, xys2 = xys1[m1[0], :], xys2[m2[0], :]
         else:
             # [B, K1], [B, K1], [B, K1], [B, K1, K2]
             matches, mdist, mask, dist = tools.match(desc1, desc2, norm=norm, mutual=self.mutual, ratio=self.ratio)
             yx1, yx2 = syx1[:, 1:, :].type(torch.long), syx2[:, 1:, :].type(torch.long)
 
-        brd2 = self.extractor.border * 2
+        if self.ori_est.show_matches and 1:
+            OrientationEstimator._plot_matches(img1, xys1[:, :2], img2, xys2[:, :2], aflow, matches, mask,
+                                               title=f'all matches (n={mask.sum()})')
+
         metrics = tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), self.success_px_limit,
-                                      active_area=((H1 - brd2) * (W1 - brd2) + (H2 - brd2) * (W2 - brd2)) / 2)
+                                      border=self.extractor.border)
         metrics = metrics.flatten().tolist()
 
         # calc relative orientation error
@@ -241,6 +249,8 @@ class OrientationEstimator:
         self._debug_logger = fs_tools.get_logger("odo", level=logging.DEBUG) if self.debug > 1 else None
 
     def estimate_gt(self, aflow, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, debug=None, **kwargs):
+        # kwargs.update({'debug': False, 'show_matches': False})
+
         tmp = self.__dict__.copy()
         for k, v in kwargs.items():
             setattr(self, k, v)
@@ -253,7 +263,7 @@ class OrientationEstimator:
             n = len(xy1) // 10000
             xy1 = xy1[::n, :]
 
-        xy2 = aflow[0, :, (xy1[:, 1] + 0.5).astype(int), (xy1[:, 0] + 0.5).astype(int)].cpu().numpy().T
+        xy2 = aflow[0, :, xy1[:, 1].astype(int), xy1[:, 0].astype(int)].cpu().numpy().T
         mask = np.logical_not(np.isnan(xy2[:, 0]))
         matches = np.arange(len(mask))
 
@@ -284,11 +294,18 @@ class OrientationEstimator:
         xy1 = self.rotate_kps(xy1, -img_rot1, size1, (cam.width, cam.height))
         xy2 = self.rotate_kps(xy2, -img_rot2, size2, (cam.width, cam.height))
 
+        # mark keypoints outside of images as invalid
+        mask = np.logical_and(mask, np.logical_and.reduce((xy1[:, 0] >= 0, xy1[:, 1] >= 0,
+                                                           xy1[:, 0] < cam.width, xy1[:, 1] < cam.height)))
+        mxy2 = xy2[matches[mask], :]
+        mask[mask] = np.logical_and.reduce((mxy2[:, 0] >= 0, mxy2[:, 1] >= 0, mxy2[:, 0] < cam.width,
+                                            mxy2[:, 1] < cam.height))
+
         if not self.rotated_depthmaps:
             dist = nan_grid_interp(depth1, xy1[mask, :], max_radius=self.max_repr_err)
 
         kp3d = cam.backproject(xy1[mask, :], dist=dist)
-        repr_err_callback = (lambda kps, errs: self._plot_repr_errs(img2, kps, errs)) if self.show_matches else None
+        repr_err_callback = (lambda kps, errs: self._plot_repr_errs(img2, kps, errs)) if self.debug else None
         pos, est_q, inliers = estimate_pose_pnp(cam, kp3d, xy2[matches[mask], :].astype(float),
                                                 ransac=not self.use_ba, ba=self.use_ba,
                                                 max_err=self.max_repr_err, input_in_opencv=True,
@@ -302,10 +319,20 @@ class OrientationEstimator:
             logger.info('rel ypr: %.1f, %.1f, %.1f' % (ry, rp, rr))
             logger.info('est ypr: %.1f, %.1f, %.1f' % (ey, ep, er))
 
-            if self.show_matches and 0:
+            if self.show_matches and 1:
+                np_img1, np_img2 = map(tensor2img, (img1, img2))
+                np_img1 = ds_tools.rotate_array(np_img1, -img_rot1, new_size=(cam.width, cam.height))
+                np_img2 = ds_tools.rotate_array(np_img2, -img_rot2, new_size=(cam.width, cam.height))
+                np_aflow = aflow[0, ...].permute((1, 2, 0)).cpu().numpy()
+                np_aflow = ds_tools.rotate_aflow(np_aflow, (img2.shape[3], img2.shape[2]), -img_rot1, -img_rot2,
+                                                 new_size1=(cam.width, cam.height), new_size2=(cam.width, cam.height))
+                aflow = torch.Tensor(np_aflow[None, ...]).permute((0, 3, 1, 2))
+                img1, img2 = map(img2tensor, (np_img1, np_img2))
+
                 res_mask = np.zeros_like(mask)
-                res_mask[mask][inliers] = True
-                self._plot_matches(img1, xy1, img2, xy2, aflow, matches, res_mask)
+                res_mask[np.where(mask)[0][inliers]] = True
+                self._plot_matches(img1, xy1, img2, xy2, aflow, matches, res_mask,
+                                   title=f'inliers (n={inliers.size})', kps_only=True)
 
         return est_q
 
@@ -319,39 +346,50 @@ class OrientationEstimator:
     @staticmethod
     def _plot_repr_errs(img, xy, errs):
         import matplotlib.pyplot as plt
-        fig, axs = plt.subplots(1, 1)
+        fig, axs = plt.subplots(1, 1, squeeze=False)
         if 0:
             from .visualizations.misc import tensor2img
             img = cv2.cvtColor(tensor2img(img), cv2.COLOR_GRAY2RGB)
-            axs[0].imshow(img)
-        axs[0].scatter(xy[:, 0], xy[:, 1], np.clip(errs*30, 1, 10), facecolors='none', edgecolors='C0')
-        axs[0].set_aspect('equal')
-        axs[0].invert_yaxis()
+            axs[0, 0].imshow(img)
+        axs[0, 0].scatter(xy[:, 0], xy[:, 1], np.clip(errs*30, 1, 10), facecolors='none', edgecolors='C0')
+        axs[0, 0].set_aspect('equal')
+        axs[0, 0].invert_yaxis()
         plt.tight_layout()
         plt.show()
 
     @staticmethod
-    def _plot_matches(img1, xy1, img2, xy2, aflow, matches, mask):
-        img = OrientationEstimator._draw_matches(img1, xy1[mask, :], img2, xy2[matches[mask], :])
+    def _plot_matches(img1: torch.Tensor, xy1: np.ndarray, img2: torch.Tensor, xy2: np.ndarray, aflow: torch.Tensor,
+                      matches: torch.Tensor | np.ndarray, mask: torch.Tensor | np.ndarray, title=None, kps_only=False):
+        matches = matches[0, :].cpu().numpy() if isinstance(matches, torch.Tensor) else matches
+        mask = mask[0, :].cpu().numpy().astype(bool) if isinstance(mask, torch.Tensor) else mask.astype(bool)
+        img = OrientationEstimator._draw_matches(img1, xy1[mask, :], img2, xy2[matches[mask], :], kps_only=kps_only)
 
-        gt_xy2 = aflow[0, :, (xy1[:, 1] + 0.5).astype(int), (xy1[:, 0] + 0.5).astype(int)].cpu().numpy().T[:, :]
-        gt_mask = np.logical_and(mask, np.logical_not(np.isnan(gt_xy2[:, 0])))
-        img_gt = OrientationEstimator._draw_matches(img1, xy1[gt_mask, :], img2, gt_xy2[gt_mask, :])
+        gt_xy2 = aflow[0, :, (xy1[mask, 1] + 0.5).astype(int), (xy1[mask, 0] + 0.5).astype(int)].cpu().numpy().T
+        gt_mask1, gt_mask2 = mask.copy(), ~np.isnan(gt_xy2[:, 0])
+        gt_mask1[mask] = gt_mask2
+        img_gt = OrientationEstimator._draw_matches(img1, xy1[gt_mask1, :], img2, gt_xy2[gt_mask2, :])
 
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(2, 1, sharex=True, sharey=True)
         axs[0].imshow(img)
         axs[1].imshow(img_gt)
+        if title is not None:
+            fig.suptitle(title)
         plt.tight_layout()
         plt.show()
 
     @staticmethod
-    def _draw_matches(img1, xy1, img2, xy2):
+    def _draw_matches(img1, xy1, img2, xy2, kps_only=False):
         from .visualizations.misc import tensor2img
         img1, img2 = map(lambda img: cv2.cvtColor(tensor2img(img), cv2.COLOR_GRAY2RGB), (img1, img2))
         kp1, kp2 = map(lambda xy: [cv2.KeyPoint(x, y, 1) for x, y in xy.astype(float)], (xy1, xy2))
-        matches = [cv2.DMatch(i, i, np.random.uniform(1, 2)) for i in range(len(kp1))]
-        img = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, singlePointColor=(0, 0, 255))
+        if kps_only:
+            img = np.zeros_like(img1, shape=(max(img1.shape[0], img2.shape[0]), img1.shape[1] + img2.shape[1], 3))
+            cv2.drawKeypoints(img1, kp1, img[:img1.shape[0], :img1.shape[1], :], color=(0, 0, 255))
+            cv2.drawKeypoints(img2, kp2, img[:img2.shape[0], img1.shape[1]:, :], color=(0, 0, 255))
+        else:
+            matches = [cv2.DMatch(i, i, np.random.uniform(1, 2)) for i in range(len(kp1))]
+            img = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, singlePointColor=(0, 0, 255))
         return img
 
 

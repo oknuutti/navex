@@ -179,18 +179,19 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
             match_mask = None
 
         elif type == 'weighted':
-            mask1 = torch.ones((K1,), device=des1.device, dtype=torch.bool)
-            mask2 = torch.ones((K2,), device=des1.device, dtype=torch.bool)
             match_mask = (s1.view((1, K1, 1)).expand((1, K1, K2)) + sd_mode
                           - s2.view((1, 1, K2)).expand((1, K1, K2))).abs() / (lvl_sc * (match_levels - 1 + 0.6)) + 1
             match_mask = match_mask.type(torch.float32)
+            mask1 = torch.ones((K1,), device=des1.device, dtype=torch.bool)
+            mask2 = torch.ones((K2,), device=des1.device, dtype=torch.bool)
 
         else:
             assert type == 'windowed', 'Unknown match type: %s' % type
-            mask1 = torch.ones((K1,), device=des1.device, dtype=torch.bool)
-            mask2 = torch.ones((K2,), device=des1.device, dtype=torch.bool)
             match_mask = (s1.view((1, K1, 1)).expand((1, K1, K2)) + sd_mode
                           - s2.view((1, 1, K2)).expand((1, K1, K2))).abs() < lvl_sc * (match_levels - 1 + 0.6)
+            mask1 = match_mask.any(dim=2).view(-1)
+            mask2 = match_mask.any(dim=1).view(-1)
+            match_mask = match_mask[:, mask1, :][:, :, mask2]
 
         # [B, K1], [B, K1], [B, K1], [B, K1, K2]
         _matches, _mdist, _mask, _dist = match(des1[b:b+1, :, mask1], des2[b:b+1, :, mask2], norm, mutual, ratio,
@@ -201,7 +202,7 @@ def scale_restricted_match(syx1, des1, syx2, des2, norm=2, mutual=True, ratio=0,
             mdist[b:b + 1, mask1] = _mdist
             mask[b:b + 1, :] = False
             mask[b:b + 1, mask1] = _mask
-            dist[b:b + 1, mask1, :][:, :, mask2] = _dist
+            dist[(slice(b, b + 1),) + np.ix_(mask1, mask2)] = _dist
         else:
             s, n = group_sd(sd)
             raise MatchException(f'No features pass scale restriction, details:'
@@ -270,9 +271,10 @@ def match(des1, des2, norm=2, mutual=True, ratio=0, mask=None):
     return idx1, min1, mask, dist
 
 
-def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_limit, active_area=1):
+def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_limit, border=0):
     B, K1, K2 = dist.shape
     W2, H2 = img2_w_h
+    active_area = (H2 - 2 * border) * (W2 - 2 * border)  # assumes that img1 is of same size (usually true)
 
     # ground truth image coords in img1 of detected features in img0
     gt_yx2 = -torch.ones_like(yx1)
@@ -281,7 +283,9 @@ def error_metrics(yx1, yx2, matches, mask, dist, aflow, img2_w_h, success_px_lim
         gt_yx2[b, :, :] = (aflow[b, :, yx1[b, 0, :], yx1[b, 1, :]] + 0.5).flip(dims=(0,)).long()
 
     # valid correspondence exists
-    gt_mask = (0 <= gt_yx2[:, 0, :]) * (0 <= gt_yx2[:, 1, :]) * (gt_yx2[:, 0, :] < H2) * (gt_yx2[:, 1, :] < W2)
+    border = 0  # TODO: start using border when compatibility with old results is not needed anymore
+    gt_mask = (border <= gt_yx2[:, 0, :]) * (border <= gt_yx2[:, 1, :]) * \
+              (gt_yx2[:, 0, :] < H2 - border) * (gt_yx2[:, 1, :] < W2 - border)
     num_gt_matches = gt_mask.sum(dim=1)
 
     mask *= gt_mask

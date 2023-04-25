@@ -102,7 +102,8 @@ def _convert_xyz2d(xyz, cam):
 def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov, min_angle,
                        max_angle, min_matches, read_meta, max_sc_diff=1.5, max_dist=None, show_only=False, start=0.0, end=1.0,
                        exclude_shadowed=True, across_subsets=False, depth_src=None, cluster_unit_vects=True,
-                       max_cluster_diff_angle=None, aflow_match_coef=1.0, trust_georef=True, ignore_img_angle=True):
+                       max_cluster_diff_angle=None, aflow_match_coef=1.0, trust_georef=True, ignore_img_angle=True,
+                       depth_is_along_zaxis=False):
     aflow_path = os.path.join(root, aflow)
     index_path = index if isinstance(index, ImageDB) else os.path.join(root, index)
     pairs_path = os.path.join(root, pairs)
@@ -269,7 +270,7 @@ def create_image_pairs(root, index, pairs, geom_src, aflow, img_max, def_hz_fov,
                 else:
                     aflow = est_aflow(xyzs0, xyzs1, poses[i], poses[j], cams[set_ids[i]], cams[set_ids[j]],
                                       os.path.join(root, fi), os.path.join(root, fj), angles[i], angles[j],
-                                      min_n=min_matches)
+                                      min_n=min_matches, depth_is_along_zaxis=depth_is_along_zaxis)
 
                 if 0:
                     debug_aflow(aflow, os.path.join(root, fi), os.path.join(root, fj), angles[i], angles[j],
@@ -378,7 +379,7 @@ def load_xyzs(i_file, g_file=None, s_file=None, d_file=None, h_file=None, skip_s
 
     if skip_s:
         if rotate_angle:
-            xyz = rotate_array(xyz, rotate_angle, fullsize=True, border=cv2.BORDER_CONSTANT, border_val=np.nan)
+            xyz = rotate_array(xyz, rotate_angle, new_size='full', border=cv2.BORDER_CONSTANT, border_val=np.nan)
         return xyz
 
     s_file = s_file or (i_file[:-4] + '.s.exr')
@@ -399,7 +400,7 @@ def load_xyzs(i_file, g_file=None, s_file=None, d_file=None, h_file=None, skip_s
 
     xyzs = np.concatenate((xyz, np.atleast_3d(d if xyzd else s)), axis=2)
     if rotate_angle:
-        xyzs = rotate_array(xyzs, rotate_angle, fullsize=True, border=cv2.BORDER_CONSTANT, border_val=np.nan)
+        xyzs = rotate_array(xyzs, rotate_angle, new_size='full', border=cv2.BORDER_CONSTANT, border_val=np.nan)
 
     return xyzs
 
@@ -423,14 +424,16 @@ def calc_aflow(xyzs0, xyzs1, uncertainty_coef=1.0):
     return aflow
 
 
-def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0, angle1, min_n, margin=10):
+def est_aflow(xyzd0, xyzd1, pose0, pose1, cam0, cam1, imgfile0, imgfile1, angle0, angle1, min_n, margin=10,
+              depth_is_along_zaxis=False):
     # transform d0 so that close to d1
     ixy0 = unit_aflow(cam0.width, cam0.height)
     ixy1 = unit_aflow(cam1.width, cam1.height)
     rel_pose_ini = pose_diff(pose1, pose0)
 
-    c_xyz0 = cam0.backproject(ixy0[:, :, 0].flatten(), ixy0[:, :, 1].flatten(), xyzd0[:, :, 3].flatten())
-    c_xyz1 = cam1.backproject(ixy1[:, :, 0].flatten(), ixy1[:, :, 1].flatten(), xyzd1[:, :, 3].flatten())
+    depth = 'z_off' if depth_is_along_zaxis else 'dist'
+    c_xyz0 = cam0.backproject(ixy0[:, :, :2].reshape((-1, 2)), **{depth: xyzd0[:, :, 3].flatten()})
+    c_xyz1 = cam1.backproject(ixy1[:, :, :2].reshape((-1, 2)), **{depth: xyzd1[:, :, 3].flatten()})
     c_xyz0_1 = tools.q_times_mx(rel_pose_ini[1], c_xyz0) + rel_pose_ini[0]
 
     I0 = np.logical_not(np.isnan(c_xyz0_1[:, 0]))
@@ -508,7 +511,7 @@ def load_image(imgfile, angle, cam):
     img = np.flip(cv2.imread(imgfile, cv2.IMREAD_COLOR), axis=2)
 
     if angle:
-        img = rotate_array(img, -angle, fullsize=True)
+        img = rotate_array(img, -angle, new_size='full')
         cx, cy = (img.shape[1] - cam.width) / 2, (img.shape[0] - cam.height) / 2
         img = img[math.floor(cy):-math.ceil(cy), math.floor(cx):-math.ceil(cx)]
 

@@ -38,15 +38,15 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
             # fall back on ecliptic north, in equatorial ICRF system:
             self.trg_north_ra, self.trg_north_dec = math.radians(270), math.radians(66.56)
 
-    def preprocess(self, idx, imgs, aflow):
+    def preprocess(self, idx, imgs, aflow, meta):
         assert tuple(np.flip(aflow.shape[:2])) == imgs[0].size, \
             'aflow dimensions do not match with img1 dimensions: %s vs %s' % (np.flip(aflow.shape[:2]), imgs[0].size)
 
         if self.skip_preproc:
             if 0:
-                (r_img1_pth, r_img2_pth), r_aflow_pth, *meta = self.samples[idx]
+                (r_img1_pth, r_img2_pth), r_aflow_pth, *r_meta_pth = self.samples[idx]
                 show_pair(*imgs, aflow, pts=30, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
-            return imgs, aflow
+            return imgs, aflow, meta
 
         # possibly crop some bad borders
         d = [img.size for img in imgs]
@@ -107,30 +107,18 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
                 proc_imgs.append((np.array([[math.cos(angle), -math.sin(angle)],
                                             [math.sin(angle),  math.cos(angle)]], dtype=np.float32), img, angle))
 
-        if 1:
-            n_aflow = tools.rotate_aflow(aflow, (imgs[1].size[1], imgs[1].size[0]), -proc_imgs[0][2], -proc_imgs[1][2])
-        else:
-            # rotate aflow content so that points to new rotated img1
-            (ow1, oh1), (ow2, oh2) = imgs[0].size, imgs[1].size
-            (nw1, nh1), (nw2, nh2) = proc_imgs[0][1].size, proc_imgs[1][1].size
-            r_aflow = aflow - np.array([[[ow2/2, oh2/2]]], dtype=np.float32)
-            r_aflow = r_aflow.reshape((-1, 2)).dot(proc_imgs[1][0].T).reshape((oh1, ow1, 2))
-            r_aflow = r_aflow + np.array([[[nw2/2, nh2/2]]], dtype=np.float32)
+        img_angle1 = -proc_imgs[0][2]
+        img_angle2 = -proc_imgs[1][2]
+        n_aflow = tools.rotate_aflow(aflow, (imgs[1].size[1], imgs[1].size[0]), img_angle1, img_angle2)
 
-            # rotate aflow indices same way as img0 was rotated
-            ifun = interp.RegularGridInterpolator((np.arange(-oh1/2, oh1/2, dtype=np.float32),
-                                                   np.arange(-ow1/2, ow1/2, dtype=np.float32)), r_aflow,
-                                                  method="nearest", bounds_error=False, fill_value=np.nan)
-
-            grid = unit_aflow(nw1, nh1) - np.array([[[nw1/2, nh1/2]]])
-            grid = grid.reshape((-1, 2)).dot(np.linalg.inv(proc_imgs[0][0]).T).reshape((nh1, nw1, 2))
-            n_aflow = ifun(np.flip(grid, axis=2).astype(np.float32))
+        # (rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2)
+        n_meta = meta[:1] + [img_angle1, img_angle2] + meta[3:]
 
         img1, img2 = [t[1] for t in proc_imgs]
         if self.preproc_path is None:
-            return (img1, img2), n_aflow
+            return (img1, img2), n_aflow, n_meta
 
-        (r_img1_pth, r_img2_pth), r_aflow_pth, *meta = self.samples[idx]
+        (r_img1_pth, r_img2_pth), r_aflow_pth, *_ = self.samples[idx]
         if 0:
             show_pair(img1, img2, n_aflow, pts=20, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
         folder = getattr(self, 'folder', r_aflow_pth[len(self.root):].strip(os.sep).split(os.sep)[0])
@@ -148,11 +136,10 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
         save_aflow(aflow_pth, n_aflow)
 
         # save image rotation angles
-        self.index.set(('id', 'file', 'img_angle'), list(zip(self.indices[idx], ('', ''),
-                                                             (-proc_imgs[0][2], -proc_imgs[1][2]))),
+        self.index.set(('id', 'file', 'img_angle'), list(zip(self.indices[idx], ('', ''), (img_angle1, img_angle2))),
                        ignore=('file',))  # complains about requiring file-field even if only updating old records
 
-        return (img1, img2), n_aflow
+        return (img1, img2), n_aflow, n_meta
 
 
 class AsteroidSynthesizedPairDataset(SynthesizedPairDataset):

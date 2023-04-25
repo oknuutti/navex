@@ -114,7 +114,7 @@ def main():
                        0, args.max_angle, args.min_matches, read_meta=True, start=args.start,
                        end=args.end, exclude_shadowed=False, across_subsets=True, trust_georef=args.trust_georef,
                        ignore_img_angle=False, cluster_unit_vects=False, depth_src=depth_pathfun,
-                       aflow_match_coef=args.aflow_match_coef)
+                       aflow_match_coef=args.aflow_match_coef, depth_is_along_zaxis=True)
 
 
 def rotate_image(src, dst, ori):

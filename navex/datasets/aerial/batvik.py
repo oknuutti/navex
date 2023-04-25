@@ -49,7 +49,7 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
                                            resize_max_sc=resize_max_sc, blind_crop=False)
         DatabaseImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms)
 
-    def preprocess(self, idx, imgs, aflow):
+    def preprocess(self, idx, imgs, aflow, meta):
         assert tuple(np.flip(aflow.shape[:2])) == imgs[0].size, \
             'aflow dimensions do not match with img1 dimensions: %s vs %s' % (np.flip(aflow.shape[:2]), imgs[0].size)
 
@@ -88,12 +88,12 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
         sc2 = proc_imgs[1][1]
         n_aflow = resize_aflow(aflow, img1.size, img2.size, sc2)
 
-        (r_img1_pth, r_img2_pth), r_aflow_pth, *meta = self.samples[idx]
+        (r_img1_pth, r_img2_pth), r_aflow_pth, *_ = self.samples[idx]
         if 1:
             show_pair(img1, img2, n_aflow, pts=20, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
 
         if self.preproc_path is None:
-            return (img1, img2), n_aflow
+            return (img1, img2), n_aflow, meta
 
         folder = getattr(self, 'folder', r_aflow_pth[len(self.root):].strip(os.sep).split(os.sep)[0])
 
@@ -109,4 +109,4 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
         os.makedirs(os.path.dirname(aflow_pth), exist_ok=True)
         save_aflow(aflow_pth, n_aflow)
 
-        return (img1, img2), n_aflow
+        return (img1, img2), n_aflow, meta
