@@ -51,7 +51,7 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
         DatabaseImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms)
 
     def get_cam(self, id):
-        set_id = self.index.get(id, ('set_id',))
+        set_id, *_ = self.index.get(id, ('set_id',))
         assert set_id is not None, 'could not get set_id for image id=%s for %s' % (id, self)
         cam_params = self.index.get_subset(id=set_id)
         assert cam_params is not None, 'could not get subset with id=%s for %s' % (set_id, self)
