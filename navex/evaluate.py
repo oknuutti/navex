@@ -120,10 +120,17 @@ def main():
         pbar = tqdm(DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True, sampler=sampler),
                     desc="Evaluating %s..." % key)
         for i, ((img1, img2), aflow, *meta) in enumerate(pbar):
-            assert len(meta) >= 2 and dataset.cam, 'dataset "%s" does not have cam model or rel_q, rel_s metadata' % (key,)
+            assert len(meta) >= 4, 'dataset "%s" does not have ids, rel_dist, img_rot1, img_rot2 metadata' % (key,)
 
             # as in datasets/base.py: DatabaseImagePairDataset._load_samples
-            rel_dist, img_rot1, img_rot2, cf_trg_q1, cf_trg_q2, light1, light2, *xtra = meta
+            (id1, id2), rel_dist, img_rot1, img_rot2, cf_trg_q1, cf_trg_q2, light1, light2, *xtra = meta
+
+            if hasattr(dataset, 'cam'):
+                cam1 = cam2 = dataset.cam
+            elif hasattr(dataset, 'get_cam'):
+                cam1, cam2 = map(dataset.get_cam, (id1, id2))
+            else:
+                assert False, 'dataset "%s" does not have cam model' % (key,)
 
             if args.ignore_img_rot:
                 img_rot1 = img_rot2 = 0.0
@@ -143,7 +150,7 @@ def main():
                 depth1 = load_mono(path if os.path.exists(path) else path + '.exr')
 
             try:
-                metrics = eval.evaluate(img1, img2, aflow, img_rot1, img_rot2, dataset.cam, depth1, cf_trg_rel_q,
+                metrics = eval.evaluate(img1, img2, aflow, img_rot1, img_rot2, cam1, cam2, depth1, cf_trg_rel_q,
                                         crop_bounds=xtra[0] if args.crop else None)
             except EvaluationException as e:
                 fa, (f1, f2) = dataset.samples[i][1], dataset.samples[i][0]
@@ -190,8 +197,8 @@ class ImagePairEvaluator:
         self.ratio = ratio
         self.est_gt_pose = est_gt_pose
 
-    def evaluate(self, img1, img2, aflow, img_rot1, img_rot2, cam, depth1, rel_q, crop_bounds=None):
-        if depth1.shape != (cam.height, cam.width):
+    def evaluate(self, img1, img2, aflow, img_rot1, img_rot2, cam1, cam2, depth1, rel_q, crop_bounds=None):
+        if depth1.shape != (cam1.height, cam1.width):
             raise EvaluationException(f"Unexpected image size: ({depth1.shape[0]}, {depth1.shape[1]})")
 
         xys1, desc1, scores1 = self.extractor.extract(img1)
@@ -234,14 +241,17 @@ class ImagePairEvaluator:
         # calc relative pose error
         if self.pose_est is not None:
             if self.est_gt_pose:
-                rel_p, rel_q = self.pose_est.estimate_gt(aflow, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
+                rel_p, rel_q = self.pose_est.estimate_gt(aflow, depth1, img_rot1, (W1, H1), cam1,
+                                                         img_rot2, (W2, H2), cam2,
                                                          max_repr_err=0.75, min_inliers=30, crop_bounds=crop_bounds,
                                                          debug=(img1, img2, aflow, rel_q))
                 median_dist = self.pose_est.median_dist
 
             if rel_q is not None:
-                est_p, est_q = self.pose_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2),
-                                                      cam, crop_bounds=crop_bounds, debug=(img1, img2, aflow, rel_q))
+                est_p, est_q = self.pose_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), cam1,
+                                                      img_rot2, (W2, H2), cam2,
+                                                      crop_bounds=crop_bounds,
+                                                      debug=(img1, img2, aflow, rel_q))
 
             if rel_q is not None and est_q is not None:
                 ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
@@ -269,7 +279,7 @@ class PoseEstimator:
         self._debug_logger = fs_tools.get_logger("odo", level=logging.DEBUG) if self.debug > 1 else None
         self.median_dist = None
 
-    def estimate_gt(self, aflow, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, crop_bounds=None,
+    def estimate_gt(self, aflow, depth1, img_rot1, size1, cam1: Camera, img_rot2, size2, cam2: Camera, crop_bounds=None,
                     debug=None, **kwargs):
         kwargs.update({'debug': False, 'show_matches': False})
 
@@ -289,7 +299,7 @@ class PoseEstimator:
         mask = np.logical_not(np.isnan(xy2[:, 0]))
         matches = np.arange(len(mask))
 
-        gt_p, gt_q = self.estimate(xy1, xy2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam,
+        gt_p, gt_q = self.estimate(xy1, xy2, matches, mask, depth1, img_rot1, size1, cam1, img_rot2, size2, cam2,
                                    crop_bounds=crop_bounds, debug=debug)
 
         for k in kwargs.keys():
@@ -297,7 +307,7 @@ class PoseEstimator:
 
         return gt_p, gt_q
 
-    def estimate(self, yx1, yx2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam: Camera,
+    def estimate(self, yx1, yx2, matches, mask, depth1, img_rot1, size1, cam1: Camera, img_rot2, size2, cam2: Camera,
                  crop_bounds=None, debug=None):
         if isinstance(yx1, np.ndarray):
             xy1, xy2 = yx1, yx2
@@ -324,23 +334,23 @@ class PoseEstimator:
             dist = nan_grid_interp(depth1, xy1[mask, :], max_radius=self.max_repr_err)
 
         # rotate keypoints back to original image coordinates
-        xy1 = self.rotate_kps(xy1, -img_rot1, size1, (cam.width, cam.height))
-        xy2 = self.rotate_kps(xy2, -img_rot2, size2, (cam.width, cam.height))
+        xy1 = self.rotate_kps(xy1, -img_rot1, size1, (cam1.width, cam1.height))
+        xy2 = self.rotate_kps(xy2, -img_rot2, size2, (cam2.width, cam2.height))
 
         # mark keypoints outside of images as invalid
         mask = np.logical_and(mask, np.logical_and.reduce((xy1[:, 0] >= -0.5, xy1[:, 1] >= -0.5,
-                                                           xy1[:, 0] < cam.width-0.5, xy1[:, 1] < cam.height-0.5)))
+                                                           xy1[:, 0] < cam1.width-0.5, xy1[:, 1] < cam1.height-0.5)))
         mxy2 = xy2[matches[mask], :]
-        mask[mask] = np.logical_and.reduce((mxy2[:, 0] >= -0.5, mxy2[:, 1] >= -0.5, mxy2[:, 0] < cam.width-0.5,
-                                            mxy2[:, 1] < cam.height-0.5))
+        mask[mask] = np.logical_and.reduce((mxy2[:, 0] >= -0.5, mxy2[:, 1] >= -0.5, mxy2[:, 0] < cam2.width-0.5,
+                                            mxy2[:, 1] < cam2.height-0.5))
 
         if not self.rotated_depthmaps:
             dist = nan_grid_interp(depth1, xy1[mask, :], max_radius=self.max_repr_err)
 
         self.median_dist = np.nanmedian(dist)
-        kp3d = cam.backproject(xy1[mask, :], dist=dist)
+        kp3d = cam1.backproject(xy1[mask, :], dist=dist)
         repr_err_callback = (lambda kps, errs: self._plot_repr_errs(img2, kps, errs)) if self.debug else None
-        pos, est_q, inliers = estimate_pose_pnp(cam, kp3d, xy2[matches[mask], :].astype(float),
+        pos, est_q, inliers = estimate_pose_pnp(cam2, kp3d, xy2[matches[mask], :].astype(float),
                                                 ransac=not self.use_ba, ba=self.use_ba,
                                                 max_err=self.max_repr_err, input_in_opencv=True,
                                                 repr_err_callback=repr_err_callback)
@@ -354,7 +364,7 @@ class PoseEstimator:
             logger.info('est ypr: %.1f, %.1f, %.1f' % (ey, ep, er))
 
             if self.show_matches and 1:
-                nsize = (cam.width, cam.height) if crop_bounds is None else 'full'
+                nsize = (cam2.width, cam2.height) if crop_bounds is None else 'full'
                 np_img1, np_img2 = map(tensor2img, (img1, img2))
                 np_img1 = ds_tools.rotate_array(np_img1, -img_rot1, new_size=nsize, border=cv2.BORDER_CONSTANT)
                 np_img2 = ds_tools.rotate_array(np_img2, -img_rot2, new_size=nsize, border=cv2.BORDER_CONSTANT)
@@ -365,9 +375,9 @@ class PoseEstimator:
                 img1, img2 = map(img2tensor, (np_img1, np_img2))
 
                 xoff1, yoff1 = (0, 0) if crop_bounds is None else \
-                    self.rotated_crop_offset((i1s, j1s, i1e, j1e), -img_rot1, size1, (cam.width, cam.height))
+                    self.rotated_crop_offset((i1s, j1s, i1e, j1e), -img_rot1, size1, (cam1.width, cam1.height))
                 xoff2, yoff2 = (0, 0) if crop_bounds is None else \
-                    self.rotated_crop_offset((i2s, j2s, i2e, j2e), -img_rot2, size2, (cam.width, cam.height))
+                    self.rotated_crop_offset((i2s, j2s, i2e, j2e), -img_rot2, size2, (cam2.width, cam2.height))
 
                 res_mask = np.zeros_like(mask)
                 res_mask[np.where(mask)[0][inliers]] = True

@@ -9,7 +9,7 @@ import cv2
 import PIL
 
 from ..base import SynthesizedPairDataset, DatabaseImagePairDataset, AugmentedPairDatasetMixin
-from ..tools import find_files_recurse, resize_aflow, ImageDB, show_pair, save_aflow
+from ..tools import find_files_recurse, resize_aflow, ImageDB, show_pair, save_aflow, Camera
 
 
 class BatvikSynthPairDataset(SynthesizedPairDataset, AugmentedPairDatasetMixin):
@@ -49,6 +49,18 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
                                            max_sc=1.0, margin=margin, fill_value=0, eval=eval, rgb=False,
                                            resize_max_sc=resize_max_sc, blind_crop=False)
         DatabaseImagePairDataset.__init__(self, os.path.join(root, folder), transforms=self.transforms)
+
+    def get_cam(self, id):
+        set_id = self.index.get(id, ('set_id',))
+        assert set_id is not None, 'could not get set_id for image id=%s for %s' % (id, self)
+        cam_params = self.index.get_subset(id=set_id)
+        assert cam_params is not None, 'could not get subset with id=%s for %s' % (set_id, self)
+        width, height, fl_x, fl_y, pp_x, pp_y, *dist_coefs = cam_params
+        return Camera(matrix=np.array([[fl_x, 0, pp_x],
+                                       [0, fl_y, pp_y],
+                                       [0,    0,    1]]),
+                      resolution=(width, height),
+                      dist_coefs=np.array(dist_coefs))
 
     def preprocess(self, idx, imgs, aflow, meta):
         assert tuple(np.flip(aflow.shape[:2])) == imgs[0].size, \

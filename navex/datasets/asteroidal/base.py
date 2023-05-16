@@ -111,8 +111,8 @@ class AsteroidImagePairDataset(DatabaseImagePairDataset):
         img_angle2 = -proc_imgs[1][2]
         n_aflow = tools.rotate_aflow(aflow, (imgs[1].size[1], imgs[1].size[0]), img_angle1, img_angle2)
 
-        # (rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2)
-        n_meta = meta[:1] + [img_angle1, img_angle2] + meta[3:]
+        # (pair_id, rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2)
+        n_meta = meta[:2] + [img_angle1, img_angle2] + meta[4:]
 
         img1, img2 = [t[1] for t in proc_imgs]
         if self.preproc_path is None:

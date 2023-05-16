@@ -31,7 +31,7 @@ GRAY_MEAN, GRAY_STD = [0.449], [0.226]
 
 # defined only for DatabaseImagePairDataset, where:
 #                [rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2]
-BLANK_METADATA = [np.nan, np.nan, np.nan, np.ones(4) * np.nan, np.ones(4) * np.nan,
+BLANK_METADATA = [[-1, -1], np.nan, np.nan, np.nan, np.ones(4) * np.nan, np.ones(4) * np.nan,
                   np.ones(3) * np.nan, np.ones(3) * np.nan]
 
 
@@ -120,7 +120,7 @@ class DatabaseImagePairDataset(ImagePairDataset):
 
         get_id = lambda f, i: int(f.split(os.path.sep)[-1].split('.')[0].split('_')[i])
         aflow = [f for f in aflow if get_id(f, 0) in index and get_id(f, 1) in index]
-        self.indices = [(get_id(f, 0), get_id(f, 1)) for f in aflow]
+        self.indices = [[get_id(f, 0), get_id(f, 1)] for f in aflow]
         imgs = [(os.path.join(self.root, index[i]['file']),
                  os.path.join(self.root, index[j]['file'])) for i, j in self.indices]
 
@@ -140,7 +140,7 @@ class DatabaseImagePairDataset(ImagePairDataset):
                   q_times_v(index[j]['sc_q'].conj(), -normalize_v(index[j]['sc_sun_v'].astype(float))) for i, j in self.indices]
 
         # NOTE: needs to be mirrored in SynthesizedPairDataset
-        meta = [rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2]
+        meta = [self.indices, rel_dist, img_angle1, img_angle2, sf_trg_q1, sf_trg_q2, light1, light2]
         samples = list(zip(imgs, aflow, *meta))
         return samples
 
