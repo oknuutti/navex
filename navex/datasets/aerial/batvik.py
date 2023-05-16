@@ -43,6 +43,7 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
         self.folder = folder
         self.fixed_ground_res = fixed_ground_res
         self.preproc_path = preproc_path
+        self.skip_preproc = os.path.exists(os.path.join(self.root, 'preprocessed.flag'))
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                            max_sc=1.0, margin=margin, fill_value=0, eval=eval, rgb=False,
@@ -53,11 +54,11 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
         assert tuple(np.flip(aflow.shape[:2])) == imgs[0].size, \
             'aflow dimensions do not match with img1 dimensions: %s vs %s' % (np.flip(aflow.shape[:2]), imgs[0].size)
 
-        if self.fixed_ground_res is None:
+        if self.fixed_ground_res is None or self.skip_preproc:
             if 0:
                 (r_img1_pth, r_img2_pth), r_aflow_pth = self.samples[idx]
                 show_pair(*imgs, aflow, pts=30, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
-            return imgs, aflow
+            return imgs, aflow, meta
 
         # Query self.index for relevant params, resize img0, img1 so that ground resolution is correct
         proc_imgs = []
@@ -89,7 +90,7 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
         n_aflow = resize_aflow(aflow, img1.size, img2.size, sc2)
 
         (r_img1_pth, r_img2_pth), r_aflow_pth, *_ = self.samples[idx]
-        if 1:
+        if 0:
             show_pair(img1, img2, n_aflow, pts=20, file1=r_img1_pth, file2=r_img2_pth, afile=r_aflow_pth)
 
         if self.preproc_path is None:
