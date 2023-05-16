@@ -12,6 +12,7 @@ import cv2
 import torch
 from torch.utils.data import DataLoader
 
+from navex.datasets.aerial.batvik import BatvikPairDataset
 from navex.datasets.transforms import PairCenterCrop
 from navex.models.tools import MatchException
 from navex.visualizations.misc import tensor2img, img2tensor
@@ -35,7 +36,7 @@ from .extract import Extractor
 
 HEADER = ['Dataset', 'aflow', 'img1', 'img2', 'light1_x', 'light1_y', 'light1_z', 'light2_x', 'light2_y', 'light2_z',
           'rel_qw', 'rel_qx', 'rel_qy', 'rel_qz', 'rel_angle', 'rel_dist',  'FD', 'M-Score', 'MMA', 'LE', 'mAP',
-          'ori-err', 'est_qw', 'est_qx', 'est_qy', 'est_qz']
+          'dist-err', 'lat-err', 'ori-err', 'est_qw', 'est_qx', 'est_qy', 'est_qz', 'dist']
 
 logger = fs_tools.get_logger("main", level=logging.INFO)
 
@@ -45,8 +46,8 @@ def main():
     parser.add_argument("--model", type=str, required=True, help='model path')
     parser.add_argument("--output", type=str, required=True, help='csv file for evaluation output')
     parser.add_argument("--root", type=str, default='data', help='root folder of all datasets')
-    parser.add_argument("--dataset", "-d", choices=('eros', 'ito', '67p', 'synth'), action='append',
-                        help='Selected dataset, can give multiple, default: all')
+    parser.add_argument("--dataset", "-d", choices=('eros', 'ito', '67p', 'synth', 'batvik'), action='append',
+                        help='Selected dataset, can give multiple, default: all except batvik')
     parser.add_argument("--top-k", type=int, default=None, help='Limit on total number of keypoints')
     parser.add_argument("--feat-d", type=float, default=0.001, help='Number of keypoints per pixel')
     parser.add_argument("--scale-f", type=float, default=2 ** (1/4))
@@ -64,18 +65,18 @@ def main():
     parser.add_argument("--mutual", type=int, default=1)
     parser.add_argument("--ratio", type=float, default=0)
     parser.add_argument("--success-px-limit", "--px-lim", type=float, default=5.0)
-    parser.add_argument("--est-ori", action="store_true", help="Estimate image pair orientation change based on "
-                                                               "matched features, not properly implemented yet")
-    parser.add_argument("--est-gt-ori", default=1, type=int, help="Recalculate ground truth relative orientation "
-                                                                  "based on aflow. Default: 1, due to the values "
-                                                                  "available in the database being incorrect.")
+    parser.add_argument("--est-pose", action="store_true", help="Estimate image pair pose change based on "
+                                                                "matched features, not properly implemented yet")
+    parser.add_argument("--est-gt-pose", default=1, type=int, help="Recalculate ground truth relative pose "
+                                                                   "based on aflow. Default: 1, due to the values "
+                                                                   "available in the database being incorrect.")
     parser.add_argument("--ignore-img-rot", action="store_true", help="Assume images have not been rotated, useful "
                                                                       "when dataset_all.sqlite has non-zero img_angle "
                                                                       "even though images are untouched")
     parser.add_argument("--rotated-depthmaps", action="store_true", help="The depthmaps have already been rotated in "
                                                                          "the dataset, so don't rotate them again")
-    parser.add_argument("--show-matches", action="store_true", help="Show matches if estimating orientation")
-    parser.add_argument("--debug-ori-est", action="store_true", help="Debug orientation estimation")
+    parser.add_argument("--show-matches", action="store_true", help="Show matches if estimating pose")
+    parser.add_argument("--debug-pose-est", action="store_true", help="Debug pose estimation")
     args = parser.parse_args()
 
     ext = Extractor(args.model, gpu=args.gpu, top_k=args.top_k, feat_d=args.feat_d, border=args.border,
@@ -83,19 +84,22 @@ def main():
                     min_scale=args.min_scale, max_scale=args.max_scale, det_lim=args.det_lim,
                     qlt_lim=args.qlt_lim, mode=args.det_mode, kernel_size=args.kernel_size)
 
-    ori_est = None
-    if args.est_ori:
-        assert SimpleOdometry is not None, "featstat package not installed, cannot estimate orientation without it"
-        ori_est = OrientationEstimator(max_repr_err=args.success_px_limit, min_inliers=12, use_ba=True,
-                                       debug=args.debug_ori_est, show_matches=args.show_matches,
-                                       rotated_depthmaps=args.rotated_depthmaps)
+    pose_est = None
+    if args.est_pose:
+        assert SimpleOdometry is not None, "featstat package not installed, cannot estimate pose without it"
+        pose_est = PoseEstimator(max_repr_err=args.success_px_limit, min_inliers=12, use_ba=True,
+                                 debug=args.debug_pose_est, show_matches=args.show_matches,
+                                 rotated_depthmaps=args.rotated_depthmaps)
 
-    eval = ImagePairEvaluator(ext, ori_est, args.success_px_limit, args.mutual, args.ratio,
-                              est_gt_ori=args.est_gt_ori)
+    eval = ImagePairEvaluator(ext, pose_est, args.success_px_limit, args.mutual, args.ratio,
+                              est_gt_pose=args.est_gt_pose)
 
-    datasets = {'eros': ErosPairDataset, '67p': CG67pOsinacPairDataset, 'ito': ItokawaPairDataset,
-                'synth': SynthBennuPairDataset}
-    datasets = {key: datasets[key] for key in args.dataset} if args.dataset else datasets
+    if 'batvik' in args.dataset:
+        datasets = {'batvik': BatvikPairDataset}
+    else:
+        datasets = {'eros': ErosPairDataset, '67p': CG67pOsinacPairDataset, 'ito': ItokawaPairDataset,
+                    'synth': SynthBennuPairDataset}
+        datasets = {key: datasets[key] for key in args.dataset} if args.dataset else datasets
 
     write_header(args)
 
@@ -134,7 +138,7 @@ def main():
                                                               ds_tools.q_times_v(tf_cam_q2, tf_cam_axis)))
 
             depth1 = None
-            if args.est_ori:
+            if args.est_pose:
                 path = dataset.samples[i][0][0][:-4] + '.d'
                 depth1 = load_mono(path if os.path.exists(path) else path + '.exr')
 
@@ -152,7 +156,7 @@ def main():
 def write_header(args):
     anames = [arg for arg in dir(args) if not arg.startswith('_') and arg not in ('output',)]
     avals = [getattr(args, name) for name in anames]
-    header = HEADER if args.est_ori else HEADER[:-5]
+    header = HEADER if args.est_pose else HEADER[:-8]
 
     with open(args.output, 'w') as fh:
         fh.write('\t'.join(anames) + '\n')
@@ -173,18 +177,18 @@ def write_row(file, ds, aflow, img1, img2, light1, light2, cf_trg_rel_q, rel_ang
 class EvaluationException(Exception):
     def __init__(self, msg, result=None):
         super().__init__(msg)
-        self.result = result if result is not None else 2 * [0.] + 8 * [float('nan')]
+        self.result = result if result is not None else 2 * [0.] + 11 * [float('nan')]
 
 
 class ImagePairEvaluator:
-    def __init__(self, extractor: Extractor, ori_est: 'OrientationEstimator', success_px_limit, mutual, ratio,
-                 est_gt_ori=True):
+    def __init__(self, extractor: Extractor, pose_est: 'PoseEstimator', success_px_limit, mutual, ratio,
+                 est_gt_pose=True):
         self.extractor = extractor
-        self.ori_est = ori_est
+        self.pose_est = pose_est
         self.success_px_limit = success_px_limit
         self.mutual = mutual
         self.ratio = ratio
-        self.est_gt_ori = est_gt_ori
+        self.est_gt_pose = est_gt_pose
 
     def evaluate(self, img1, img2, aflow, img_rot1, img_rot2, cam, depth1, rel_q, crop_bounds=None):
         if depth1.shape != (cam.height, cam.width):
@@ -219,38 +223,41 @@ class ImagePairEvaluator:
             matches, mdist, mask, dist = tools.match(desc1, desc2, norm=norm, mutual=self.mutual, ratio=self.ratio)
             yx1, yx2 = syx1[:, 1:, :].type(torch.long), syx2[:, 1:, :].type(torch.long)
 
-        if self.ori_est.show_matches and 1:
-            OrientationEstimator._plot_matches(img1, xys1[:, :2], img2, xys2[:, :2], aflow, matches, mask,
-                                               title=f'all matches (n={mask.sum()})')
+        if self.pose_est.show_matches and 1:
+            PoseEstimator._plot_matches(img1, xys1[:, :2], img2, xys2[:, :2], aflow, matches, mask,
+                                        title=f'all matches (n={mask.sum()})')
 
         metrics = tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), self.success_px_limit,
                                       border=self.extractor.border)
         metrics = metrics.flatten().tolist()
 
-        # calc relative orientation error
-        if self.ori_est is not None:
-            if self.est_gt_ori:
-                rel_q = self.ori_est.estimate_gt(aflow, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
-                                                 max_repr_err=0.75, min_inliers=30, crop_bounds=crop_bounds,
-                                                 debug=(img1, img2, aflow, rel_q))
+        # calc relative pose error
+        if self.pose_est is not None:
+            if self.est_gt_pose:
+                rel_p, rel_q = self.pose_est.estimate_gt(aflow, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2), cam,
+                                                         max_repr_err=0.75, min_inliers=30, crop_bounds=crop_bounds,
+                                                         debug=(img1, img2, aflow, rel_q))
+                median_dist = self.pose_est.median_dist
 
             if rel_q is not None:
-                est_q = self.ori_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2),
-                                              cam, crop_bounds=crop_bounds, debug=(img1, img2, aflow, rel_q))
+                est_p, est_q = self.pose_est.estimate(yx1, yx2, matches, mask, depth1, img_rot1, (W1, H1), img_rot2, (W2, H2),
+                                                      cam, crop_bounds=crop_bounds, debug=(img1, img2, aflow, rel_q))
 
             if rel_q is not None and est_q is not None:
                 ori_err = math.degrees(ds_tools.angle_between_q(est_q, rel_q))
-                metrics = metrics + [ori_err, *est_q.components]
+                dist_err = (est_p[0] - rel_p[0]) / median_dist
+                lat_err = np.linalg.norm(est_p[1:] - rel_p[1:]) / median_dist
+                metrics = metrics + [dist_err, lat_err, ori_err, *est_q.components, median_dist]
             elif rel_q is None:
                 raise EvaluationException('Failed to estimate ground truth relative orientation',
-                                          metrics + [np.nan] * 5)
+                                          metrics + [np.nan] * 8)
             else:
-                metrics = metrics + [np.inf] + [np.nan] * 4
+                metrics = metrics + [np.inf] * 3 + [np.nan] * 5
 
         return metrics
 
 
-class OrientationEstimator:
+class PoseEstimator:
     def __init__(self, max_repr_err=1.5, min_inliers=25, use_ba=True, rotated_depthmaps=True,
                  debug=False, show_matches=False):
         self.max_repr_err = max_repr_err
@@ -260,6 +267,7 @@ class OrientationEstimator:
         self.debug = debug
         self.show_matches = show_matches
         self._debug_logger = fs_tools.get_logger("odo", level=logging.DEBUG) if self.debug > 1 else None
+        self.median_dist = None
 
     def estimate_gt(self, aflow, depth1, img_rot1, size1, img_rot2, size2, cam: Camera, crop_bounds=None,
                     debug=None, **kwargs):
@@ -281,13 +289,13 @@ class OrientationEstimator:
         mask = np.logical_not(np.isnan(xy2[:, 0]))
         matches = np.arange(len(mask))
 
-        gt_q = self.estimate(xy1, xy2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam,
-                             crop_bounds=crop_bounds, debug=debug)
+        gt_p, gt_q = self.estimate(xy1, xy2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam,
+                                   crop_bounds=crop_bounds, debug=debug)
 
         for k in kwargs.keys():
             setattr(self, k, tmp[k])
 
-        return gt_q
+        return gt_p, gt_q
 
     def estimate(self, yx1, yx2, matches, mask, depth1, img_rot1, size1, img_rot2, size2, cam: Camera,
                  crop_bounds=None, debug=None):
@@ -298,7 +306,7 @@ class OrientationEstimator:
             matches, mask = map(lambda m: m[0, :].cpu().numpy(), (matches, mask))
 
         if np.sum(mask) < self.min_inliers:
-            return None
+            return None, None
 
         if debug is not None and (self.debug or self.show_matches):
             img1, img2, aflow, rel_q = debug
@@ -329,6 +337,7 @@ class OrientationEstimator:
         if not self.rotated_depthmaps:
             dist = nan_grid_interp(depth1, xy1[mask, :], max_radius=self.max_repr_err)
 
+        self.median_dist = np.nanmedian(dist)
         kp3d = cam.backproject(xy1[mask, :], dist=dist)
         repr_err_callback = (lambda kps, errs: self._plot_repr_errs(img2, kps, errs)) if self.debug else None
         pos, est_q, inliers = estimate_pose_pnp(cam, kp3d, xy2[matches[mask], :].astype(float),
@@ -336,7 +345,7 @@ class OrientationEstimator:
                                                 max_err=self.max_repr_err, input_in_opencv=True,
                                                 repr_err_callback=repr_err_callback)
         if est_q is None or len(inliers) < self.min_inliers:
-            return None
+            return None, None
 
         if debug is not None and (self.debug or self.show_matches):
             ry, rp, rr = map(math.degrees, q_to_ypr(rel_q))
@@ -366,13 +375,13 @@ class OrientationEstimator:
                                    img2, xy2 - np.array([[xoff2, yoff2]]),
                                    aflow, matches, res_mask, title=f'inliers (n={inliers.size})', kps_only=True)
 
-        return est_q
+        return pos, est_q
 
     @staticmethod
     def rotated_crop_offset(crop_bounds, img_rot, size0, size1):
         i0, j0, i1, j1 = crop_bounds
         pts = np.array([[i0, j0], [i1, j0], [i1, j1], [i0, j1]])
-        pts = OrientationEstimator.rotate_kps(pts, img_rot, size0, size1)
+        pts = PoseEstimator.rotate_kps(pts, img_rot, size0, size1)
         return pts.min(axis=0).astype(int)
 
     @staticmethod
@@ -402,12 +411,12 @@ class OrientationEstimator:
                       title=None, kps_only=False):
         matches = matches[0, :].cpu().numpy() if isinstance(matches, torch.Tensor) else matches
         mask = mask[0, :].cpu().numpy().astype(bool) if isinstance(mask, torch.Tensor) else mask.astype(bool)
-        img = OrientationEstimator._draw_matches(img1, xy1[mask, :], img2, xy2[matches[mask], :], kps_only=kps_only)
+        img = PoseEstimator._draw_matches(img1, xy1[mask, :], img2, xy2[matches[mask], :], kps_only=kps_only)
 
         gt_xy2 = aflow[0, :, (xy1[mask, 1] + 0.5).astype(int), (xy1[mask, 0] + 0.5).astype(int)].cpu().numpy().T
         gt_mask1, gt_mask2 = mask.copy(), ~np.isnan(gt_xy2[:, 0])
         gt_mask1[mask] = gt_mask2
-        img_gt = OrientationEstimator._draw_matches(img1, xy1[gt_mask1, :], img2, gt_xy2[gt_mask2, :])
+        img_gt = PoseEstimator._draw_matches(img1, xy1[gt_mask1, :], img2, gt_xy2[gt_mask2, :])
 
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(2, 1, sharex=True, sharey=True)
