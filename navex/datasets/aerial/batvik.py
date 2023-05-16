@@ -43,7 +43,7 @@ class BatvikPairDataset(DatabaseImagePairDataset, AugmentedPairDatasetMixin):
         self.folder = folder
         self.fixed_ground_res = fixed_ground_res
         self.preproc_path = preproc_path
-        self.skip_preproc = os.path.exists(os.path.join(self.root, 'preprocessed.flag'))
+        self.skip_preproc = os.path.exists(os.path.join(root, folder, 'preprocessed.flag'))
 
         AugmentedPairDatasetMixin.__init__(self, noise_max=noise_max, rnd_gain=rnd_gain, image_size=image_size,
                                            max_sc=1.0, margin=margin, fill_value=0, eval=eval, rgb=False,
