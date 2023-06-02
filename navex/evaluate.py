@@ -62,9 +62,10 @@ def main():
     parser.add_argument("--det-mode", default='nms')
     parser.add_argument("--border", type=int, default=16, help="Dont detect features if this close to image border")
     parser.add_argument("--gpu", type=int, default=1)
+    parser.add_argument("--success-px-limit", "--px-lim", type=float, default=5.0)
     parser.add_argument("--mutual", type=int, default=1)
     parser.add_argument("--ratio", type=float, default=0)
-    parser.add_argument("--success-px-limit", "--px-lim", type=float, default=5.0)
+    parser.add_argument("--sc-lim-match", type=int, default=1, help="Use scale restricted matching, default: 1")
     parser.add_argument("--est-pose", action="store_true", help="Estimate image pair pose change based on "
                                                                 "matched features, not properly implemented yet")
     parser.add_argument("--est-gt-pose", default=1, type=int, help="Recalculate ground truth relative pose "
@@ -77,6 +78,7 @@ def main():
                                                                          "the dataset, so don't rotate them again")
     parser.add_argument("--show-matches", action="store_true", help="Show matches if estimating pose")
     parser.add_argument("--debug-pose-est", action="store_true", help="Debug pose estimation")
+    parser.add_argument("--select-pair", help="Only evaluate the pair given by the pair id of form id1_id2")
     args = parser.parse_args()
 
     ext = Extractor(args.model, gpu=args.gpu, top_k=args.top_k, feat_d=args.feat_d, border=args.border,
@@ -92,7 +94,7 @@ def main():
                                  rotated_depthmaps=args.rotated_depthmaps)
 
     eval = ImagePairEvaluator(ext, pose_est, args.success_px_limit, args.mutual, args.ratio,
-                              est_gt_pose=args.est_gt_pose)
+                              est_gt_pose=args.est_gt_pose, scale_restricted_matching=args.sc_lim_match)
 
     if 'batvik' in args.dataset:
         datasets = {'batvik': BatvikPairDataset}
@@ -104,7 +106,7 @@ def main():
     write_header(args)
 
     for key, DatasetClass in datasets.items():
-        dataset = DatasetClass(root=args.root, eval='test', image_size=args.max_size if args.crop else None)
+        dataset = DatasetClass(root=args.root, eval='test' if args.crop else True, image_size=args.max_size)
         if args.crop:
             tfs = dataset.transforms.transforms
             tfs[[t.__class__ for t in tfs].index(PairCenterCrop)].return_bounds = True
@@ -113,9 +115,9 @@ def main():
         dataset.skip_preproc = True if args.ignore_img_rot else dataset.skip_preproc
 
         sampler = None
-        if 0:
+        if args.select_pair:
             ids = [s[1].split(os.sep)[-1].split('.')[0] for s in dataset.samples]
-            sampler = [ids.index('553_23454')]
+            sampler = [ids.index(args.select_pair)]  # e.g. '553_23454'
 
         pbar = tqdm(DataLoader(dataset, batch_size=1, num_workers=0, pin_memory=True, sampler=sampler),
                     desc="Evaluating %s..." % key)
@@ -189,13 +191,17 @@ class EvaluationException(Exception):
 
 class ImagePairEvaluator:
     def __init__(self, extractor: Extractor, pose_est: 'PoseEstimator', success_px_limit, mutual, ratio,
-                 est_gt_pose=True):
+                 est_gt_pose=True, scale_restricted_matching=True):
         self.extractor = extractor
         self.pose_est = pose_est
         self.success_px_limit = success_px_limit
         self.mutual = mutual
         self.ratio = ratio
         self.est_gt_pose = est_gt_pose
+        self.scale_restricted_matching = scale_restricted_matching
+
+        # only for plotting when --debug-pose-est=0 and --show-matches=1
+        self.pose_est.extractor_model = extractor.model
 
     def evaluate(self, img1, img2, aflow, img_rot1, img_rot2, cam1, cam2, depth1, rel_q, crop_bounds=None):
         if depth1.shape != (cam1.height, cam1.width):
@@ -212,7 +218,7 @@ class ImagePairEvaluator:
         _, _, H2, W2 = img2.shape
         norm = 'hamming' if desc1.dtype == torch.uint8 else 2
 
-        if 1:
+        if self.scale_restricted_matching:
             try:
                 # [B, K1], [B, K1], [B, K1], [B, K1, K2], [B, K1], [B, K2]
                 matches, mdist, mask, dist, m1, m2 = tools.scale_restricted_match(syx1, desc1, syx2, desc2, norm=norm,
@@ -279,6 +285,9 @@ class PoseEstimator:
         self._debug_logger = fs_tools.get_logger("odo", level=logging.DEBUG) if self.debug > 1 else None
         self.median_dist = None
 
+        # only for plotting when --debug-pose-est=0 and --show-matches=1
+        self.extractor_model = None
+
     def estimate_gt(self, aflow, depth1, img_rot1, size1, cam1: Camera, img_rot2, size2, cam2: Camera, crop_bounds=None,
                     debug=None, **kwargs):
         kwargs.update({'debug': False, 'show_matches': False})
@@ -310,10 +319,11 @@ class PoseEstimator:
     def estimate(self, yx1, yx2, matches, mask, depth1, img_rot1, size1, cam1: Camera, img_rot2, size2, cam2: Camera,
                  crop_bounds=None, debug=None):
         if isinstance(yx1, np.ndarray):
-            xy1, xy2 = yx1, yx2
+            r_xy1, r_xy2 = yx1, yx2
         else:
-            xy1, xy2 = map(lambda yx: torch.flipud(yx[0, :, :]).t().cpu().numpy(), (yx1, yx2))
+            r_xy1, r_xy2 = map(lambda yx: torch.flipud(yx[0, :, :]).t().cpu().numpy(), (yx1, yx2))
             matches, mask = map(lambda m: m[0, :].cpu().numpy(), (matches, mask))
+        xy1, xy2 = map(lambda xy: xy.copy(), (r_xy1, r_xy2))
 
         if np.sum(mask) < self.min_inliers:
             return None, None
@@ -363,27 +373,41 @@ class PoseEstimator:
             logger.info('rel ypr: %.1f, %.1f, %.1f' % (ry, rp, rr))
             logger.info('est ypr: %.1f, %.1f, %.1f' % (ey, ep, er))
 
-            if self.show_matches and 1:
-                nsize = (cam2.width, cam2.height) if crop_bounds is None else 'full'
-                np_img1, np_img2 = map(tensor2img, (img1, img2))
-                np_img1 = ds_tools.rotate_array(np_img1, -img_rot1, new_size=nsize, border=cv2.BORDER_CONSTANT)
-                np_img2 = ds_tools.rotate_array(np_img2, -img_rot2, new_size=nsize, border=cv2.BORDER_CONSTANT)
-                np_aflow = aflow[0, ...].permute((1, 2, 0)).cpu().numpy()
-                np_aflow = ds_tools.rotate_aflow(np_aflow, (img2.shape[3], img2.shape[2]), -img_rot1, -img_rot2,
-                                                 new_size1=nsize, new_size2=nsize)
-                aflow = torch.Tensor(np_aflow[None, ...]).permute((0, 3, 1, 2))
-                img1, img2 = map(img2tensor, (np_img1, np_img2))
-
-                xoff1, yoff1 = (0, 0) if crop_bounds is None else \
-                    self.rotated_crop_offset((i1s, j1s, i1e, j1e), -img_rot1, size1, (cam1.width, cam1.height))
-                xoff2, yoff2 = (0, 0) if crop_bounds is None else \
-                    self.rotated_crop_offset((i2s, j2s, i2e, j2e), -img_rot2, size2, (cam2.width, cam2.height))
-
+            if self.show_matches:
                 res_mask = np.zeros_like(mask)
                 res_mask[np.where(mask)[0][inliers]] = True
-                self._plot_matches(img1, xy1 - np.array([[xoff1, yoff1]]),
-                                   img2, xy2 - np.array([[xoff2, yoff2]]),
-                                   aflow, matches, res_mask, title=f'inliers (n={inliers.size})', kps_only=True)
+
+                if self.debug:
+                    # Rotate to original image coordinates, NOTE: only works for --crop=1
+
+                    nsize = (cam2.width, cam2.height) if crop_bounds is None else 'full'
+                    np_img1, np_img2 = map(tensor2img, (img1, img2))
+                    np_img1 = ds_tools.rotate_array(np_img1, -img_rot1, new_size=nsize, border=cv2.BORDER_CONSTANT)
+                    np_img2 = ds_tools.rotate_array(np_img2, -img_rot2, new_size=nsize, border=cv2.BORDER_CONSTANT)
+                    np_aflow = aflow[0, ...].permute((1, 2, 0)).cpu().numpy()
+                    np_aflow = ds_tools.rotate_aflow(np_aflow, (img2.shape[3], img2.shape[2]), -img_rot1, -img_rot2,
+                                                     new_size1=nsize, new_size2=nsize)
+                    aflow = torch.Tensor(np_aflow[None, ...]).permute((0, 3, 1, 2))
+                    img1, img2 = map(img2tensor, (np_img1, np_img2))
+
+                    xoff1, yoff1 = (0, 0) if crop_bounds is None else \
+                        self.rotated_crop_offset((i1s, j1s, i1e, j1e), -img_rot1, size1, (cam1.width, cam1.height))
+                    xoff2, yoff2 = (0, 0) if crop_bounds is None else \
+                        self.rotated_crop_offset((i2s, j2s, i2e, j2e), -img_rot2, size2, (cam2.width, cam2.height))
+
+                    self._plot_matches(img1, xy1 - np.array([[xoff1, yoff1]]),
+                                       img2, xy2 - np.array([[xoff2, yoff2]]),
+                                       aflow, matches, res_mask, title=f'inliers (n={inliers.size})', kps_only=True)
+
+                else:
+                    with torch.no_grad():
+                        img1, img2 = map(lambda t: t.to(self.extractor_model.device), (img1, img2))
+                        des1, det1, qlt1 = self.extractor_model(img1)
+                        des2, det2, qlt2 = self.extractor_model(img2)
+
+                    self._plot_matches_b(img1, det1, r_xy1[res_mask, :],
+                                         img2, det2, r_xy2[matches[res_mask], :],
+                                         title=f'inliers (n={inliers.size})', kps_only=True)
 
         return pos, est_q
 
@@ -421,12 +445,12 @@ class PoseEstimator:
                       title=None, kps_only=False):
         matches = matches[0, :].cpu().numpy() if isinstance(matches, torch.Tensor) else matches
         mask = mask[0, :].cpu().numpy().astype(bool) if isinstance(mask, torch.Tensor) else mask.astype(bool)
-        img = PoseEstimator._draw_matches(img1, xy1[mask, :], img2, xy2[matches[mask], :], kps_only=kps_only)
+        img = PoseEstimator._draw_pair(img1, img2, kps=(xy1[mask, :], xy2[matches[mask], :]), kps_only=kps_only)
 
         gt_xy2 = aflow[0, :, (xy1[mask, 1] + 0.5).astype(int), (xy1[mask, 0] + 0.5).astype(int)].cpu().numpy().T
         gt_mask1, gt_mask2 = mask.copy(), ~np.isnan(gt_xy2[:, 0])
         gt_mask1[mask] = gt_mask2
-        img_gt = PoseEstimator._draw_matches(img1, xy1[gt_mask1, :], img2, gt_xy2[gt_mask2, :])
+        img_gt = PoseEstimator._draw_pair(img1, img2, kps=(xy1[gt_mask1, :], gt_xy2[gt_mask2, :]))
 
         import matplotlib.pyplot as plt
         fig, axs = plt.subplots(2, 1, sharex=True, sharey=True)
@@ -438,17 +462,47 @@ class PoseEstimator:
         plt.show()
 
     @staticmethod
-    def _draw_matches(img1, xy1, img2, xy2, kps_only=False):
-        from .visualizations.misc import tensor2img
-        img1, img2 = map(lambda img: cv2.cvtColor(tensor2img(img), cv2.COLOR_GRAY2RGB), (img1, img2))
-        kp1, kp2 = map(lambda xy: [cv2.KeyPoint(x, y, 1) for x, y in xy.astype(float)], (xy1, xy2))
-        if kps_only:
-            img = np.zeros_like(img1, shape=(max(img1.shape[0], img2.shape[0]), img1.shape[1] + img2.shape[1], 3))
-            cv2.drawKeypoints(img1, kp1, img[:img1.shape[0], :img1.shape[1], :], color=(0, 0, 255))
-            cv2.drawKeypoints(img2, kp2, img[:img2.shape[0], img1.shape[1]:, :], color=(0, 0, 255))
+    def _plot_matches_b(img1: torch.Tensor, det1: torch.Tensor, xy1: np.ndarray,
+                        img2: torch.Tensor, det2: torch.Tensor, xy2: np.ndarray,
+                        title=None, kps_only=False):
+
+        # img_a = PoseEstimator._draw_pair(img1, img2)
+        img_b = PoseEstimator._draw_pair(img1, img2, overlay=(det1, det2))
+        img_c = PoseEstimator._draw_pair(img1, img2, kps=(xy1, xy2))
+
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(2, 1, sharex=True, sharey=True)
+        # axs[0].imshow(img_a)
+        axs[0].imshow(img_b)
+        axs[1].imshow(img_c)
+        if title is not None:
+            fig.suptitle(title)
+        plt.tight_layout()
+        plt.show()
+
+    @staticmethod
+    def _draw_pair(img1, img2, kps=None, overlay=None, kps_only=False):
+        from .visualizations.misc import tensor2img, plot_tensor
+
+        if overlay is not None:
+            img1, img2 = map(lambda tmp: plot_tensor(*tmp, image=True, ret_img_only=True), zip((img1, img2), overlay))
         else:
-            matches = [cv2.DMatch(i, i, np.random.uniform(1, 2)) for i in range(len(kp1))]
-            img = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, singlePointColor=(0, 0, 255))
+            img1, img2 = map(lambda img: cv2.cvtColor(tensor2img(img), cv2.COLOR_GRAY2RGB), (img1, img2))
+
+        if kps is not None:
+            kp1, kp2 = map(lambda xy: [cv2.KeyPoint(x, y, 1) for x, y in xy.astype(float)], kps)
+            if kps_only:
+                img = np.zeros_like(img1, shape=(max(img1.shape[0], img2.shape[0]), img1.shape[1] + img2.shape[1], 3))
+                cv2.drawKeypoints(img1, kp1, img[:img1.shape[0], :img1.shape[1], :], color=(0, 0, 255))
+                cv2.drawKeypoints(img2, kp2, img[:img2.shape[0], img1.shape[1]:, :], color=(0, 0, 255))
+            else:
+                matches = [cv2.DMatch(i, i, np.random.uniform(1, 2)) for i in range(len(kp1))]
+                img = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, singlePointColor=(0, 0, 255))
+        else:
+            img = np.zeros_like(img1, shape=(max(img1.shape[0], img2.shape[0]), img1.shape[1] + img2.shape[1], 3))
+            img[:img1.shape[0], :img1.shape[1], :] = img1
+            img[:img2.shape[0], img1.shape[1]:, :] = img2
+
         return img
 
 

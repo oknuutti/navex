@@ -4,7 +4,7 @@
 Setting up environment using conda:
 ```
 conda create -n navex -c pytorch -c nvidia -c conda-forge --override-channels python==3.10 pip pytorch torchvision \
- pytorch-cuda==11.6 opencv pytorch-lightning==1.1.7 opencv paramiko quaternion scipy scikit-optimize pandas numba
+ pytorch-cuda==11.6 opencv pytorch-lightning==1.1.7 quaternion scipy paramiko scikit-optimize pandas numba
 conda activate navex
 pip install pytorch-lightning-bolts adabelief-pytorch==0.2.0 ray==2.2.0 ray[default]
 pip install git+https://github.com/jatentaki/unets

@@ -14,7 +14,7 @@ from tqdm import tqdm
 import torch
 
 from ..datasets.base import ExtractionImageDataset, RGB_STD, GRAY_STD, RGB_MEAN, GRAY_MEAN, AugmentedPairDatasetMixin
-from ..datasets.tools import find_files, angle_between_q
+from ..datasets.tools import find_files, angle_between_q, Camera, estimate_pose_pnp
 from ..models import tools
 from ..models.tools import is_rgb_model, load_model
 
@@ -328,7 +328,8 @@ def extract(model, data, args):
     return xys1, desc1, scores1
 
 
-def match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, draw=True, pbar=None, device=None, save_img=None):
+def match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, xyz0=None,
+          draw=True, pbar=None, device=None, save_img=None):
     if isinstance(desc0, np.ndarray):
         desc0 = torch.Tensor(desc0).to(device)
     if isinstance(desc1, np.ndarray):
@@ -342,17 +343,25 @@ def match(img0, xys0, desc0, img1, xys1, desc1, cam_mx, args, draw=True, pbar=No
     ess_matches, pose_matches, inliers = 0, 0, []
 
     if ini_matches >= args.min_matches:
-        # solve pose using ransac & 5-point algo
-        E, mask = cv2.findEssentialMat(xys0[matches[:, 0], :2], xys1[matches[:, 1], :2], cam_mx,
-                                       method=cv2.RANSAC, prob=0.999, threshold=2.0)
-        ess_matches = np.sum(mask)
-        if ess_matches >= args.min_matches and not args.skip_pose:
-            _, rel_rot, ur, mask = cv2.recoverPose(E, xys0[matches[:, 0], :2], xys1[matches[:, 1], :2],
-                                             cam_mx, mask=mask.copy())
-            pose_matches = np.sum(mask)
+        if xyz0 is None:
+            # solve pose using ransac & 5-point algo
+            E, mask = cv2.findEssentialMat(xys0[matches[:, 0], :2], xys1[matches[:, 1], :2], cam_mx,
+                                           method=cv2.RANSAC, prob=0.999, threshold=2.0)
+            ess_matches = np.sum(mask)
+            if ess_matches >= args.min_matches and not args.skip_pose:
+                _, rel_rot, ur, mask = cv2.recoverPose(E, xys0[matches[:, 0], :2], xys1[matches[:, 1], :2],
+                                                 cam_mx, mask=mask.copy())
+                pose_matches = np.sum(mask)
 
-        if pose_matches or args.skip_pose and ess_matches:
-            inliers = np.where(mask)[0]
+            if pose_matches or args.skip_pose and ess_matches:
+                inliers = np.where(mask)[0]
+        else:
+            # solve pose using ransac & and the AP3P algo
+            cam = Camera(matix=cam_mx, resolution=img0.shape[1::-1])
+            ur, rel_rot, inliers = estimate_pose_pnp(cam, xyz0[matches[:, 0], :], xys1[matches[:, 1], :2],
+                                                     ransac=True, ba=False, max_err=5.0, input_in_opencv=False)
+            if inliers is None:
+                inliers = np.array([], dtype=np.int)
 
     if pbar:
         pbar.set_postfix({'k0': min(desc0.shape[2], desc1.shape[2]), 'k1': ini_matches,
@@ -433,7 +442,7 @@ def img2tensor(image, i=0):
     return image
 
 
-def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, color_map='hsv'):
+def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, color_map='hsv', ret_img_only=False):
     if data is not None and data.dim() == 3:
         data = data[None, :, :, :]
     if heatmap is not None and heatmap.dim() == 3:
@@ -472,6 +481,9 @@ def plot_tensor(data=None, heatmap=None, image=False, ax=None, scale=False, colo
                 img = overlay
             else:
                 img = cv2.addWeighted(overlay, 0.3, (img * 255).astype(np.uint8), 0.7, 0)
+
+        if ret_img_only:
+            return img
 
         if ax is None:
             plt.imshow(img)

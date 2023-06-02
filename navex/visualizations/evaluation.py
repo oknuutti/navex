@@ -9,8 +9,15 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import Normalize
 
-from ..evaluate import HEADER
 from ..datasets import tools
+
+LEGACY = True
+if not LEGACY:
+    from ..evaluate import HEADER
+else:
+    HEADER = ['Dataset', 'aflow', 'img1', 'img2', 'light1_x', 'light1_y', 'light1_z', 'light2_x', 'light2_y',
+     'light2_z', 'rel_qw', 'rel_qx', 'rel_qy', 'rel_qz', 'rel_angle', 'rel_dist', 'FD', 'M-Score',
+     'MMA', 'LE', 'mAP', 'ori-err', 'est_qw', 'est_qx', 'est_qy', 'est_qz']
 
 # import warnings
 # warnings.filterwarnings("error")
@@ -172,14 +179,14 @@ def _plot_viewangle_metrics(group_I, mask_I, lims, mscore, mma, locerr, mAP, dis
 
 
 def plot_lightchange_metrics(ds_info, info, x_pa, x_ld, mscore, mma, locerr, mAP, disterr, laterr, orierr, joint_plot=True):
-    pa_min, pa_max = 0, 40
-    ld_min, ld_max = 0, 60
-    pa_lim = np.linspace(pa_min, pa_max, 5)
-    ld_lim = np.linspace(ld_min, ld_max, 7)
+    pa_min, pa_max = 0, 50
+    ld_min, ld_max = 0, 80
+    pa_lim = np.linspace(pa_min, pa_max, (pa_max - pa_min) // 10 + 1)
+    ld_lim = np.linspace(ld_min, ld_max, (ld_max - ld_min) // 10 + 1)
     xx, yy = np.meshgrid(pa_lim, ld_lim)
     pa_step = np.kron(xx, np.ones((2, 2)))[1:-1, 1:-1]
     ld_step = np.kron(yy, np.ones((2, 2)))[1:-1, 1:-1]
-    easy = np.logical_and.reduce((x_pa < pa_lim[2], x_ld < ld_lim[3]))
+    easy = np.logical_and.reduce((x_pa < 20, x_ld < 30))
 
     il_I = np.ones(len(info), dtype=bool)
     for ds, ds_name, plt_view, plt_illu in ds_info:
@@ -213,7 +220,7 @@ def _plot_lightchange_metrics(mask_I, pa_step, ld_step, pa_lim, ld_lim, x_pa, x_
     def plot(ax_i, z, zlabel=None, title=None):
         y_grouped = [[z[np.logical_and.reduce((
             mask_I,
-            np.logical_not(np.isnan(z)),
+            ~np.isnan(z),
             x_pa > pa_lim[i],
             x_pa < pa_lim[i + 1],
             x_ld > ld_lim[j],
@@ -228,6 +235,8 @@ def _plot_lightchange_metrics(mask_I, pa_step, ld_step, pa_lim, ld_lim, x_pa, x_
                                 for i in range(len(pa_lim) - 1)]
                                     for j in range(len(ld_lim) - 1)])
 
+        print(f"samples: {np.sum(samples)}")
+
         for f, zz, zl in ((fig, medians, zlabel), (fig2, samples, 'samples')):
             zstep = np.kron(zz, np.ones((2, 2)))
             scalarMap = plt.cm.ScalarMappable(norm=Normalize(vmin=np.nanmin(zz), vmax=np.nanmax(zz)),
@@ -235,8 +244,7 @@ def _plot_lightchange_metrics(mask_I, pa_step, ld_step, pa_lim, ld_lim, x_pa, x_
 
             ax = f.add_subplot(2, 2, ax_i, projection='3d')
             ax.plot_surface(pa_step, ld_step, zstep, facecolors=scalarMap.to_rgba(zstep), antialiased=True)
-            #ax.view_init(30, -60)
-            ax.view_init(50, 35)
+            ax.view_init(50, 20)  # was 50, 35
             ax.set_xlabel(r"$|\alpha|$")  # phase angle
             ax.set_ylabel(r"$|\beta|$")   # lighting direction
             if title:
@@ -288,8 +296,8 @@ def print_stats(easy_I, mscore, mma, locerr, mAP, disterr, laterr, orierr, ds_na
                    100 * np.sum(np.logical_and(hard_I, fails)) / orierr_n[1][1])
 
     with np.errstate(invalid='ignore'):
-        orierr_qtls = (np.quantile(orierr[np.logical_and(easy_I, nn)], (0.5, 0.841)),
-                       np.quantile(orierr[np.logical_and(hard_I, nn)], (0.5, 0.841)))
+        orierr_qtls = (np.quantile(orierr[np.logical_and(easy_I, nn)], (0.5, 0.85)),
+                       np.quantile(orierr[np.logical_and(hard_I, nn)], (0.5, 0.85)))
 
     # print(f'dataset\tsubset\tsamples\tmscore [%]\tmma\tmap\tlocerr\terr_rate [%]\torierr_q50 [deg]\torierr_q84.1 [deg]')
     for i, subset in enumerate(('easy', 'hard')):
