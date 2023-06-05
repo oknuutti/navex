@@ -96,7 +96,7 @@ def main():
     eval = ImagePairEvaluator(ext, pose_est, args.success_px_limit, args.mutual, args.ratio,
                               est_gt_pose=args.est_gt_pose, scale_restricted_matching=args.sc_lim_match)
 
-    if 'batvik' in args.dataset:
+    if args.dataset and 'batvik' in args.dataset:
         datasets = {'batvik': BatvikPairDataset}
     else:
         datasets = {'eros': ErosPairDataset, '67p': CG67pOsinacPairDataset, 'ito': ItokawaPairDataset,
