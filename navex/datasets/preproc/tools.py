@@ -22,6 +22,7 @@ try:
     import numba as nb
 except ImportError:
     nb = None
+nb = None
 
 from navex.datasets import tools
 from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
@@ -660,7 +661,9 @@ def match_template(img0, img1, I0, P0_1, cam1, margin_px=60, skip=1, depthmap=Fa
     return tr_vect, quaternion.one, None
 
 
-def maybe_decorate(dec, condition):
+def maybe_decorate(dec_str, condition):
+    dec = eval(dec_str)
+
     def decorator(func):
         if not condition:
             # Return the function unchanged, not decorated.
@@ -669,7 +672,7 @@ def maybe_decorate(dec, condition):
     return decorator
 
 
-@maybe_decorate(nb.njit(nogil=True, parallel=False, cache=False), nb is not None)
+@maybe_decorate('nb.njit(nogil=True, parallel=False, cache=False)', nb is not None)
 def template_match_nb(templ, img, scores, max_err):
     th, tw = templ.shape[:2]
     for i in range(scores.shape[0]):
