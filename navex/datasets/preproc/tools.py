@@ -17,7 +17,11 @@ import matplotlib.pyplot as plt
 import cv2
 from scipy.cluster.vq import kmeans
 from tqdm import tqdm
-import numba as nb
+
+try:
+    import numba as nb
+except ImportError:
+    nb = None
 
 from navex.datasets import tools
 from ..tools import unit_aflow, save_aflow, load_aflow, show_pair, ImageDB, find_files, ypr_to_q, \
@@ -656,7 +660,16 @@ def match_template(img0, img1, I0, P0_1, cam1, margin_px=60, skip=1, depthmap=Fa
     return tr_vect, quaternion.one, None
 
 
-@nb.njit(nogil=True, parallel=False, cache=False)
+def maybe_decorate(dec, condition):
+    def decorator(func):
+        if not condition:
+            # Return the function unchanged, not decorated.
+            return func
+        return dec(func)
+    return decorator
+
+
+@maybe_decorate(nb.njit(nogil=True, parallel=False, cache=False), nb is not None)
 def template_match_nb(templ, img, scores, max_err):
     th, tw = templ.shape[:2]
     for i in range(scores.shape[0]):
