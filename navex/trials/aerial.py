@@ -1,12 +1,12 @@
 import math
 
-from .terrestrial import TerrestrialTrial
+from .base import TrialBase
 from ..datasets.aerial.batvik import BatvikSynthPairDataset, BatvikPairDataset
 from ..datasets.aerial.gearth import GoogleEarthPairDataset
 from ..datasets.base import AugmentedConcatDataset, RedundantlySampledDataset
 
 
-class AerialTrial(TerrestrialTrial):
+class AerialTrial(TrialBase):
     NAME = 'aer'
 
     def _get_datasets(self, rgb=False):

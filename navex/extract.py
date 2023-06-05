@@ -240,6 +240,9 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
     n = np.floor(np.log(max_sc) / np.log(scale_f))      # so that get one set of features at scale 1.0
     sc = min(max_sc, scale_f ** n)  # current scale factor
 
+    if sc + 0.001 < max(min_scale, min_size / max(h0, w0)) and max_size >= min_size and max_sc >= min_scale:
+        sc = max_sc
+
     XY, S, C, D = [], [], [], []
     while sc + 0.001 >= max(min_scale, min_size / max(h0, w0)):
         if sc - 0.001 <= min(max_scale, max_size / max(h0, w0)):

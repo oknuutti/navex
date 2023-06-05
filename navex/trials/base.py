@@ -1,4 +1,6 @@
+import os
 import abc
+import math
 from typing import Tuple
 
 import torch
@@ -12,6 +14,13 @@ from ..datasets.base import worker_init_fn
 from ..datasets.tools import unit_aflow
 from ..models import tools
 
+from ..losses.r2d2 import R2D2Loss
+from ..models.astropoint import AstroPoint
+from ..models.disk import DISK
+from ..models.hynet import HyNet
+from ..models.mobile_ap import MobileAP
+from ..models.r2d2 import R2D2
+
 
 def _bare(val):
     if isinstance(val, Tensor):
@@ -22,11 +31,47 @@ def _bare(val):
 class TrialBase(abc.ABC, torch.nn.Module):
     NAME = None  # override
 
-    def __init__(self, model, loss_fn, optimizer_conf, lr_scheduler=None, aux_cost_coef=0.5, acc_grad_batches=1,
-                 accuracy_params=None):
+    def __init__(self, model_conf, loss_conf, optimizer_conf, data_conf, batch_size, lr_scheduler=None,
+                 aux_cost_coef=0.5, acc_grad_batches=1, hparams=None, accuracy_params=None):
         super(TrialBase, self).__init__()
+
+        if isinstance(model_conf, dict):
+            arch = model_conf['arch'].split('-')
+            if len(arch) == 1:
+                arch = 'ap'
+            else:
+                model_conf['arch'] = arch[1]
+                arch = arch[0]
+
+            # False is always a bad idea, leads to polarized qlt output
+            model_conf['qlt_head']['single'] = True
+            for k in ('partial_residual',):     # unused, TODO: remove from definition.yaml
+                model_conf.pop(k)
+
+            if isinstance(loss_conf, dict) and loss_conf['loss_type'] in ('disk', 'disk-p'):
+                model_conf['qlt_head']['skip'] = True
+                model_conf['train_with_raw_act_fn'] = loss_conf['loss_type'] == 'disk'
+                if loss_conf['sampler']['max_neg_b'] < 0:
+                    loss_conf['sampler']['max_neg_b'] = round(4 * (batch_size / 8) * (loss_conf['det_n'] / 8) ** 2)
+
+            if arch == 'ap':
+                model = AstroPoint(**model_conf)
+            elif arch == 'r2d2':
+                model_conf['des_head']['dimensions'] = 128
+                model = R2D2(**model_conf)
+            elif arch == 'disk':
+                model = DISK(**model_conf)
+            elif arch == 'hynet':
+                model = HyNet(**model_conf)
+            elif arch == 'mob':
+                model = MobileAP(**model_conf)
+            else:
+                assert False, 'unknown main arch type "%s", valid ones are "ap" and "r2d2"' % arch
+        else:
+            model = model_conf
+
         self.model = model
-        self.loss_fn = loss_fn
+        self.loss_fn = R2D2Loss(**loss_conf) if isinstance(loss_conf, dict) else loss_conf
         self.lr_scheduler = lr_scheduler
         self.aux_cost_coef = aux_cost_coef
         self.acc_grad_batches = acc_grad_batches
@@ -50,6 +95,20 @@ class TrialBase(abc.ABC, torch.nn.Module):
             self.count_ops = False
         self.nparams = None
         self.macs = None
+
+        self.target_macs = 20e9 / 256**2     # TODO: set at e.g. loss_conf
+        self.data_conf = data_conf
+        self.workers = int(os.getenv('CPUS', data_conf['workers']))
+        self.batch_size = batch_size
+        self.hparams = hparams or {
+            'model': model_conf,
+            'loss': loss_conf,
+            'optimizer': optimizer_conf,
+            'data_conf': data_conf,
+            'batch_size': batch_size * acc_grad_batches,
+        }
+
+        self._tr_data, self._val_data, self._test_data = [None] * 3
 
     def update_conf(self, new_conf: dict, fail_silently: bool = False):
         for k, v in new_conf.items():
@@ -77,6 +136,11 @@ class TrialBase(abc.ABC, torch.nn.Module):
                     for k, v in value.items():
                         if k in pm:
                             pg[pm[k]] = v
+            else:
+                ok = False
+        elif p[0] == 'data':
+            if p[1] in self.data_conf:
+                self.data_conf[p[1]] = value
             else:
                 ok = False
         else:
@@ -215,24 +279,29 @@ class TrialBase(abc.ABC, torch.nn.Module):
         return tools.error_metrics(yx1, yx2, matches, mask, dist, aflow, (W2, H2), p['success_px_limit'],
                                    border=p['border'])
 
+    def on_train_batch_end(self, losses, accuracies, accumulating_grad: bool):
+        if hasattr(self.loss_fn, 'batch_end_update') and not accumulating_grad:
+            num_val = torch.nansum(torch.logical_not(torch.isnan(accuracies)), dim=0)
+            accs = torch.Tensor([float('nan')] * num_val.numel()).to(accuracies.device)
+            if torch.sum(num_val > 0) > 0:
+                accs[num_val > 0] = torch.nansum(accuracies[:, num_val > 0], dim=0) / num_val[num_val > 0]
+            self.loss_fn.batch_end_update(accs)
+
     def log_values(self):
-        """
-        override to return parameters to be logged during training, validation and testing
-        :return: dict with param:value pairs to be logged
-        """
-        return None
+        log = {}
+        funs = {'n': lambda x: x, 'e': lambda x: torch.exp(-x)}
+        for p, f in (('wdt', 'e'), ('wap', 'e'), ('wqt', 'e'), ('base', 'n'), ('ap_base', 'n'), ('wpk', 'n')):
+            val = getattr(self.loss_fn, p, None)
+            if isinstance(val, torch.Tensor):
+                log[p] = funs[f](val)
+        return log or None
 
-    @abc.abstractmethod
-    def build_training_data_loader(self, rgb=False):
-        raise NotImplemented()
-
-    @abc.abstractmethod
-    def build_validation_data_loader(self, rgb=False):
-        raise NotImplemented()
-
-    @abc.abstractmethod
-    def build_test_data_loader(self, rgb=False):
-        raise NotImplemented()
+    def resource_loss(self, loss):
+        # use self.macs and self.target_macs, something like this: loss * some_good_fn(self.macs, self.target_macs)
+        if self.target_macs is not None and self.macs is not None:
+            return loss + 2 * math.log(max(1, self.macs / self.target_macs))
+        else:
+            return loss
 
     def wrap_ds(self, dataset, shuffle=False):
         generator = None
@@ -243,6 +312,19 @@ class TrialBase(abc.ABC, torch.nn.Module):
         dl = DataLoader(dataset, batch_size=self.batch_size, num_workers=self.workers,
                         shuffle=shuffle, generator=generator, pin_memory=True, worker_init_fn=worker_init_fn)
         return dl
+
+    def build_training_data_loader(self, rgb=False):
+        return self._get_datasets(rgb)[0]
+
+    def build_validation_data_loader(self, rgb=False):
+        return self._get_datasets(rgb)[1]
+
+    def build_test_data_loader(self, rgb=False):
+        return self._get_datasets(rgb)[2]
+
+    @abc.abstractmethod
+    def _get_datasets(self, rgb):
+        raise NotImplementedError()
 
 
 class StudentTrialMixin:

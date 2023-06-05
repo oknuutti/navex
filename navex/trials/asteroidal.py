@@ -1,6 +1,6 @@
 import math
 
-from .terrestrial import TerrestrialTrial
+from .base import TrialBase
 from ..datasets.asteroidal.eros import ErosPairDataset
 from ..datasets.asteroidal.synth import SynthBennuPairDataset
 from ..datasets.asteroidal.bennu import BennuSynthPairDataset
@@ -9,7 +9,7 @@ from ..datasets.asteroidal.itokawa import ItokawaPairDataset
 from ..datasets.base import split_tiered_data
 
 
-class AsteroidalTrial(TerrestrialTrial):
+class AsteroidalTrial(TrialBase):
     NAME = 'ast'
 
     def _get_datasets(self, rgb=False):
