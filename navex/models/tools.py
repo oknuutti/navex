@@ -24,16 +24,18 @@ def calc_padding(tensor, div):
 
 
 def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt_lim=0.02,
-                      border=16, kernel_size=3, mode='nms', interp='bicubic'):
+                      border=16, kernel_size=3, mode='nms', interp='bilinear', use_grid_sample=True):
     B, D, Hs, Ws = des.shape
     _, _, Ht, Wt = det.shape
     _, _, Hq, Wq = qlt.shape
 
+    des_shape_mismatch = (Hs, Ws) != (Ht, Wt)
+
     # interpolate if different scale heads
-    if (Hs, Ws) != (Ht, Wt):
-        des = F.interpolate(des, (Ht, Wt), mode=interp, align_corners=False)
+    if des_shape_mismatch and not use_grid_sample:
+        des = F.interpolate(des, (Ht, Wt), mode=interp, align_corners=True)
     if (Hq, Wq) != (Ht, Wt):
-        qlt = F.interpolate(qlt, (Ht, Wt), mode=interp, align_corners=False)
+        qlt = F.interpolate(qlt, (Ht, Wt), mode=interp, align_corners=True)
 
     # filter to remove high freq, likely spurious detections
     det = F.avg_pool2d(det, kernel_size=3, stride=1, padding=1)
@@ -98,7 +100,13 @@ def detect_from_dense(des, det, qlt, top_k=None, feat_d=0.001, det_lim=0.02, qlt
         yx[b, 0, 0:k] = idxs[0]
         yx[b, 1, 0:k] = idxs[1]
         scores[b, 0, 0:k] = sc[:k]
-        descr[b, :, 0:k] = des[b, :, idxs[0], idxs[1]]
+
+        if des_shape_mismatch and use_grid_sample:
+            I = torch.stack([2 * idxs[1][None, None, :].float() / Wt - 1,
+                             2 * idxs[0][None, None, :].float() / Ht - 1], dim=-1)
+            descr[b:b+1, :, 0:k] = F.grid_sample(des[b:b+1, :, :, :], I, align_corners=True, mode=interp).squeeze(2)
+        else:
+            descr[b:b+1, :, 0:k] = des[b:b+1, :, idxs[0], idxs[1]]
 
     return yx, scores, descr
 

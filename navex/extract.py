@@ -268,6 +268,9 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
                     des, det, qlt = model(img)
             else:
                 # is onnx model
+                if tuple(model.get_inputs()[0].shape) != tuple(img.shape):
+                    print("Warning: input shape mismatch: {} vs {}, skipping image".format(model.get_inputs()[0].shape, img.shape))
+                    return np.empty((0, 3)), np.empty((0, 128)), np.empty((0,))
                 des, det, qlt = model.run(None, {'input': img.cpu().numpy()})
                 des, det, qlt = torch.from_numpy(des), torch.from_numpy(det), torch.from_numpy(qlt)
 
