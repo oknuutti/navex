@@ -662,12 +662,11 @@ def match_template(img0, img1, I0, P0_1, cam1, margin_px=60, skip=1, depthmap=Fa
 
 
 def maybe_decorate(dec_str, condition):
-    dec = eval(dec_str)
-
     def decorator(func):
         if not condition:
             # Return the function unchanged, not decorated.
             return func
+        dec = eval(dec_str)
         return dec(func)
     return decorator
 
