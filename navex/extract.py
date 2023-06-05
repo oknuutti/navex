@@ -124,9 +124,14 @@ class Extractor:
         self.device = "cuda:0" if gpu else "cpu"
 
         if model not in self.TRADITIONAL:
-            self.model = load_model(model, self.device)
-            self.rgb = is_rgb_model(self.model)
-            self.model.eval()
+            if model.endswith('.onnx'):
+                import onnxruntime as ort
+                self.model = ort.InferenceSession(model)
+                self.rgb = '.rgb.' in model
+            else:
+                self.model = load_model(model, self.device)
+                self.rgb = is_rgb_model(self.model)
+                self.model.eval()
         else:
             self.model = model
             self.rgb = True
@@ -173,12 +178,13 @@ class Extractor:
             elif not self.rgb and image.shape[1] == 3:
                 image = image[:, 0:1, :, :]
 
-            if force_cpu:
-                image = image.cpu()
-                self.model.cpu()
-            else:
-                image = image.to(self.device)
-                self.model.to(self.device)
+            if isinstance(self.model, torch.nn.Module):
+                if force_cpu:
+                    image = image.cpu()
+                    self.model.cpu()
+                else:
+                    image = image.to(self.device)
+                    self.model.to(self.device)
 
             # extract keypoints/descriptors for a single image
             xys, desc, scores = extract_multiscale(self.model, image,
@@ -257,8 +263,13 @@ def extract_multiscale(model, img0, scale_f=2 ** 0.25, min_scale=0.0, max_scale=
             sc = w / w0
 
             # extract descriptors
-            with torch.no_grad():
-                des, det, qlt = model(img)
+            if isinstance(model, torch.nn.Module):
+                with torch.no_grad():
+                    des, det, qlt = model(img)
+            else:
+                # is onnx model
+                des, det, qlt = model.run(None, {'input': img.cpu().numpy()})
+                des, det, qlt = torch.from_numpy(des), torch.from_numpy(det), torch.from_numpy(qlt)
 
             _, _, H1, W1 = det.shape
             yx, conf, descr = tools.detect_from_dense(des, det, qlt, top_k=top_k, feat_d=feat_d,
