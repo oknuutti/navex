@@ -155,6 +155,7 @@ class InvertedPartialResidual(InvertedResidual):
         return result
 
 
+# TODO: rename this class to LAFE and this file to lafe.py, will likely cause problems with previously trained models
 class MobileAP(BasePoint):
     def __init__(self, arch, des_head, det_head, qlt_head, in_channels=1, partial_residual=False,
                  width_mult=1.0, pretrained=False, cache_dir=None):

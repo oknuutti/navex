@@ -11,7 +11,6 @@ setup(
 
     # Declare your packages' dependencies here, for eg:
     install_requires=['tqdm', 'pillow', 'numpy', 'scipy', 'matplotlib',  # from conda regular channel
-                      'r2d2 @ git+https://github.com/oknuutti/r2d2',
                       # 'pytorch-lightning' from conda-forge
                       # 'pytorch', 'torchvision', 'cudatoolkit',  # from conda pytorch channel, don't seem to work with pip
                       ],
@@ -19,7 +18,7 @@ setup(
     author='Olli Knuuttila',
     author_email='olli.knuuttila@gmail.com',
 
-    description='CNN-based feature extractor for visual navigation and SLAM near asteroids',
+    description='CNN-based local feature extractors for Solar System small body imagery',
     url='https://github.com/oknuutti/navex',
     license='MIT',
 )

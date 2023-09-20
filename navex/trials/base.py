@@ -15,7 +15,6 @@ from ..datasets.tools import unit_aflow
 from ..models import tools
 
 from ..losses.r2d2 import R2D2Loss
-from ..models.astropoint import AstroPoint
 from ..models.disk import DISK
 from ..models.hynet import HyNet
 from ..models.mobile_ap import MobileAP
@@ -54,9 +53,7 @@ class TrialBase(abc.ABC, torch.nn.Module):
                 if loss_conf['sampler']['max_neg_b'] < 0:
                     loss_conf['sampler']['max_neg_b'] = round(4 * (batch_size / 8) * (loss_conf['det_n'] / 8) ** 2)
 
-            if arch == 'ap':
-                model = AstroPoint(**model_conf)
-            elif arch == 'r2d2':
+            if arch == 'r2d2':
                 model_conf['des_head']['dimensions'] = 128
                 model = R2D2(**model_conf)
             elif arch == 'disk':

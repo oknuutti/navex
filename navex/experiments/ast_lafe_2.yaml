@@ -73,7 +73,7 @@ model:
     act_fn_type: 'R2D2'
 
 loss:
-  teacher: 'data/models/ast_hafe_lr2d2_242.ckpt'
+  teacher: 'models/extractor-hafe-r2d2.ckpt'
   des_loss: 'L1'    # L1, MSE, L2, SmoothL1
   des_w: -30.0     # weight for descriptor head loss
   det_w: -1.5      # weight for detector head loss

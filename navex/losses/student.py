@@ -68,9 +68,9 @@ class StudentLoss(BaseLoss):
             if upsample:
                 # upsample to higher resolution, uses a lot of memory though
                 if h1 * w1 < h2 * w2:
-                    out = F.interpolate(out, size=(h2, w2), mode='bilinear', align_corners=False)
+                    out = F.interpolate(out, size=(h2, w2), mode='bilinear', align_corners=True)
                 elif h1 * w1 > h2 * w2:
-                    lbl = F.interpolate(lbl, size=(h1, w1), mode='bilinear', align_corners=False)
+                    lbl = F.interpolate(lbl, size=(h1, w1), mode='bilinear', align_corners=True)
             else:
                 # downsample to lower resolution, some trade off from better efficiency?
                 if h1 * w1 < h2 * w2:

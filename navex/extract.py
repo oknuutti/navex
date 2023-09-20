@@ -15,9 +15,21 @@ from navex.visualizations.misc import img2tensor
 
 
 # example:
-#    python navex/extract.py --images data/hpatches/image_list_hpatches_sequences.txt \
+#    python -m navex.extract --images data/hpatches/image_list_hpatches_sequences.txt \
 #                            --model output/tune_s4c_44.ckpt \
 #                            --tag ap4c --top-k 2000
+#
+# using ONNX, first convert the model to ONNX format,
+#    at console:
+#       from navex.dataset.tools import load_model
+#       path="output/final_tune_results/ast_lafe_v3_38.ckpt"
+#       model = load_model(path, 'cpu')
+#       torch.onnx.export(model, torch.randn(1, 1, 512, 512), path[:-5] + ".512x512.onnx",
+#                         input_names=['input'], output_names=['des', 'det', 'qlt'])
+#    then run:
+#       python -m navex.extract --images data/itokawa --recurse=0 --tag=lafe --gpu=0 --max-scale=3.0 \
+#                               --min-size=512 --max-size=512 --qlt-lim=0.5 --det-lim=0.5 \
+#                               --model=output/final_tune_results/ast_lafe_v3_38.512x512.onnx
 
 
 def main():
@@ -88,6 +100,9 @@ class SingleImageExtractor:
                         raise e
                     print('trying with CPU...')
                     force_cpu = True
+            if i == 0:
+                import time
+                time.sleep(20)
 
             if self.save_ext is None:
                 keypoint_arr.append(xys)
