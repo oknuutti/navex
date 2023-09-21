@@ -5,16 +5,16 @@ navigation purposes in the vicinity of Solar System small bodies. In addition, t
 hyperparameter optimization and fetching and preprocessing image data from original sources. Images from several
 missions are supported, including Rosetta, OSIRIS-REx, Hayabusa, and NEAR Shoemaker.
 
-The work is described in detail in the following [article](https://dx.doi.org/10.48550/arXiv.2309.xxxxx):
+The work is described in detail in the following [article](https://dx.doi.org/10.48550/arXiv.2309.11156):
 ```
 @article{
     title={{CNN}-based local features for navigation near an asteroid},
     author={Knuuttila, Olli and Kestil{\"a}, Antti and Kallio, Esa},
     journal={arXiv preprint},
-    year={2023}
+    year={2023},
+    doi={10.48550/arXiv.2309.11156}
 }
 ```
-<!--  TODO: put correct doi above;  doi={10.48550/arXiv.2309.xxxxx} -->
 
 Related data and fully trained feature extractors can be found in Zenodo: https://dx.doi.org/10.5281/zenodo.8319117.
 
